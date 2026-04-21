@@ -1,0 +1,106 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth-service
+    url: http://auth-service:8000
+    routes:
+      - name: auth-route
+        paths:
+          - /api/auth
+  - name: search-service
+    url: http://search-service:8000
+    routes:
+      - name: search-route
+        paths:
+          - /api/search
+  - name: inventory-service
+    url: http://inventory-service:8000
+    routes:
+      - name: inventory-route
+        paths:
+          - /api/inventory
+  - name: booking-service
+    url: http://booking-service:8000
+    routes:
+      - name: booking-route
+        paths:
+          - /api/bookings
+  - name: payment-service
+    url: http://payment-service:8000
+    routes:
+      - name: payment-route
+        paths:
+          - /api/payments
+  - name: ticket-service
+    url: http://ticket-service:8000
+    routes:
+      - name: ticket-route
+        paths:
+          - /api/tickets
+  - name: cancellation-service
+    url: http://cancellation-service:8000
+    routes:
+      - name: cancellation-route
+        paths:
+          - /api/cancellations
+  - name: operator-service
+    url: http://operator-service:8000
+    routes:
+      - name: operator-route
+        paths:
+          - /api/operators
+  - name: deals-service
+    url: http://deals-service:8000
+    routes:
+      - name: deals-route
+        paths:
+          - /api/deals
+  - name: admin-service
+    url: http://admin-service:8000
+    routes:
+      - name: admin-route
+        paths:
+          - /api/admin
+  - name: audit-service
+    url: http://audit-service:8000
+    routes:
+      - name: audit-route
+        paths:
+          - /api/audit
+
+plugins:
+  - name: cors
+    config:
+      origins:
+        - http://localhost:5173
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+      credentials: true
+  - name: rate-limiting
+    config:
+      minute: 100
+      policy: local
+  - name: request-transformer
+    config:
+      add:
+        headers:
+          - X-Service-Name:kong
+
+# Note: In a real production setup, jwt plugin would be attached here properly.
+# Ex:
+#  - name: jwt
+#    route: search-route

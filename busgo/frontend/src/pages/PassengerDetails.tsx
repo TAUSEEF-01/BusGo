@@ -1,0 +1,1 @@
+export function PassengerDetails() { return <div className="p-8">Passenger Details</div>; }

@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy[asyncio]
+asyncpg
+pydantic
+pydantic-settings
+python-dotenv
+alembic
+aiokafka
+python-jose[cryptography]
+redis
+aiokafka
+httpx
+python-jose[cryptography]

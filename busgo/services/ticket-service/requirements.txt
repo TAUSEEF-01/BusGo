@@ -1,0 +1,12 @@
+fastapi
+sqlalchemy
+asyncpg
+redis
+aiokafka
+httpx
+python-jose[cryptography]
+pydantic_settings
+reportlab
+qrcode[pil]
+boto3
+aioboto3

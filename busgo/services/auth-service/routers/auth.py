@@ -1,0 +1,161 @@
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from datetime import datetime, timedelta, timezone
+import uuid
+import secrets
+
+from database import get_db
+from models.user import User, RefreshToken, OTPRecord
+from schemas.auth import (
+    RegisterRequest, VerifyOTPRequest, LoginRequest, 
+    RefreshRequest, SendOTPRequest, GoogleLoginRequest, 
+    TokenResponse, UserResponse
+)
+from core.security import get_password_hash, verify_password, create_access_token
+from core.config import settings
+from services.otp import OTPService
+from api.deps import get_current_user
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.base_response import BaseResponse
+from shared.kafka_producer import KafkaProducerClient
+
+router = APIRouter(prefix="/auth", tags=["auth"])
+
+async def create_refresh_token(db: AsyncSession, user_id: uuid.UUID) -> str:
+    token = secrets.token_urlsafe(64)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    db_token = RefreshToken(user_id=user_id, token=token, expires_at=expires_at)
+    db.add(db_token)
+    await db.commit()
+    return token
+
+@router.post("/register")
+async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.phone == req.phone))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="Phone already registered")
+        
+    user = User(
+        phone=req.phone,
+        email=req.email,
+        full_name=req.full_name,
+        password_hash=get_password_hash(req.password)
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+
+    otp = OTPService.generate_otp()
+    await OTPService.store_otp(user.phone, otp)
+    OTPService.send_sms(user.phone, otp)
+
+    try:
+        await KafkaProducerClient.publish("audit.log", {
+            "event": "user.registered",
+            "user_id": str(user.id),
+            "phone": user.phone,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        print(f"Failed to publish to Kafka: {e}")
+
+    return {"success": True, "message": "User registered. OTP sent."}
+
+@router.post("/verify-otp")
+async def verify_otp(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
+    is_valid = await OTPService.verify_otp(req.phone, req.otp_code)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    result = await db.execute(select(User).where(User.phone == req.phone))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_verified = True
+    await db.commit()
+
+    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    refresh_token = await create_refresh_token(db, user.id)
+
+    return {
+        "success": True,
+        "data": {"access_token": access_token, "refresh_token": refresh_token, "user": UserResponse.model_validate(user)},
+        "message": "OTP verified successfully"
+    }
+
+@router.post("/login")
+async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.phone == req.phone))
+    user = result.scalars().first()
+    
+    if not user or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+        
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Phone not verified")
+
+    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    refresh_token = await create_refresh_token(db, user.id)
+
+    return {
+        "success": True,
+        "data": {"access_token": access_token, "refresh_token": refresh_token, "user": UserResponse.model_validate(user)},
+        "message": "Login successful"
+    }
+
+@router.post("/refresh")
+async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == req.refresh_token, RefreshToken.is_revoked == False))
+    db_token = result.scalars().first()
+    
+    if not db_token or db_token.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    db_token.is_revoked = True
+    
+    user_result = await db.execute(select(User).where(User.id == db_token.user_id))
+    user = user_result.scalars().first()
+    
+    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    new_refresh_token = await create_refresh_token(db, user.id)
+    
+    await db.commit()
+
+    return {
+        "success": True,
+        "data": {"access_token": access_token, "refresh_token": new_refresh_token}
+    }
+
+@router.post("/logout")
+async def logout(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token == req.refresh_token))
+    db_token = result.scalars().first()
+    if db_token:
+        db_token.is_revoked = True
+        await db.commit()
+    return {"success": True, "message": "Logged out successfully"}
+
+@router.get("/me")
+async def get_me(current_user: User = Depends(get_current_user)):
+    return {"success": True, "data": UserResponse.model_validate(current_user)}
+
+@router.post("/send-otp")
+async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.phone == req.phone))
+    if not result.scalars().first():
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    otp = OTPService.generate_otp()
+    await OTPService.store_otp(req.phone, otp)
+    OTPService.send_sms(req.phone, otp)
+    
+    return {"success": True, "message": "OTP sent successfully"}
+
+@router.post("/google-login")
+async def google_login(req: GoogleLoginRequest):
+    raise HTTPException(status_code=501, detail="Google login not fully implemented yet")
