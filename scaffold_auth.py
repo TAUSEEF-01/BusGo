@@ -12,7 +12,8 @@ with open(f"{base_dir}/requirements.txt", "a") as f:
     f.write("passlib[bcrypt]\nredis\n")
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -24,10 +25,12 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/core/security.py", "w") as f:
-    f.write('''from datetime import datetime, timedelta, timezone
+    f.write(
+        """from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import jwt
 from passlib.context import CryptContext
@@ -50,15 +53,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/user.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 import sys
 import os
 from datetime import datetime, timezone
@@ -99,10 +106,12 @@ class RefreshToken(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
     is_revoked = Column(Boolean, default=False)
     user = relationship("User")
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/auth.py", "w") as f:
-    f.write('''from pydantic import BaseModel, EmailStr
+    f.write(
+        """from pydantic import BaseModel, EmailStr
 from typing import Optional
 from uuid import UUID
 
@@ -145,10 +154,12 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     user: UserResponse
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/otp.py", "w") as f:
-    f.write('''import random
+    f.write(
+        """import random
 import redis.asyncio as aioredis
 from core.config import settings
 
@@ -176,10 +187,12 @@ class OTPService:
     def send_sms(phone: str, otp: str):
         # Mock SMS send
         print(f"[MOCK SMS] Sending OTP {otp} to {phone}")
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status
+    f.write(
+        """from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -222,10 +235,12 @@ def require_role(required_role: UserRole):
             raise HTTPException(status_code=403, detail="Operation not permitted")
         return current_user
     return role_checker
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/auth.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, status
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime, timedelta, timezone
@@ -386,10 +401,12 @@ async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/google-login")
 async def google_login(req: GoogleLoginRequest):
     raise HTTPException(status_code=501, detail="Google login not fully implemented yet")
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.auth import router as auth_router
 from models.base import Base
@@ -415,6 +432,7 @@ async def startup():
 @app.get("/")
 async def root():
     return {"message": "Auth service is running"}
-''')
+"""
+    )
 
 print("Auth Scaffold Done")

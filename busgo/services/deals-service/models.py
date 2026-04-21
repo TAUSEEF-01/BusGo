@@ -5,9 +5,11 @@ import uuid
 import enum
 from database import Base
 
+
 class DiscountType(str, enum.Enum):
     PERCENTAGE = "PERCENTAGE"
     FLAT = "FLAT"
+
 
 class PromoCode(Base):
     __tablename__ = "promo_codes"
@@ -24,6 +26,7 @@ class PromoCode(Base):
     current_uses = Column(Integer, default=0)
     applicable_operators = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
+
 
 class FlashSale(Base):
     __tablename__ = "flash_sales"

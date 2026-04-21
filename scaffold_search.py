@@ -11,7 +11,8 @@ with open(f"{base_dir}/requirements.txt", "a") as f:
     f.write("redis\nelasticsearch[async]\naiokafka\nhttpx\ntenacity\n")
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -21,10 +22,12 @@ class Settings(BaseSettings):
     INVENTORY_SERVICE_URL: str = os.getenv("INVENTORY_SERVICE_URL", "http://inventory-service:8000")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel
+    f.write(
+        """from pydantic import BaseModel
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 from uuid import UUID
@@ -58,10 +61,12 @@ class SearchResult(BaseModel):
     fare_amount: float
     available_seats: int
     matched_amenities: List[str] = []
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/es_svc.py", "w") as f:
-    f.write('''from elasticsearch import AsyncElasticsearch
+    f.write(
+        """from elasticsearch import AsyncElasticsearch
 from core.config import settings
 
 es_client = AsyncElasticsearch(settings.ELASTICSEARCH_URL)
@@ -125,10 +130,12 @@ class ESService:
         origins = [b['key'] for b in res['aggregations']['origins']['buckets']]
         destinations = [b['key'] for b in res['aggregations']['destinations']['buckets']]
         return list(set(origins + destinations))
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/redis_svc.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import redis.asyncio as aioredis
 from core.config import settings
 
@@ -143,10 +150,12 @@ class RedisSearchService:
     @staticmethod
     async def set(key: str, value: dict, ttl: int):
         await redis_client.setex(key, ttl, json.dumps(value))
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/inventory_client.py", "w") as f:
-    f.write('''import httpx
+    f.write(
+        """import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
 from core.config import settings
 
@@ -168,10 +177,12 @@ class InventoryClient:
         except Exception as e:
             print(f"Inventory call failed after retries: {e}")
             return None, False
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/kafka_consumer.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import asyncio
 from aiokafka import AIOKafkaConsumer
 from core.config import settings
@@ -211,10 +222,12 @@ class SearchKafkaConsumer:
         elif topic == "trip.cancelled":
             await ESService.update_trip(trip_id, {"status": "CANCELLED"})
         print(f"Processed {topic} for trip {trip_id} into ES")
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/search.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Query, Response
+    f.write(
+        """from fastapi import APIRouter, Query, Response
 from typing import Optional, List
 from schemas.schemas import SearchResult
 from services.es_svc import ESService
@@ -325,10 +338,12 @@ async def get_trip_details(trip_id: str, response: Response):
         
     trip["available_seats"] = count
     return BaseResponse(success=True, data=trip)
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.search import router as search_router
 from services.es_svc import ESService
@@ -364,6 +379,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"message": "Search service is running"}
-''')
+"""
+    )
 
 print("Search Scaffold Done")

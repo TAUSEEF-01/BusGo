@@ -5,9 +5,11 @@ import uuid
 import enum
 from database import Base
 
+
 class TicketStatus(str, enum.Enum):
     OPEN = "OPEN"
     RESOLVED = "RESOLVED"
+
 
 class SupportTicket(Base):
     __tablename__ = "support_tickets"

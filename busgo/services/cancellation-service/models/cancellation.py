@@ -5,10 +5,12 @@ import uuid
 import enum
 from database import Base
 
+
 class CancellationStatus(str, enum.Enum):
     PENDING = "PENDING"
     APPROVED = "APPROVED"
     REJECTED = "REJECTED"
+
 
 class CancellationRequest(Base):
     __tablename__ = "cancellation_requests"

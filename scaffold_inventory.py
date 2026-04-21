@@ -12,7 +12,8 @@ with open(f"{base_dir}/requirements.txt", "a") as f:
     f.write("redis\naiokafka\n")
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -22,15 +23,19 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/models.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import Column, String, DateTime, Enum
@@ -58,10 +63,12 @@ class SeatInventory(Base):
     locked_by_booking_id = Column(UUID(as_uuid=True), nullable=True)
     lock_expires_at = Column(DateTime(timezone=True), nullable=True)
     booked_by_user_id = Column(UUID(as_uuid=True), nullable=True)
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel
+    f.write(
+        """from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -100,10 +107,12 @@ class ConfirmRequest(BaseModel):
 
 class InitializeRequest(BaseModel):
     seat_layout: List[Dict[str, Any]] # e.g. [{"number": "A1", "type": "WINDOW"}, ...]
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status
+    f.write(
+        """from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from core.config import settings
@@ -124,10 +133,12 @@ def get_current_user_payload(token: str = Depends(oauth2_scheme)):
         return payload
     except JWTError:
         raise credentials_exception
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/redis_svc.py", "w") as f:
-    f.write('''import redis.asyncio as aioredis
+    f.write(
+        """import redis.asyncio as aioredis
 from core.config import settings
 from typing import Optional
 
@@ -151,10 +162,12 @@ class RedisInventoryService:
     async def get_seat_lock(trip_id: str, seat_number: str) -> Optional[str]:
         key = f"seat_lock:{trip_id}:{seat_number}"
         return await redis_client.get(key)
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/inventory.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, status
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Dict
@@ -306,10 +319,12 @@ async def confirm_seats(trip_id: UUID, req: ConfirmRequest, db: AsyncSession = D
         
     await db.commit()
     return BaseResponse(success=True, message="Seats confirmed")
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/kafka_consumer.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import asyncio
 from aiokafka import AIOKafkaConsumer
 from core.config import settings
@@ -364,10 +379,12 @@ class InventoryKafkaConsumer:
 
             await db.commit()
             print(f"Processed {topic} for booking {booking_id}")
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI, Request
+    f.write(
+        """from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from routers.inventory import router as inventory_router
@@ -413,6 +430,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"message": "Inventory service is running"}
-''')
+"""
+    )
 
 print("Inventory Scaffold Done")

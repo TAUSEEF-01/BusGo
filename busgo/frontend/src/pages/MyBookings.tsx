@@ -1,1 +1,3 @@
-export function MyBookings() { return <div className="p-8">My Bookings</div>; }
+export function MyBookings() {
+  return <div className="p-8">My Bookings</div>;
+}

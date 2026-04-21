@@ -5,16 +5,19 @@ import uuid
 import enum
 from database import Base
 
+
 class NotificationChannel(str, enum.Enum):
     SMS = "SMS"
     EMAIL = "EMAIL"
     PUSH = "PUSH"
     WHATSAPP = "WHATSAPP"
 
+
 class NotificationStatus(str, enum.Enum):
     PENDING = "PENDING"
     SENT = "SENT"
     FAILED = "FAILED"
+
 
 class NotificationLog(Base):
     __tablename__ = "notification_logs"

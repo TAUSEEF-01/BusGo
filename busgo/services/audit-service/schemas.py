@@ -3,6 +3,7 @@ from uuid import UUID
 from datetime import datetime
 from typing import Optional, Any
 
+
 class AuditLogResponse(BaseModel):
     id: UUID
     event_type: str
@@ -13,6 +14,6 @@ class AuditLogResponse(BaseModel):
     payload: Any
     ip_address: Optional[str] = None
     created_at: datetime
-    
+
     class Config:
         orm_mode = True

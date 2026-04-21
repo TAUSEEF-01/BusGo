@@ -8,11 +8,15 @@ from datetime import datetime, timedelta
 
 # Mock Kafka publisher
 import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+sys.path.append(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 from shared.kafka_producer import publish_message
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def check_departure_reminders():
     logger.info("Running scheduled departure reminder check...")
@@ -27,24 +31,28 @@ def check_departure_reminders():
                 "template": "departure_reminder",
                 "data": {
                     "boarding_point": "Gabtoli",
-                    "time": (datetime.utcnow() + timedelta(hours=2)).isoformat()
-                }
+                    "time": (datetime.utcnow() + timedelta(hours=2)).isoformat(),
+                },
             }
         ]
-        
+
         for bk in mock_bookings:
             # Publish to notification.send
             logger.info(f"Publishing reminder for user {bk['user_id']}")
             publish_message("notification.send", bk)
-            
+
     except Exception as e:
         logger.error(f"Error checking departure reminders: {e}")
 
+
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(check_departure_reminders, 'interval', minutes=30)
+    scheduler.add_job(check_departure_reminders, "interval", minutes=30)
     scheduler.start()
-    logger.info("APScheduler for departure reminders started (running every 30 minutes).")
+    logger.info(
+        "APScheduler for departure reminders started (running every 30 minutes)."
+    )
+
 
 if __name__ == "__main__":
     start_scheduler()

@@ -9,10 +9,13 @@ os.makedirs(f"{base_dir}/services", exist_ok=True)
 os.makedirs(f"{base_dir}/routers", exist_ok=True)
 
 with open(f"{base_dir}/requirements.txt", "w") as f:
-    f.write("fastapi\nsqlalchemy\nasyncpg\nredis\naiokafka\nhttpx\npython-jose[cryptography]\npydantic_settings\nreportlab\nqrcode[pil]\nboto3\naioboto3\n")
+    f.write(
+        "fastapi\nsqlalchemy\nasyncpg\nredis\naiokafka\nhttpx\npython-jose[cryptography]\npydantic_settings\nreportlab\nqrcode[pil]\nboto3\naioboto3\n"
+    )
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -26,15 +29,19 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = os.getenv("S3_BUCKET_NAME", "tickets")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/models.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Enum, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -68,10 +75,12 @@ class Ticket(Base):
     __table_args__ = (
         Index('ix_tickets_qr_data', 'qr_code_data'),
     )
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel
+    f.write(
+        """from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
@@ -107,10 +116,12 @@ class ValidateQRResponse(BaseModel):
     passenger_details: Optional[Dict[str, Any]] = None
     seat_numbers: Optional[List[str]] = None
     trip_id: Optional[UUID] = None
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status, Request
+    f.write(
+        """from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from core.config import settings
@@ -143,10 +154,12 @@ def require_role(roles: list[str]):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return payload
     return role_checker
-''')
+"""
+    )
 
 with open(f"{base_dir}/database.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/ticket_db")
@@ -157,10 +170,12 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 async def get_db():
     async with async_session() as session:
         yield session
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/booking_client.py", "w") as f:
-    f.write('''import httpx
+    f.write(
+        """import httpx
 from core.config import settings
 from typing import Optional, Dict, Any
 
@@ -179,10 +194,12 @@ class BookingClient:
             except Exception as e:
                 print(f"Booking fetch error: {e}")
         return None
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/s3_service.py", "w") as f:
-    f.write('''import aioboto3
+    f.write(
+        """import aioboto3
 from core.config import settings
 
 class S3Service:
@@ -209,10 +226,12 @@ class S3Service:
             )
             
             return f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{key}"
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/qr_generator.py", "w") as f:
-    f.write('''import qrcode
+    f.write(
+        """import qrcode
 import io
 
 class QRGenerator:
@@ -231,10 +250,12 @@ class QRGenerator:
         byte_stream = io.BytesIO()
         img.save(byte_stream, format='PNG')
         return byte_stream.getvalue()
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/pdf_generator.py", "w") as f:
-    f.write('''import io
+    f.write(
+        """import io
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
@@ -277,10 +298,12 @@ class PDFGenerator:
         pdf_bytes = buffer.getvalue()
         buffer.close()
         return pdf_bytes
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/tickets.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -379,10 +402,12 @@ async def validate_qr(req: ValidateQRRequest, db: AsyncSession = Depends(get_db)
         seat_numbers=ticket.seat_numbers,
         trip_id=ticket.trip_id
     ))
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/kafka_consumer.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import asyncio
 import uuid
 import hmac
@@ -515,10 +540,12 @@ class TicketKafkaConsumer:
                 "ticket_id": str(ticket.id),
                 "booking_id": booking_id
             })
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.tickets import router as tickets_router
 from models.base import Base
@@ -551,6 +578,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"message": "Ticket service is running"}
-''')
+"""
+    )
 
 print("Ticket Scaffold Done")

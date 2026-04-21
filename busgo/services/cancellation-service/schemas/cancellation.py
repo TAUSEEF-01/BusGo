@@ -4,13 +4,16 @@ from uuid import UUID
 from datetime import datetime
 from models.cancellation import CancellationStatus
 
+
 class CancellationCreate(BaseModel):
     booking_id: UUID
     reason: str
 
+
 class OperatorCancellationCreate(BaseModel):
     trip_id: UUID
     reason: str
+
 
 class CancellationResponse(BaseModel):
     cancellation_id: UUID
@@ -19,6 +22,7 @@ class CancellationResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
 
 class CancellationDetail(BaseModel):
     id: UUID

@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 from database import Base
 
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

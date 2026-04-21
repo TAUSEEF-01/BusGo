@@ -12,7 +12,8 @@ with open(f"{base_dir}/requirements.txt", "a") as f:
     f.write("redis\naiokafka\nhttpx\napscheduler\npython-jose[cryptography]\n")
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -24,15 +25,19 @@ class Settings(BaseSettings):
     DEALS_SERVICE_URL: str = os.getenv("DEALS_SERVICE_URL", "http://deals-service:8000")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/models.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -83,10 +88,12 @@ class BookingStatusHistory(Base):
     reason = Column(String, nullable=True)
 
     booking = relationship("Booking", back_populates="history")
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel, Field
+    f.write(
+        """from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime, date, time
@@ -130,10 +137,12 @@ class BookingResponse(BaseModel):
 class BookingStatusChange(BaseModel):
     status: BookingStatus
     reason: Optional[str] = None
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status
+    f.write(
+        """from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from core.config import settings
@@ -154,10 +163,12 @@ def get_current_user_payload(token: str = Depends(oauth2_scheme)):
         return payload
     except JWTError:
         raise credentials_exception
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/redis_svc.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import redis.asyncio as aioredis
 from core.config import settings
 
@@ -173,10 +184,12 @@ class RedisIdempotencyService:
     async def set_idempotency(key: str, value: dict):
         # TTL 24 hours
         await redis_client.setex(f"idem:{key}", 86400, json.dumps(value))
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/external.py", "w") as f:
-    f.write('''import httpx
+    f.write(
+        """import httpx
 from core.config import settings
 
 class ExternalServices:
@@ -211,10 +224,12 @@ class ExternalServices:
             )
             res.raise_for_status()
             return res.json()
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/kafka_consumer.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import asyncio
 from aiokafka import AIOKafkaConsumer
 from sqlalchemy.future import select
@@ -292,10 +307,12 @@ class BookingKafkaConsumer:
                     await KafkaProducerClient.publish("audit.log", {
                         "event": "booking.expired", "booking_id": str(booking.id), "timestamp": datetime.now(timezone.utc).isoformat()
                     })
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/scheduler.py", "w") as f:
-    f.write('''from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    f.write(
+        """from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.future import select
 from datetime import datetime, timezone
 import sys
@@ -335,10 +352,12 @@ async def expire_stale_bookings():
         if bookings:
             await db.commit()
             print(f"Expired {len(bookings)} bookings")
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/bookings.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, Query
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -488,10 +507,12 @@ async def cancel_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), p
     await KafkaProducerClient.publish("booking.cancelled", {"booking_id": str(booking.id), "trip_id": str(booking.trip_id)})
 
     return BaseResponse(success=True, message="Booking cancelled successfully")
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.bookings import router as bookings_router
 from models.base import Base
@@ -531,6 +552,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"message": "Booking service is running"}
-''')
+"""
+    )
 
 print("Booking Scaffold Done")

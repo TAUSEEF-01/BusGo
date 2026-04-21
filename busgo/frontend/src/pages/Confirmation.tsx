@@ -1,1 +1,3 @@
-export function Confirmation() { return <div className="p-8">Confirmation</div>; }
+export function Confirmation() {
+  return <div className="p-8">Confirmation</div>;
+}

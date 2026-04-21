@@ -13,9 +13,11 @@ from models import AuditLog
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 def process_audit_log(event):
     db: Session = SessionLocal()
     try:
+
         def try_uuid(val):
             if val is None:
                 return None
@@ -33,7 +35,7 @@ def process_audit_log(event):
             user_id=try_uuid(event.get("user_id")),
             operator_id=try_uuid(event.get("operator_id")),
             payload=event.get("payload", event),
-            ip_address=event.get("ip_address")
+            ip_address=event.get("ip_address"),
         )
         db.add(log)
         db.commit()
@@ -44,13 +46,14 @@ def process_audit_log(event):
     finally:
         db.close()
 
+
 def start_consumer():
     try:
         consumer = KafkaConsumer(
-            'audit.log',
-            bootstrap_servers=[os.getenv("KAFKA_BROKER", 'kafka:9092')],
-            value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-            group_id='audit-group'
+            "audit.log",
+            bootstrap_servers=[os.getenv("KAFKA_BROKER", "kafka:9092")],
+            value_deserializer=lambda m: json.loads(m.decode("utf-8")),
+            group_id="audit-group",
         )
         logger.info("Kafka consumer for audit.log started.")
         for message in consumer:
@@ -59,9 +62,11 @@ def start_consumer():
     except Exception as e:
         logger.error(f"Error starting Kafka consumer: {e}")
 
+
 def run_consumer_bg():
     thread = threading.Thread(target=start_consumer, daemon=True)
     thread.start()
+
 
 if __name__ == "__main__":
     start_consumer()

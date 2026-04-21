@@ -12,7 +12,8 @@ with open(f"{base_dir}/requirements.txt", "a") as f:
     f.write("redis\naiokafka\nhttpx\npython-jose[cryptography]\n")
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -22,15 +23,19 @@ class Settings(BaseSettings):
     BOOKING_SERVICE_URL: str = os.getenv("BOOKING_SERVICE_URL", "http://booking-service:8000")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/models.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Integer
@@ -89,10 +94,12 @@ class Refund(Base):
     estimated_days = Column(Integer, nullable=False)
 
     payment = relationship("Payment", back_populates="refunds")
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel
+    f.write(
+        """from pydantic import BaseModel
 from typing import Optional, Dict, Any, List
 from uuid import UUID
 from datetime import datetime
@@ -148,10 +155,12 @@ class RefundResponse(BaseModel):
 
     class Config:
         from_attributes = True
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status, Request
+    f.write(
+        """from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from core.config import settings
@@ -175,10 +184,12 @@ def get_current_user_payload(request: Request, token: str = Depends(oauth2_schem
         return payload
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/booking_client.py", "w") as f:
-    f.write('''import httpx
+    f.write(
+        """import httpx
 from core.config import settings
 from typing import Optional, Dict, Any
 
@@ -201,10 +212,12 @@ class BookingClient:
             except Exception as e:
                 print(f"Booking fetch error: {e}")
         return None
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/gateway.py", "w") as f:
-    f.write('''import asyncio
+    f.write(
+        """import asyncio
 import uuid
 import sys
 import os
@@ -239,10 +252,12 @@ class MockGateway:
             "success": True,
             "refund_id": f"ref_{uuid.uuid4().hex[:10]}"
         }
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/payments.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, Request
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -409,10 +424,12 @@ async def process_refund(payment_id: UUID, req: RefundRequest, db: AsyncSession 
     await db.commit()
     
     return BaseResponse(success=gw_res["success"], data=RefundResponse.model_validate(refund))
-''')
+"""
+    )
 
 with open(f"{base_dir}/services/kafka_consumer.py", "w") as f:
-    f.write('''import json
+    f.write(
+        """import json
 import asyncio
 from aiokafka import AIOKafkaConsumer
 from sqlalchemy.future import select
@@ -492,10 +509,12 @@ class PaymentKafkaConsumer:
                         refund.status = RefundStatus.FAILED
                         
                     await db.commit()
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.payments import router as payments_router
 from models.base import Base
@@ -528,6 +547,7 @@ async def shutdown():
 @app.get("/")
 async def root():
     return {"message": "Payment service is running"}
-''')
+"""
+    )
 
 print("Payment Scaffold Done")

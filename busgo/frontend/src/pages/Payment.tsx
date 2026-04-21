@@ -1,1 +1,3 @@
-export function Payment() { return <div className="p-8">Payment</div>; }
+export function Payment() {
+  return <div className="p-8">Payment</div>;
+}

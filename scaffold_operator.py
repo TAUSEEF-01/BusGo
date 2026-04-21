@@ -9,7 +9,8 @@ os.makedirs(f"{base_dir}/services", exist_ok=True)
 os.makedirs(f"{base_dir}/routers", exist_ok=True)
 
 with open(f"{base_dir}/core/config.py", "w") as f:
-    f.write('''import os
+    f.write(
+        """import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -18,15 +19,19 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
 settings = Settings()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/base.py", "w") as f:
-    f.write('''from sqlalchemy.orm import declarative_base
+    f.write(
+        """from sqlalchemy.orm import declarative_base
 Base = declarative_base()
-''')
+"""
+    )
 
 with open(f"{base_dir}/models/models.py", "w") as f:
-    f.write('''import uuid
+    f.write(
+        """import uuid
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Float, Integer, Numeric, JSON
 from sqlalchemy.dialects.postgresql import UUID, JSONB
@@ -104,10 +109,12 @@ class Trip(Base):
     operator = relationship("Operator", back_populates="trips")
     bus = relationship("Bus", back_populates="trips")
     route = relationship("Route", back_populates="trips")
-''')
+"""
+    )
 
 with open(f"{base_dir}/schemas/schemas.py", "w") as f:
-    f.write('''from pydantic import BaseModel, Field
+    f.write(
+        """from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -213,10 +220,12 @@ class TripResponse(TripBase):
     created_at: datetime
     class Config:
         from_attributes = True
-''')
+"""
+    )
 
 with open(f"{base_dir}/api/deps.py", "w") as f:
-    f.write('''from fastapi import Depends, HTTPException, status
+    f.write(
+        """from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from core.config import settings
@@ -250,10 +259,12 @@ def require_role(required_role: UserRole):
             raise HTTPException(status_code=403, detail="Operation not permitted")
         return payload
     return role_checker
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/operators.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, Query
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -308,10 +319,12 @@ async def update_operator(id: UUID, req: OperatorUpdate, db: AsyncSession = Depe
     await db.commit()
     await db.refresh(operator)
     return BaseResponse(success=True, data=OperatorResponse.model_validate(operator), message="Operator updated")
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/buses_routes.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, Query
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
@@ -406,10 +419,12 @@ async def list_all_routes(
     result = await db.execute(query)
     routes = result.scalars().all()
     return BaseResponse(success=True, data=[RouteResponse.model_validate(r) for r in routes])
-''')
+"""
+    )
 
 with open(f"{base_dir}/routers/trips.py", "w") as f:
-    f.write('''from fastapi import APIRouter, Depends, HTTPException, Query
+    f.write(
+        """from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
@@ -519,10 +534,12 @@ async def cancel_trip(id: UUID, db: AsyncSession = Depends(get_db), payload: dic
         print(f"Kafka publish failed: {e}")
 
     return BaseResponse(success=True, message=f"Trip {id} cancelled, refund initiated for related bookings.")
-''')
+"""
+    )
 
 with open(f"{base_dir}/main.py", "w") as f:
-    f.write('''from fastapi import FastAPI
+    f.write(
+        """from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.operators import router as operators_router
 from routers.buses_routes import router as buses_routes_router
@@ -552,6 +569,7 @@ async def startup():
 @app.get("/")
 async def root():
     return {"message": "Operator service is running"}
-''')
+"""
+    )
 
 print("Operator Service Scaffold Done")

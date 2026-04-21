@@ -30,43 +30,46 @@ function App() {
         <Route path="/search" element={<SearchResults />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        
-        <Route path="/booking/select-seats/:trip_id" element={<SelectSeats />} />
-        
-        <Route 
-          path="/booking/passengers" 
+
+        <Route
+          path="/booking/select-seats/:trip_id"
+          element={<SelectSeats />}
+        />
+
+        <Route
+          path="/booking/passengers"
           element={
             <ProtectedRoute>
               <PassengerDetails />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/booking/payment/:booking_id" 
+        <Route
+          path="/booking/payment/:booking_id"
           element={
             <ProtectedRoute>
               <Payment />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/booking/confirmation/:booking_id" 
+        <Route
+          path="/booking/confirmation/:booking_id"
           element={
             <ProtectedRoute>
               <Confirmation />
             </ProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="/my-bookings" 
+        <Route
+          path="/my-bookings"
           element={
             <ProtectedRoute>
               <MyBookings />
             </ProtectedRoute>
-          } 
+          }
         />
       </Route>
-      
+
       {/* Operator Portal Route */}
       <Route path="/operator/*" element={<OperatorPortal />} />
     </Routes>
