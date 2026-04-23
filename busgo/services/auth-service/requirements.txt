@@ -1,12 +1,13 @@
-fastapi
+﻿fastapi
 uvicorn
-sqlalchemy[asyncio]
+sqlalchemy
 asyncpg
 pydantic
 pydantic-settings
 python-dotenv
 alembic
 aiokafka
-python-jose[cryptography]
+python-jose
 passlib[bcrypt]
+email-validator
 redis

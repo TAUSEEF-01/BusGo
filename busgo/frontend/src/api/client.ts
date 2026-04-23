@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "../stores/authStore";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
 
 export const apiClient = axios.create({
   baseURL,
@@ -14,7 +14,7 @@ apiClient.interceptors.request.use(
   (config) => {
     const { accessToken } = useAuthStore.getState();
     if (accessToken && config.headers) {
-      config.headers.Authorization = \`Bearer \${accessToken}\`;
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
@@ -45,7 +45,7 @@ apiClient.interceptors.response.use(
           failedQueue.push({ resolve, reject });
         })
           .then((token) => {
-            originalRequest.headers.Authorization = \`Bearer \${token}\`;
+            originalRequest.headers.Authorization = `Bearer ${token}`;
             return apiClient(originalRequest);
           })
           .catch((err) => Promise.reject(err));
@@ -56,7 +56,7 @@ apiClient.interceptors.response.use(
 
       try {
         const { refreshToken } = useAuthStore.getState();
-        const { data } = await axios.post(\`\${baseURL}/auth/refresh\`, {
+        const { data } = await axios.post(`${baseURL}/auth/refresh`, {
           refresh_token: refreshToken,
         });
 
@@ -64,7 +64,7 @@ apiClient.interceptors.response.use(
         
         processQueue(null, data.access_token);
         
-        originalRequest.headers.Authorization = \`Bearer \${data.access_token}\`;
+        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);

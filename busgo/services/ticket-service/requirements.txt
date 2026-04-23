@@ -1,12 +1,12 @@
-fastapi
+﻿fastapi
+uvicorn
 sqlalchemy
 asyncpg
 redis
 aiokafka
 httpx
-python-jose[cryptography]
+python-jose
 pydantic_settings
 reportlab
 qrcode[pil]
-boto3
-aioboto3
+aioboto3==13.1.1

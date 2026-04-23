@@ -1,3 +1,214 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowRight, User, Phone, Mail, MapPin, Clock, AlertCircle } from "lucide-react";
+
 export function PassengerDetails() {
-  return <div className="p-8">Passenger Details</div>;
+  const navigate = useNavigate();
+  const [contactInfo, setContactInfo] = useState({ email: "", phone: "" });
+  const [passengers, setPassengers] = useState([
+    { seat: "A3", name: "", phone: "", gender: "male" },
+    { seat: "A4", name: "", phone: "", gender: "male" },
+  ]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const updatePassenger = (index: number, field: string, value: string) => {
+    setPassengers((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
+    setErrors((e) => ({ ...e, [`p${index}_${field}`]: "" }));
+  };
+
+  const validate = () => {
+    const errs: Record<string, string> = {};
+    if (!contactInfo.email) errs.contact_email = "Email is required";
+    if (!contactInfo.phone) errs.contact_phone = "Phone is required";
+    passengers.forEach((p, i) => {
+      if (!p.name) errs[`p${i}_name`] = "Name is required";
+    });
+    setErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validate()) navigate("/booking/payment/mock-booking-123");
+  };
+
+  return (
+    <div className="min-h-screen bg-surface-50" id="passenger-details-page">
+      {/* Header */}
+      <div className="bg-white border-b border-surface-200 shadow-elevation-1">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          {/* Stepper */}
+          <div className="flex items-center gap-2 text-sm">
+            {["Seats", "Passengers", "Payment", "Confirmation"].map((s, i) => (
+              <div key={s} className="flex items-center gap-2">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                  i < 1 ? "bg-emerald-500 text-white" : i === 1 ? "bg-brand-600 text-white shadow-brand" : "bg-surface-200 text-surface-400"
+                }`}>
+                  {i < 1 ? "✓" : i + 1}
+                </div>
+                <span className={`hidden sm:inline text-xs font-medium ${i <= 1 ? "text-surface-900" : "text-surface-400"}`}>{s}</span>
+                {i < 3 && <div className={`w-8 h-px ${i < 1 ? "bg-emerald-500" : "bg-surface-200"}`} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Form */}
+          <div className="flex-1 space-y-6">
+            {/* Contact Info */}
+            <div className="card-premium p-6">
+              <h2 className="text-lg font-bold text-surface-900 mb-1">Contact Information</h2>
+              <p className="text-sm text-surface-500 mb-5">We'll send your e-ticket and updates to this contact.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
+                    <input
+                      type="email"
+                      value={contactInfo.email}
+                      onChange={(e) => { setContactInfo((c) => ({ ...c, email: e.target.value })); setErrors((er) => ({ ...er, contact_email: "" })); }}
+                      placeholder="your@email.com"
+                      className={`input-premium !pl-10 ${errors.contact_email ? "!border-red-400" : ""}`}
+                      id="contact-email"
+                    />
+                  </div>
+                  {errors.contact_email && <p className="text-red-500 text-xs mt-1">{errors.contact_email}</p>}
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1.5">Phone</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
+                    <input
+                      type="tel"
+                      value={contactInfo.phone}
+                      onChange={(e) => { setContactInfo((c) => ({ ...c, phone: e.target.value })); setErrors((er) => ({ ...er, contact_phone: "" })); }}
+                      placeholder="+880 1XXX XXXXXX"
+                      className={`input-premium !pl-10 ${errors.contact_phone ? "!border-red-400" : ""}`}
+                      id="contact-phone"
+                    />
+                  </div>
+                  {errors.contact_phone && <p className="text-red-500 text-xs mt-1">{errors.contact_phone}</p>}
+                </div>
+              </div>
+            </div>
+
+            {/* Passenger Cards */}
+            {passengers.map((p, i) => (
+              <div key={i} className="card-premium p-6 animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }} id={`passenger-card-${i}`}>
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
+                    <User className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-surface-900">Passenger {i + 1}</h3>
+                    <span className="text-xs badge badge-info">Seat {p.seat}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
+                    <input
+                      type="text"
+                      value={p.name}
+                      onChange={(e) => updatePassenger(i, "name", e.target.value)}
+                      placeholder="As per NID / Passport"
+                      className={`input-premium ${errors[`p${i}_name`] ? "!border-red-400" : ""}`}
+                      id={`passenger-name-${i}`}
+                    />
+                    {errors[`p${i}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`p${i}_name`]}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Phone (Optional)</label>
+                    <input
+                      type="tel"
+                      value={p.phone}
+                      onChange={(e) => updatePassenger(i, "phone", e.target.value)}
+                      placeholder="+880..."
+                      className="input-premium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Gender</label>
+                    <select
+                      value={p.gender}
+                      onChange={(e) => updatePassenger(i, "gender", e.target.value)}
+                      className="input-premium"
+                    >
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Sidebar */}
+          <div className="lg:w-80">
+            <div className="lg:sticky lg:top-24 space-y-4">
+              <div className="card-premium p-6">
+                <h3 className="font-bold text-surface-900 mb-4">Trip Summary</h3>
+
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
+                      <MapPin className="h-4 w-4 text-surface-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-surface-900">Dhaka → Chittagong</p>
+                      <p className="text-xs text-surface-500">Greenline Paribahan</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
+                      <Clock className="h-4 w-4 text-surface-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-surface-900">08:00 AM — 1:30 PM</p>
+                      <p className="text-xs text-surface-500">May 1, 2026</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-surface-200 mt-4 pt-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-surface-500">Seats</span>
+                    <span className="font-medium text-surface-900">{passengers.map((p) => p.seat).join(", ")}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-surface-500">Subtotal</span>
+                    <span className="font-medium text-surface-900">৳ {passengers.length * 850}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-surface-500">Service fee</span>
+                    <span className="font-medium text-surface-900">৳ 20</span>
+                  </div>
+                  <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
+                    <span className="font-bold text-surface-900">Total</span>
+                    <span className="font-extrabold text-brand-600">৳ {passengers.length * 850 + 20}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 !py-3" id="continue-to-payment" onClick={handleSubmit}>
+                Continue to Payment <ArrowRight className="h-4 w-4" />
+              </button>
+
+              <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl border border-blue-200 text-sm">
+                <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                <p className="text-blue-700">Your information is encrypted and secure. We never share your data.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
 }
