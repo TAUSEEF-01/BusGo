@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, MapPin, Bus, Calendar, ArrowRight, Search,
-  Ticket, X, Eye, FileText, ChevronRight,
+  Ticket, X, Eye, FileText, ChevronRight, Loader2
 } from "lucide-react";
+import { apiClient } from "../api/client";
 
 type BookingStatus = "upcoming" | "completed" | "cancelled";
 type Tab = "upcoming" | "completed" | "cancelled";
@@ -22,14 +23,6 @@ interface Booking {
   ticketId: string;
 }
 
-const MOCK_BOOKINGS: Booking[] = [
-  { id: "b1", operator: "Greenline Paribahan", from: "Dhaka", to: "Chittagong", date: "May 1, 2026", departure: "08:00 AM", arrival: "1:30 PM", seats: ["A3", "A4"], total: "৳ 1,720", status: "upcoming", ticketId: "BG-20260501-A3A4" },
-  { id: "b2", operator: "Hanif Enterprise", from: "Dhaka", to: "Sylhet", date: "May 15, 2026", departure: "10:00 AM", arrival: "2:00 PM", seats: ["C2"], total: "৳ 750", status: "upcoming", ticketId: "BG-20260515-C2" },
-  { id: "b3", operator: "Shyamoli Paribahan", from: "Dhaka", to: "Cox's Bazar", date: "Apr 10, 2026", departure: "09:00 AM", arrival: "6:00 PM", seats: ["B1", "B2"], total: "৳ 2,440", status: "completed", ticketId: "BG-20260410-B1B2" },
-  { id: "b4", operator: "Ena Transport", from: "Dhaka", to: "Rajshahi", date: "Mar 20, 2026", departure: "07:00 AM", arrival: "12:00 PM", seats: ["D4"], total: "৳ 680", status: "completed", ticketId: "BG-20260320-D4" },
-  { id: "b5", operator: "Sohag Paribahan", from: "Dhaka", to: "Khulna", date: "Feb 28, 2026", departure: "06:00 AM", arrival: "12:00 PM", seats: ["E1"], total: "৳ 780", status: "cancelled", ticketId: "BG-20260228-E1" },
-];
-
 const TAB_CONFIG: { id: Tab; label: string; icon: typeof Ticket; emptyTitle: string; emptyDesc: string }[] = [
   { id: "upcoming", label: "Upcoming", icon: Clock, emptyTitle: "No upcoming trips", emptyDesc: "Book your next adventure and it'll appear here." },
   { id: "completed", label: "Completed", icon: Ticket, emptyTitle: "No completed trips", emptyDesc: "Your travel history will show up here." },
@@ -46,12 +39,64 @@ export function MyBookings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
   const [searchQuery, setSearchQuery] = useState("");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = MOCK_BOOKINGS
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        const response = await apiClient.get('/api/bookings/my');
+        if (response.data?.success) {
+          const backendBookings = response.data.data;
+          const mappedBookings: Booking[] = backendBookings.map((b: any) => {
+            // Map the backend status to frontend tab status
+            let mappedStatus: BookingStatus = "upcoming";
+            if (b.status === "COMPLETED") mappedStatus = "completed";
+            else if (b.status === "CANCELLED" || b.status === "REFUNDED") mappedStatus = "cancelled";
+            else if (new Date(b.journey_date) < new Date() && b.status === "CONFIRMED") mappedStatus = "completed";
+            else if (b.status === "CONFIRMED" || b.status === "INITIATED" || b.status === "SEAT_LOCKED") mappedStatus = "upcoming";
+
+            // Simple arrival time mock since it's not in DB
+            const arrTime = b.departure_time ? `${parseInt(b.departure_time.split(':')[0]) + 4}:00` : "1:30 PM";
+
+            return {
+              id: b.id,
+              operator: b.operator_id === "84cd0cc6-ac4a-43f9-ade7-d982f7494077" ? "Greenline Paribahan" : "Hanif Enterprise",
+              from: b.boarding_point || "Dhaka",
+              to: b.dropping_point || "Destination",
+              date: b.journey_date || "N/A",
+              departure: b.departure_time || "N/A",
+              arrival: arrTime,
+              seats: b.seat_numbers || [],
+              total: `৳ ${b.total_fare}`,
+              status: mappedStatus,
+              ticketId: b.id.split('-')[0].toUpperCase()
+            };
+          });
+          setBookings(mappedBookings);
+        }
+      } catch (error) {
+        console.error("Failed to fetch bookings:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBookings();
+  }, []);
+
+  const filtered = bookings
     .filter((b) => b.status === activeTab)
     .filter((b) => !searchQuery || b.operator.toLowerCase().includes(searchQuery.toLowerCase()) || b.ticketId.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const activeConfig = TAB_CONFIG.find((t) => t.id === activeTab)!;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface-50" id="my-bookings-page">
@@ -79,7 +124,7 @@ export function MyBookings() {
                 <span className={`ml-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                   activeTab === tab.id ? "bg-brand-100 text-brand-700" : "bg-surface-100 text-surface-500"
                 }`}>
-                  {MOCK_BOOKINGS.filter((b) => b.status === tab.id).length}
+                  {bookings.filter((b) => b.status === tab.id).length}
                 </span>
               </button>
             ))}

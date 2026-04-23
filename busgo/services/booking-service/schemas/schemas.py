@@ -30,9 +30,15 @@ class BookingResponse(BaseModel):
     id: UUID
     user_id: UUID
     trip_id: UUID
+    operator_id: UUID
     status: BookingStatus
     total_fare: float
     discount_amount: float
+    seat_numbers: List[str]
+    boarding_point: str
+    dropping_point: str
+    journey_date: date
+    departure_time: time
     expires_at: datetime
     created_at: datetime
 

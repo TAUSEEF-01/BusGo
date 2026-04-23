@@ -20,8 +20,8 @@ export function Login() {
     setTimeout(() => {
       if (email && password) {
         login(
-          { id: "1", name: email.split("@")[0], email, phone: "", role: "USER" },
-          "mock_access_token",
+          { id: "12345678-1234-5678-1234-567812345678", name: email.split("@")[0], email, phone: "", role: "USER" },
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDU2NzgtMTIzNC01Njc4LTEyMzQtNTY3ODEyMzQ1Njc4IiwiZXhwIjoxNzc5NTU4NTM0fQ.KIY-H14QmaEvRAv_kkIjUvDVOvmKqCUoTYRto4x1Vo0",
           "mock_refresh_token"
         );
         navigate("/");
