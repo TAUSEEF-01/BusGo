@@ -7,12 +7,12 @@ import {
 
 /* ─── Mock Data ───────────────────────────────────── */
 const MOCK_TRIPS = [
-  { id: "t1", operator: "Greenline Paribahan", type: "AC", departure: "08:00 AM", arrival: "1:30 PM", duration: "5h 30m", price: 850, seats: 14, rating: 4.8, amenities: ["ac", "wifi", "usb"] },
-  { id: "t2", operator: "Shyamoli Paribahan", type: "Non-AC", departure: "09:30 AM", arrival: "3:30 PM", duration: "6h", price: 550, seats: 22, rating: 4.3, amenities: ["usb"] },
-  { id: "t3", operator: "Hanif Enterprise", type: "AC", departure: "10:00 AM", arrival: "3:00 PM", duration: "5h", price: 900, seats: 8, rating: 4.7, amenities: ["ac", "wifi", "usb"] },
-  { id: "t4", operator: "Ena Transport", type: "AC", departure: "11:30 AM", arrival: "5:00 PM", duration: "5h 30m", price: 800, seats: 18, rating: 4.5, amenities: ["ac", "wifi"] },
-  { id: "t5", operator: "Sohag Paribahan", type: "Non-AC", departure: "01:00 PM", arrival: "7:00 PM", duration: "6h", price: 500, seats: 30, rating: 4.1, amenities: [] },
-  { id: "t6", operator: "Desh Travels", type: "AC Sleeper", departure: "10:00 PM", arrival: "4:00 AM", duration: "6h", price: 1200, seats: 5, rating: 4.9, amenities: ["ac", "wifi", "usb"] },
+  { id: "12345678-1234-5678-1234-567812345601", operator: "Greenline Paribahan", type: "AC", departure: "08:00 AM", arrival: "1:30 PM", duration: "5h 30m", price: 850, seats: 14, rating: 4.8, amenities: ["ac", "wifi", "usb"] },
+  { id: "12345678-1234-5678-1234-567812345602", operator: "Shyamoli Paribahan", type: "Non-AC", departure: "09:30 AM", arrival: "3:30 PM", duration: "6h", price: 550, seats: 22, rating: 4.3, amenities: ["usb"] },
+  { id: "12345678-1234-5678-1234-567812345603", operator: "Hanif Enterprise", type: "AC", departure: "10:00 AM", arrival: "3:00 PM", duration: "5h", price: 900, seats: 8, rating: 4.7, amenities: ["ac", "wifi", "usb"] },
+  { id: "12345678-1234-5678-1234-567812345604", operator: "Ena Transport", type: "AC", departure: "11:30 AM", arrival: "5:00 PM", duration: "5h 30m", price: 800, seats: 18, rating: 4.5, amenities: ["ac", "wifi"] },
+  { id: "12345678-1234-5678-1234-567812345605", operator: "Sohag Paribahan", type: "Non-AC", departure: "01:00 PM", arrival: "7:00 PM", duration: "6h", price: 500, seats: 30, rating: 4.1, amenities: [] },
+  { id: "12345678-1234-5678-1234-567812345606", operator: "Desh Travels", type: "AC Sleeper", departure: "10:00 PM", arrival: "4:00 AM", duration: "6h", price: 1200, seats: 5, rating: 4.9, amenities: ["ac", "wifi", "usb"] },
 ];
 
 const AMENITY_MAP: Record<string, { icon: typeof Wifi; label: string }> = {

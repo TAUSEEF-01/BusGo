@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
-import { Mail, Lock, Eye, EyeOff, Bus, ArrowRight, Shield, Zap, Clock } from "lucide-react";
+import { apiClient } from "../api/client";
+import { Mail, Lock, Eye, EyeOff, Bus, ArrowRight, Shield, Zap, Clock, Phone as PhoneIcon } from "lucide-react";
 
 export function Login() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,22 +15,38 @@ export function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!phone || !password) {
+      setError("Please enter phone and password");
+      return;
+    }
     setLoading(true);
     setError("");
-    // Simulate login — replace with real API call
-    setTimeout(() => {
-      if (email && password) {
+    try {
+      const response = await apiClient.post("/api/auth/login", {
+        phone,
+        password,
+      });
+      if (response.data.success) {
+        const { access_token, refresh_token, user } = response.data.data;
         login(
-          { id: "12345678-1234-5678-1234-567812345678", name: email.split("@")[0], email, phone: "", role: "USER" },
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiMTIzNDU2NzgtMTIzNC01Njc4LTEyMzQtNTY3ODEyMzQ1Njc4IiwiZXhwIjoxNzc5NTU4NTM0fQ.KIY-H14QmaEvRAv_kkIjUvDVOvmKqCUoTYRto4x1Vo0",
-          "mock_refresh_token"
+          { id: user.id, name: user.full_name, email: user.email || "", phone: user.phone, role: user.role },
+          access_token,
+          refresh_token
         );
         navigate("/");
       } else {
-        setError("Please enter valid credentials");
+        setError(response.data.message || "Login failed");
       }
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "string") {
+        setError(detail);
+      } else {
+        setError("Login failed. Please check your credentials.");
+      }
+    } finally {
       setLoading(false);
-    }, 1200);
+    }
   };
 
   return (
@@ -93,17 +110,17 @@ export function Login() {
 
           <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
             <div>
-              <label htmlFor="login-email" className="block text-sm font-semibold text-surface-700 mb-1.5">
-                Email address
+              <label htmlFor="login-phone" className="block text-sm font-semibold text-surface-700 mb-1.5">
+                Phone number
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
+                <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
                 <input
-                  id="login-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
+                  id="login-phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+880 1XXX XXXXXX"
                   className="input-premium !pl-10"
                   required
                 />

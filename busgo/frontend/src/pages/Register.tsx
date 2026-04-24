@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
+import { apiClient } from "../api/client";
 import { Mail, Lock, Eye, EyeOff, Bus, ArrowRight, User, Phone, Check, Shield, Zap, Heart } from "lucide-react";
 
 const STEPS = ["Account", "Personal", "Verify"];
@@ -11,6 +12,7 @@ export function Register() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [registerError, setRegisterError] = useState("");
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -52,19 +54,50 @@ export function Register() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateStep()) return;
     setLoading(true);
-    setTimeout(() => {
-      login(
-        { id: "1", name: form.name, email: form.email, phone: form.phone, role: "USER" },
-        "mock_access_token",
-        "mock_refresh_token"
-      );
-      navigate("/");
+    setRegisterError("");
+    try {
+      // Register user via auth-service
+      const registerResponse = await apiClient.post("/api/auth/register", {
+        phone: form.phone,
+        full_name: form.name,
+        password: form.password,
+        email: form.email,
+      });
+      
+      if (registerResponse.data.success) {
+        // Auto-login after registration (skip OTP for dev)
+        try {
+          const loginResponse = await apiClient.post("/api/auth/login", {
+            phone: form.phone,
+            password: form.password,
+          });
+          if (loginResponse.data.success) {
+            const { access_token, refresh_token, user } = loginResponse.data.data;
+            login(
+              { id: user.id, name: user.full_name, email: user.email || "", phone: user.phone, role: user.role },
+              access_token,
+              refresh_token
+            );
+            navigate("/");
+            return;
+          }
+        } catch {
+          // Login failed after register, redirect to login page
+        }
+        navigate("/login");
+      } else {
+        setRegisterError(registerResponse.data.message || "Registration failed");
+      }
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setRegisterError(typeof detail === "string" ? detail : "Registration failed. Please try again.");
+    } finally {
       setLoading(false);
-    }, 1500);
+    }
   };
 
   return (
@@ -123,6 +156,12 @@ export function Register() {
               Sign in
             </Link>
           </p>
+
+          {registerError && (
+            <div className="mb-6 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium animate-fade-in">
+              {registerError}
+            </div>
+          )}
 
           {/* Progress Steps */}
           <div className="flex items-center gap-3 mb-10">

@@ -2,7 +2,7 @@ import os
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey-please-change-in-production")
+    SECRET_KEY: str = os.getenv("JWT_SECRET", os.getenv("SECRET_KEY", "supersecretkey-please-change-in-production"))
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

@@ -42,7 +42,14 @@ export function Cancellation() {
         toast.error("Cancellation failed");
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "An error occurred");
+      let errMsg = "An error occurred";
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "string") {
+        errMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errMsg = detail.map((d: any) => d.msg).join(", ");
+      }
+      toast.error(errMsg);
     } finally {
       setIsCancelling(false);
     }

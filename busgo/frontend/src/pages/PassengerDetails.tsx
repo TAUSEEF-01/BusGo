@@ -95,7 +95,14 @@ export function PassengerDetails() {
       }
     } catch (err: any) {
       console.error(err);
-      toast.error(err.response?.data?.detail || "An error occurred during booking");
+      let errMsg = "An error occurred during booking";
+      const detail = err.response?.data?.detail;
+      if (typeof detail === "string") {
+        errMsg = detail;
+      } else if (Array.isArray(detail)) {
+        errMsg = detail.map((d: any) => d.msg).join(", ");
+      }
+      toast.error(errMsg);
     } finally {
       setIsSubmitting(false);
     }

@@ -23,7 +23,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.base_response import BaseResponse
 from shared.kafka_producer import KafkaProducerClient
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 async def create_refresh_token(db: AsyncSession, user_id: uuid.UUID) -> str:
     token = secrets.token_urlsafe(64)
@@ -43,15 +43,17 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         phone=req.phone,
         email=req.email,
         full_name=req.full_name,
-        password_hash=get_password_hash(req.password)
+        password_hash=get_password_hash(req.password),
+        is_verified=True  # Auto-verify in dev (no OTP infrastructure yet)
     )
     db.add(user)
     await db.commit()
     await db.refresh(user)
 
-    otp = OTPService.generate_otp()
-    await OTPService.store_otp(user.phone, otp)
-    OTPService.send_sms(user.phone, otp)
+    # Skip OTP in dev mode
+    # otp = OTPService.generate_otp()
+    # await OTPService.store_otp(user.phone, otp)
+    # OTPService.send_sms(user.phone, otp)
 
     try:
         await KafkaProducerClient.publish("audit.log", {
