@@ -1,35 +1,104 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, User, Phone, Mail, MapPin, Clock, AlertCircle } from "lucide-react";
+import { apiClient } from "../api/client";
+import { toast } from "react-hot-toast";
 
 export function PassengerDetails() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state || {};
+  
   const [contactInfo, setContactInfo] = useState({ email: "", phone: "" });
-  const [passengers, setPassengers] = useState([
-    { seat: "A3", name: "", phone: "", gender: "male" },
-    { seat: "A4", name: "", phone: "", gender: "male" },
-  ]);
+  const [passengers, setPassengers] = useState(
+    state.seats ? state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" })) 
+    : [{ seat: "A3", name: "", phone: "", gender: "male" }]
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const updatePassenger = (index: number, field: string, value: string) => {
-    setPassengers((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)));
-    setErrors((e) => ({ ...e, [`p${index}_${field}`]: "" }));
+    setPassengers((prev: any[]) => prev.map((p: any, i: number) => (i === index ? { ...p, [field]: value } : p)));
+    setErrors((e: Record<string, string>) => ({ ...e, [`p${index}_${field}`]: "" }));
   };
 
   const validate = () => {
     const errs: Record<string, string> = {};
     if (!contactInfo.email) errs.contact_email = "Email is required";
     if (!contactInfo.phone) errs.contact_phone = "Phone is required";
-    passengers.forEach((p, i) => {
+    passengers.forEach((p: any, i: number) => {
       if (!p.name) errs[`p${i}_name`] = "Name is required";
     });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validate()) navigate("/booking/payment/mock-booking-123");
+    if (!validate()) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Convert "08:00 AM" to "08:00:00"
+      let depTime = "08:00:00";
+      try {
+        const timeStr = state.departureTime || "08:00 AM";
+        const [time, modifier] = timeStr.split(' ');
+        let [hours, minutes] = time.split(':');
+        if (hours === '12') {
+          hours = '00';
+        }
+        if (modifier === 'PM') {
+          hours = parseInt(hours, 10) + 12;
+        }
+        depTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+      } catch (e) {
+        // Fallback
+      }
+
+      // Convert "May 1, 2026" to "2026-05-01"
+      let jDate = "2026-05-01";
+      try {
+        const d = new Date(state.date || "May 1, 2026");
+        jDate = d.toISOString().split('T')[0];
+      } catch(e) {
+        // Fallback
+      }
+
+      const requestData = {
+        trip_id: state.trip_id || "12345678-1234-5678-1234-567812345678",
+        operator_id: state.operator_id || "12345678-1234-5678-1234-567812345678",
+        seat_numbers: passengers.map((p: any) => p.seat),
+        passenger_details: passengers.map((p: any) => ({
+          name: p.name,
+          age: 30, // Mock age
+          gender: p.gender,
+          seat: p.seat
+        })),
+        boarding_point: state.origin || "Dhaka",
+        dropping_point: state.destination || "Chittagong",
+        journey_date: jDate,
+        departure_time: depTime,
+        total_fare: state.totalFare || passengers.length * 850 + 20,
+        idempotency_key: crypto.randomUUID()
+      };
+
+      const response = await apiClient.post("/api/bookings/", requestData);
+      
+      if (response.data.success) {
+        toast.success("Seats locked! Proceed to payment.");
+        navigate(`/booking/payment/${response.data.data.booking_id}`, {
+          state: { totalFare: requestData.total_fare }
+        });
+      } else {
+        toast.error(response.data.message || "Failed to create booking");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "An error occurred during booking");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -98,7 +167,7 @@ export function PassengerDetails() {
             </div>
 
             {/* Passenger Cards */}
-            {passengers.map((p, i) => (
+            {passengers.map((p: any, i: number) => (
               <div key={i} className="card-premium p-6 animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }} id={`passenger-card-${i}`}>
                 <div className="flex items-center gap-3 mb-5">
                   <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
@@ -162,8 +231,8 @@ export function PassengerDetails() {
                       <MapPin className="h-4 w-4 text-surface-500" />
                     </div>
                     <div>
-                      <p className="font-semibold text-surface-900">Dhaka → Chittagong</p>
-                      <p className="text-xs text-surface-500">Greenline Paribahan</p>
+                      <p className="font-semibold text-surface-900">{state.origin || "Dhaka"} → {state.destination || "Chittagong"}</p>
+                      <p className="text-xs text-surface-500">{state.operator || "Greenline Paribahan"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -171,8 +240,8 @@ export function PassengerDetails() {
                       <Clock className="h-4 w-4 text-surface-500" />
                     </div>
                     <div>
-                      <p className="font-semibold text-surface-900">08:00 AM — 1:30 PM</p>
-                      <p className="text-xs text-surface-500">May 1, 2026</p>
+                      <p className="font-semibold text-surface-900">{state.departureTime || "08:00 AM"}</p>
+                      <p className="text-xs text-surface-500">{state.date || "May 1, 2026"}</p>
                     </div>
                   </div>
                 </div>
@@ -180,11 +249,11 @@ export function PassengerDetails() {
                 <div className="border-t border-surface-200 mt-4 pt-4 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-surface-500">Seats</span>
-                    <span className="font-medium text-surface-900">{passengers.map((p) => p.seat).join(", ")}</span>
+                    <span className="font-medium text-surface-900">{passengers.map((p: any) => p.seat).join(", ")}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Subtotal</span>
-                    <span className="font-medium text-surface-900">৳ {passengers.length * 850}</span>
+                    <span className="font-medium text-surface-900">৳ {(state.totalFare - 20) || passengers.length * 850}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Service fee</span>
@@ -192,13 +261,19 @@ export function PassengerDetails() {
                   </div>
                   <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
                     <span className="font-bold text-surface-900">Total</span>
-                    <span className="font-extrabold text-brand-600">৳ {passengers.length * 850 + 20}</span>
+                    <span className="font-extrabold text-brand-600">৳ {state.totalFare || passengers.length * 850 + 20}</span>
                   </div>
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 !py-3" id="continue-to-payment" onClick={handleSubmit}>
-                Continue to Payment <ArrowRight className="h-4 w-4" />
+              <button 
+                type="submit" 
+                disabled={isSubmitting}
+                className={`btn-primary w-full flex items-center justify-center gap-2 !py-3 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} 
+                id="continue-to-payment" 
+                onClick={handleSubmit}
+              >
+                {isSubmitting ? "Processing..." : "Continue to Payment"} <ArrowRight className="h-4 w-4" />
               </button>
 
               <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl border border-blue-200 text-sm">

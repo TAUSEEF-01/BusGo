@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle, Download, Share2, Printer, MapPin, Clock,
-  Calendar, User, Bus, ArrowRight, Home, QrCode,
+  Calendar, User, Bus, ArrowRight, Home, QrCode, Loader2
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
+import { apiClient } from "../api/client";
 
 /* ─── Confetti Particle ────────────────────────────── */
 function Confetti() {
@@ -44,10 +45,52 @@ function Confetti() {
 }
 
 export function Confirmation() {
+  const { booking_id } = useParams();
   const navigate = useNavigate();
   const [showConfetti, setShowConfetti] = useState(true);
   const [checkVisible, setCheckVisible] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [ticketData, setTicketData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchBooking = async () => {
+      if (!booking_id) return;
+      try {
+        const response = await apiClient.get(`/api/bookings/${booking_id}`);
+        if (response.data.success) {
+          const b = response.data.data;
+          setTicketData({
+            ticketId: b.id.split('-')[0].toUpperCase() + "-" + b.seat_numbers.join(''),
+            rawId: b.id,
+            operator: "Greenline Paribahan", // Mocking operator name for now since we don't have operator-service connected
+            from: b.boarding_point,
+            to: b.dropping_point,
+            date: b.journey_date,
+            departure: b.departure_time,
+            arrival: "1:30 PM", // Mock arrival
+            seats: b.seat_numbers,
+            passengers: Array(b.seat_numbers.length).fill("Passenger"), // Backend schema missing passenger details in response, mock for UI
+            totalPaid: `৳ ${b.total_fare}`,
+            status: b.status,
+            busType: "AC",
+          });
+        } else {
+          setError(response.data.message);
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.detail || "Failed to load booking details");
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchBooking();
+    setTimeout(() => setCheckVisible(true), 300);
+    const timer = setTimeout(() => setShowConfetti(false), 5000);
+    return () => clearTimeout(timer);
+  }, [booking_id]);
 
   const handleDownload = async () => {
     const ticketElement = document.getElementById("e-ticket");
@@ -67,7 +110,7 @@ export function Confirmation() {
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
       pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`ticket-${ticketData.ticketId}.pdf`);
+      pdf.save(`ticket-${ticketData?.ticketId || 'download'}.pdf`);
     } catch (err) {
       console.error("Failed to download PDF", err);
     } finally {
@@ -79,26 +122,22 @@ export function Confirmation() {
     window.print();
   };
 
-  useEffect(() => {
-    setTimeout(() => setCheckVisible(true), 300);
-    const timer = setTimeout(() => setShowConfetti(false), 5000);
-    return () => clearTimeout(timer);
-  }, []);
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+      </div>
+    );
+  }
 
-  const ticketData = {
-    ticketId: "BG-20260501-A3A4",
-    operator: "Greenline Paribahan",
-    from: "Dhaka (Kalyanpur)",
-    to: "Chittagong (Dampara)",
-    date: "May 1, 2026",
-    departure: "08:00 AM",
-    arrival: "1:30 PM",
-    seats: ["A3", "A4"],
-    passengers: ["Tauseef Rahman", "Kamal Hossain"],
-    totalPaid: "৳ 1,720",
-    status: "CONFIRMED",
-    busType: "AC",
-  };
+  if (error || !ticketData) {
+    return (
+      <div className="min-h-screen bg-surface-50 flex flex-col items-center justify-center">
+        <div className="text-red-500 mb-4">{error || "Ticket not found"}</div>
+        <button onClick={() => navigate("/")} className="btn-primary">Return Home</button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface-50" id="confirmation-page">
@@ -204,7 +243,7 @@ export function Confirmation() {
             <div className="mt-6 pt-4 border-t border-surface-100">
               <p className="text-surface-400 text-xs uppercase tracking-wide font-medium mb-2">Passengers</p>
               <div className="space-y-2">
-                {ticketData.passengers.map((name, i) => (
+                {ticketData.passengers.map((name: string, i: number) => (
                   <div key={i} className="flex items-center gap-2 p-2 bg-surface-50 rounded-lg">
                     <User className="h-4 w-4 text-surface-400" />
                     <span className="text-sm font-medium text-surface-900">{name}</span>
@@ -217,7 +256,7 @@ export function Confirmation() {
             {/* QR Code */}
             <div className="mt-6 flex items-center justify-center">
               <div className="p-2 bg-white rounded-xl shadow-sm border border-surface-200">
-                <QRCode value={ticketData.ticketId} size={100} />
+                <QRCode value={ticketData.rawId} size={100} />
               </div>
             </div>
           </div>

@@ -206,7 +206,10 @@ export function MyBookings() {
                       </div>
                       <div className="flex gap-2 mt-2">
                         {booking.status === "upcoming" && (
-                          <button className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors">
+                          <button 
+                            onClick={() => navigate(`/booking/cancel/${booking.id}`)}
+                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors"
+                          >
                             <X className="h-3 w-3" /> Cancel
                           </button>
                         )}

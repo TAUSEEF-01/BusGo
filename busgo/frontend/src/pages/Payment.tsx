@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowRight, CreditCard, Phone, Lock, Shield, CheckCircle, Clock, MapPin, Smartphone,
 } from "lucide-react";
+import { apiClient } from "../api/client";
+import { toast } from "react-hot-toast";
 
 type PaymentMethod = "bkash" | "nagad" | "card" | "banking";
 
@@ -16,6 +18,8 @@ const METHODS: { id: PaymentMethod; label: string; desc: string; color: string; 
 export function Payment() {
   const { booking_id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state || {};
   const [method, setMethod] = useState<PaymentMethod>("bkash");
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
@@ -25,15 +29,33 @@ export function Payment() {
   const [cvv, setCvv] = useState("");
   const [cardName, setCardName] = useState("");
 
-  const handlePay = (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTimeout(() => {
-      navigate(`/booking/confirmation/${booking_id || "mock-123"}`);
-    }, 2500);
-  };
+  const total = state.totalFare || 1720;
 
-  const total = 1720;
+  const handlePay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!booking_id) return;
+    
+    setLoading(true);
+    try {
+      // payment_id is generated locally as a mock transaction ID
+      const payment_id = crypto.randomUUID();
+      const response = await apiClient.post(`/api/bookings/${booking_id}/confirm-payment`, null, {
+        params: { payment_id }
+      });
+      
+      if (response.data.success) {
+        toast.success("Payment successful!");
+        navigate(`/booking/confirmation/${booking_id}`);
+      } else {
+        toast.error("Payment failed. Please try again.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || "An error occurred during payment");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-surface-50" id="payment-page">

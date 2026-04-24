@@ -12,6 +12,8 @@ import { PassengerDetails } from "./pages/PassengerDetails";
 import { Payment } from "./pages/Payment";
 import { Confirmation } from "./pages/Confirmation";
 import { MyBookings } from "./pages/MyBookings";
+import { Cancellation } from "./pages/Cancellation";
+import { AdminPortal } from "./pages/AdminPortal";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { OperatorPortal } from "./pages/OperatorPortal";
@@ -68,10 +70,21 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/booking/cancel/:booking_id"
+          element={
+            <ProtectedRoute>
+              <Cancellation />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       {/* Operator Portal Route */}
       <Route path="/operator/*" element={<OperatorPortal />} />
+
+      {/* Admin Portal Route */}
+      <Route path="/admin/*" element={<AdminPortal />} />
     </Routes>
   );
 }

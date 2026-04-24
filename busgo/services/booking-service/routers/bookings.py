@@ -20,7 +20,7 @@ from shared.base_response import BaseResponse
 from shared.enums import BookingStatus
 from shared.kafka_producer import KafkaProducerClient
 
-router = APIRouter(prefix="/bookings", tags=["bookings"])
+router = APIRouter(tags=["bookings"])
 
 @router.post("/", response_model=BaseResponse)
 async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):

@@ -215,7 +215,16 @@ export function SearchResults() {
                           <p className="text-xs text-surface-400">per seat</p>
                         </div>
                         <button
-                          onClick={() => navigate(`/booking/select-seats/${trip.id}`)}
+                          onClick={() => navigate(`/booking/select-seats/${trip.id}`, {
+                            state: {
+                              origin,
+                              destination,
+                              date,
+                              price: trip.price,
+                              operator: trip.operator,
+                              departureTime: trip.departure
+                            }
+                          })}
                           className="btn-primary !py-2.5 !px-5 !text-sm flex items-center gap-1.5"
                           id={`select-${trip.id}`}
                         >

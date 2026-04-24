@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Bus, Clock, MapPin, Star, Info, X } from "lucide-react";
 
 /* ─── Seat Layout ──────────────────────────────────── */
@@ -14,8 +14,24 @@ interface Seat {
 
 function generateSeats(): Seat[] {
   const seats: Seat[] = [];
-  const bookedIds = new Set(["A1", "A2", "B3", "C1", "D2", "E4", "F1", "F3", "G2", "H1", "H4"]);
-  const ladiesIds = new Set(["B1", "B2", "C3", "C4"]);
+  // Since we don't have an endpoint to fetch available seats for a specific trip,
+  // we generate a random seat map.
+  const bookedCount = Math.floor(Math.random() * 15) + 5;
+  const bookedIds = new Set<string>();
+  
+  while(bookedIds.size < bookedCount) {
+    const row = Math.floor(Math.random() * 10);
+    const col = Math.floor(Math.random() * 4);
+    bookedIds.add(`${String.fromCharCode(65 + row)}${col + 1}`);
+  }
+
+  const ladiesIds = new Set<string>();
+  while(ladiesIds.size < 4) {
+    const row = Math.floor(Math.random() * 10);
+    const col = Math.floor(Math.random() * 4);
+    const id = `${String.fromCharCode(65 + row)}${col + 1}`;
+    if (!bookedIds.has(id)) ladiesIds.add(id);
+  }
 
   for (let row = 0; row < 10; row++) {
     const rowLetter = String.fromCharCode(65 + row);
@@ -35,9 +51,11 @@ function generateSeats(): Seat[] {
 export function SelectSeats() {
   const { trip_id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state || {};
   const [seats, setSeats] = useState<Seat[]>(generateSeats);
   const selected = seats.filter((s) => s.status === "selected");
-  const pricePerSeat = 850;
+  const pricePerSeat = state.price || 850;
 
   const toggleSeat = (id: string) => {
     setSeats((prev) =>
@@ -63,12 +81,14 @@ export function SelectSeats() {
       <div className="bg-white border-b border-surface-200 shadow-elevation-1">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-surface-800 to-surface-900 flex items-center justify-center text-white text-xs font-bold">GP</div>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-surface-800 to-surface-900 flex items-center justify-center text-white text-xs font-bold">
+              {(state.operator || "Greenline Paribahan").split(" ").map((w: string) => w[0]).join("").slice(0,2)}
+            </div>
             <div>
-              <h1 className="font-bold text-surface-900">Greenline Paribahan</h1>
+              <h1 className="font-bold text-surface-900">{state.operator || "Greenline Paribahan"}</h1>
               <div className="flex items-center gap-3 text-sm text-surface-500">
-                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Dhaka → Chittagong</span>
-                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> 08:00 AM</span>
+                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {state.origin || "Dhaka"} → {state.destination || "Chittagong"}</span>
+                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {state.departureTime || "08:00 AM"}</span>
                 <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-accent-400 fill-accent-400" /> 4.8</span>
               </div>
             </div>
@@ -223,7 +243,23 @@ export function SelectSeats() {
                 )}
 
                 <button
-                  onClick={() => selected.length > 0 && navigate("/booking/passengers")}
+                  onClick={() => {
+                    if (selected.length > 0) {
+                      navigate("/booking/passengers", {
+                        state: {
+                          trip_id: trip_id || "12345678-1234-5678-1234-567812345678",
+                          operator_id: "12345678-1234-5678-1234-567812345678",
+                          seats: selected.map((s) => s.id),
+                          totalFare: selected.length * pricePerSeat + 20,
+                          origin: state.origin || "Dhaka",
+                          destination: state.destination || "Chittagong",
+                          date: state.date || "2026-05-01",
+                          departureTime: state.departureTime || "08:00 AM",
+                          operator: state.operator || "Greenline Paribahan"
+                        },
+                      });
+                    }
+                  }}
                   disabled={selected.length === 0}
                   className="btn-primary w-full flex items-center justify-center gap-2 !py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   id="continue-to-passengers"
