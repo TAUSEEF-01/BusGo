@@ -24,6 +24,7 @@ class TicketKafkaConsumer:
     def __init__(self):
         self.consumer = AIOKafkaConsumer(
             "ticket.issued",
+            "booking.cancelled",
             "payment.completed", # Listen to either based on arch. Let's process on ticket.issued if booking service emits it, or payment.completed
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="ticket-service-group",
@@ -57,6 +58,18 @@ class TicketKafkaConsumer:
     async def process_message(self, topic: str, message: dict):
         booking_id = message.get("booking_id")
         if not booking_id: return
+
+        if topic == "booking.cancelled":
+            async with async_session() as db:
+                from sqlalchemy.future import select
+                query = select(Ticket).where(Ticket.booking_id == booking_id)
+                result = await db.execute(query)
+                ticket = result.scalars().first()
+                if ticket:
+                    ticket.status = TicketStatus.CANCELLED
+                    await db.commit()
+                    print(f"Ticket for booking {booking_id} marked as CANCELLED")
+            return
 
         # Try to prevent duplicate processing
         async with async_session() as db:

@@ -11,7 +11,6 @@ export function Cancellation() {
   const [loading, setLoading] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -36,8 +35,8 @@ export function Cancellation() {
     try {
       const response = await apiClient.post(`/api/bookings/${booking_id}/cancel`);
       if (response.data.success) {
-        setSuccess(true);
         toast.success("Booking cancelled successfully.");
+        navigate(`/booking/confirmation/${booking_id}`);
       } else {
         toast.error("Cancellation failed");
       }
@@ -68,21 +67,6 @@ export function Cancellation() {
       <div className="min-h-screen bg-surface-50 flex flex-col items-center justify-center">
         <div className="text-red-500 mb-4">{error || "Booking not found"}</div>
         <button onClick={() => navigate("/my-bookings")} className="btn-primary">Return to My Bookings</button>
-      </div>
-    );
-  }
-
-  if (success) {
-    return (
-      <div className="min-h-screen bg-surface-50 py-12 px-4">
-        <div className="max-w-xl mx-auto card-premium p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="h-8 w-8 text-emerald-500" />
-          </div>
-          <h2 className="text-2xl font-bold text-surface-900 mb-2">Ticket Cancelled</h2>
-          <p className="text-surface-500 mb-6">Your booking has been cancelled and a refund has been initiated according to the policy.</p>
-          <button onClick={() => navigate("/my-bookings")} className="btn-primary w-full">View My Bookings</button>
-        </div>
       </div>
     );
   }

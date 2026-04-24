@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   CheckCircle, Download, Share2, Printer, MapPin, Clock,
-  Calendar, User, Bus, ArrowRight, Home, QrCode, Loader2
+  Calendar, User, Bus, ArrowRight, Home, QrCode, Loader2, X
 } from "lucide-react";
 import QRCode from "react-qr-code";
 import html2canvas from "html2canvas";
@@ -47,7 +47,7 @@ function Confetti() {
 export function Confirmation() {
   const { booking_id } = useParams();
   const navigate = useNavigate();
-  const [showConfetti, setShowConfetti] = useState(true);
+  const [showConfetti, setShowConfetti] = useState(false);
   const [checkVisible, setCheckVisible] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [ticketData, setTicketData] = useState<any>(null);
@@ -61,8 +61,9 @@ export function Confirmation() {
         const response = await apiClient.get(`/api/bookings/${booking_id}`);
         if (response.data.success) {
           const b = response.data.data;
+          const seats = b.seat_numbers || [];
           setTicketData({
-            ticketId: b.id.split('-')[0].toUpperCase() + "-" + b.seat_numbers.join(''),
+            ticketId: b.id.split('-')[0].toUpperCase() + "-" + seats.join(''),
             rawId: b.id,
             operator: "Greenline Paribahan", // Mocking operator name for now since we don't have operator-service connected
             from: b.boarding_point,
@@ -70,12 +71,18 @@ export function Confirmation() {
             date: b.journey_date,
             departure: b.departure_time,
             arrival: "1:30 PM", // Mock arrival
-            seats: b.seat_numbers,
-            passengers: Array(b.seat_numbers.length).fill("Passenger"), // Backend schema missing passenger details in response, mock for UI
+            seats: seats,
+            passengers: Array(seats.length).fill("Passenger"), // Backend schema missing passenger details in response, mock for UI
             totalPaid: `৳ ${b.total_fare}`,
             status: b.status,
             busType: "AC",
           });
+          
+          if (b.status === "CONFIRMED") {
+            setShowConfetti(true);
+            const timer = setTimeout(() => setShowConfetti(false), 5000);
+            return () => clearTimeout(timer);
+          }
         } else {
           setError(response.data.message);
         }
@@ -88,8 +95,6 @@ export function Confirmation() {
     
     fetchBooking();
     setTimeout(() => setCheckVisible(true), 300);
-    const timer = setTimeout(() => setShowConfetti(false), 5000);
-    return () => clearTimeout(timer);
   }, [booking_id]);
 
   const handleDownload = async () => {
@@ -139,6 +144,9 @@ export function Confirmation() {
     );
   }
 
+  const isCancelled = ticketData.status === "CANCELLED" || ticketData.status === "REFUNDED";
+  const isExpired = ticketData.status === "EXPIRED";
+
   return (
     <div className="min-h-screen bg-surface-50" id="confirmation-page">
       {showConfetti && <Confetti />}
@@ -149,9 +157,13 @@ export function Confirmation() {
           <div className="flex items-center gap-2 text-sm">
             {["Seats", "Passengers", "Payment", "Confirmation"].map((s, i) => (
               <div key={s} className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold bg-emerald-500 text-white">✓</div>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                  i < 3 || (!isCancelled && !isExpired) ? "bg-emerald-500" : isCancelled ? "bg-red-500" : "bg-surface-400"
+                }`}>
+                  {i < 3 || (!isCancelled && !isExpired) ? "✓" : "!"}
+                </div>
                 <span className="hidden sm:inline text-xs font-medium text-surface-900">{s}</span>
-                {i < 3 && <div className="w-8 h-px bg-emerald-500" />}
+                {i < 3 && <div className={`w-8 h-px ${i < 3 ? "bg-emerald-500" : "bg-surface-200"}`} />}
               </div>
             ))}
           </div>
@@ -159,29 +171,55 @@ export function Confirmation() {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
-        {/* Success Animation */}
+        {/* Status Header */}
         <div className={`text-center mb-10 transition-all duration-700 ${checkVisible ? "opacity-100 scale-100" : "opacity-0 scale-75"}`}>
-          <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-5 animate-bounce-soft">
-            <CheckCircle className="h-12 w-12 text-emerald-500" />
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-5 animate-bounce-soft ${
+            isCancelled 
+              ? "bg-red-100" 
+              : isExpired
+                ? "bg-surface-200"
+                : "bg-emerald-100"
+          }`}>
+            {isCancelled ? (
+              <X className="h-12 w-12 text-red-500" />
+            ) : isExpired ? (
+              <Clock className="h-12 w-12 text-surface-500" />
+            ) : (
+              <CheckCircle className="h-12 w-12 text-emerald-500" />
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-surface-900 mb-2">
-            Booking Confirmed! 🎉
+            {ticketData.status === "CANCELLED" 
+              ? "Booking Cancelled" 
+              : ticketData.status === "REFUNDED"
+                ? "Booking Refunded"
+                : isExpired
+                  ? "Booking Expired"
+                  : "Booking Confirmed! 🎉"}
           </h1>
           <p className="text-surface-500 text-lg">
-            Your e-ticket has been sent to your email and phone.
+            {isCancelled
+              ? "This booking is no longer valid for travel."
+              : isExpired
+                ? "The payment time for this booking has expired."
+                : "Your e-ticket has been sent to your email and phone."}
           </p>
         </div>
 
         {/* E-Ticket Card */}
         <div className="card-premium overflow-hidden mb-6 animate-fade-in-up animate-delay-300" id="e-ticket">
           {/* Ticket Header */}
-          <div className="hero-gradient px-6 py-5 text-white">
+          <div className={`px-6 py-5 text-white ${isCancelled ? "bg-surface-600" : isExpired ? "bg-surface-400" : "hero-gradient"}`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Bus className="h-5 w-5" />
                 <span className="font-bold text-lg">{ticketData.operator}</span>
               </div>
-              <span className="badge bg-white/20 text-white border border-white/30 text-xs">
+              <span className={`badge border text-xs ${
+                isCancelled ? "bg-red-500/20 border-red-500/30 text-red-100" : 
+                isExpired ? "bg-surface-500/20 border-surface-500/30 text-surface-100" : 
+                "bg-white/20 border-white/30 text-white"
+              }`}>
                 {ticketData.status}
               </span>
             </div>

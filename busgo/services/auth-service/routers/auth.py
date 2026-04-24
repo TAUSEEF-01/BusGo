@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import or_
 from datetime import datetime, timedelta, timezone
 import uuid
 import secrets
@@ -92,7 +93,7 @@ async def verify_otp(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login")
 async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.phone == req.phone))
+    result = await db.execute(select(User).where(or_(User.phone == req.phone, User.email == req.phone)))
     user = result.scalars().first()
     
     if not user or not verify_password(req.password, user.password_hash):

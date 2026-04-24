@@ -111,16 +111,16 @@ export function Login() {
           <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
             <div>
               <label htmlFor="login-phone" className="block text-sm font-semibold text-surface-700 mb-1.5">
-                Phone number
+                Phone number or Email
               </label>
               <div className="relative">
                 <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
                 <input
                   id="login-phone"
-                  type="tel"
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+880 1XXX XXXXXX"
+                  placeholder="+880 1XXX XXXXXX or name@example.com"
                   className="input-premium !pl-10"
                   required
                 />
