@@ -4,6 +4,9 @@ import {
   CheckCircle, Download, Share2, Printer, MapPin, Clock,
   Calendar, User, Bus, ArrowRight, Home, QrCode,
 } from "lucide-react";
+import QRCode from "react-qr-code";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 /* ─── Confetti Particle ────────────────────────────── */
 function Confetti() {
@@ -44,6 +47,37 @@ export function Confirmation() {
   const navigate = useNavigate();
   const [showConfetti, setShowConfetti] = useState(true);
   const [checkVisible, setCheckVisible] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    const ticketElement = document.getElementById("e-ticket");
+    if (!ticketElement) return;
+    
+    setIsDownloading(true);
+    try {
+      const canvas = await html2canvas(ticketElement, { scale: 2, useCORS: true });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4"
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`ticket-${ticketData.ticketId}.pdf`);
+    } catch (err) {
+      console.error("Failed to download PDF", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   useEffect(() => {
     setTimeout(() => setCheckVisible(true), 300);
@@ -180,11 +214,10 @@ export function Confirmation() {
               </div>
             </div>
 
-            {/* QR Code placeholder */}
+            {/* QR Code */}
             <div className="mt-6 flex items-center justify-center">
-              <div className="w-32 h-32 bg-surface-100 rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-surface-300">
-                <QrCode className="h-12 w-12 text-surface-400 mb-1" />
-                <span className="text-[10px] text-surface-400 font-medium">QR Code</span>
+              <div className="p-2 bg-white rounded-xl shadow-sm border border-surface-200">
+                <QRCode value={ticketData.ticketId} size={100} />
               </div>
             </div>
           </div>
@@ -192,15 +225,20 @@ export function Confirmation() {
 
         {/* Action Buttons */}
         <div className="grid grid-cols-3 gap-3 mb-8">
-          <button className="card-premium p-4 flex flex-col items-center gap-2 text-center hover:!border-brand-200" id="download-ticket">
+          <button 
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className={`card-premium p-4 flex flex-col items-center gap-2 text-center hover:!border-brand-200 ${isDownloading ? 'opacity-50 cursor-not-allowed' : ''}`} 
+            id="download-ticket"
+          >
             <Download className="h-5 w-5 text-brand-600" />
-            <span className="text-xs font-semibold text-surface-700">Download</span>
+            <span className="text-xs font-semibold text-surface-700">{isDownloading ? 'Downloading...' : 'Download'}</span>
           </button>
           <button className="card-premium p-4 flex flex-col items-center gap-2 text-center hover:!border-brand-200" id="share-ticket">
             <Share2 className="h-5 w-5 text-brand-600" />
             <span className="text-xs font-semibold text-surface-700">Share</span>
           </button>
-          <button className="card-premium p-4 flex flex-col items-center gap-2 text-center hover:!border-brand-200" id="print-ticket">
+          <button onClick={handlePrint} className="card-premium p-4 flex flex-col items-center gap-2 text-center hover:!border-brand-200" id="print-ticket">
             <Printer className="h-5 w-5 text-brand-600" />
             <span className="text-xs font-semibold text-surface-700">Print</span>
           </button>

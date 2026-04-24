@@ -73,6 +73,12 @@ function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: str
   return <span ref={ref}>{count.toLocaleString()}{suffix}</span>;
 }
 
+const CITIES = [
+  "Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", 
+  "Rajshahi", "Khulna", "Barisal", "Rangpur", 
+  "Comilla", "Mymensingh", "Bogra", "Jessore"
+];
+
 /* ════════════════════════════════════════════════════
    HOME PAGE
    ════════════════════════════════════════════════════ */
@@ -81,6 +87,8 @@ export function Home() {
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState("");
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +106,7 @@ export function Home() {
   return (
     <div className="flex flex-col">
       {/* ──── HERO SECTION ──── */}
-      <section className="relative min-h-[90vh] flex items-center hero-gradient overflow-hidden" id="hero-section">
+      <section className="relative min-h-[90vh] flex items-center hero-gradient" id="hero-section">
         {/* Animated background elements */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl floating" />
@@ -111,7 +119,7 @@ export function Home() {
           }} />
         </div>
 
-        <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 mt-8">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 mt-8">
           <div className="text-center max-w-4xl mx-auto">
             {/* Pill badge */}
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium mb-8 animate-fade-in-down">
@@ -144,7 +152,7 @@ export function Home() {
           >
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
               {/* Origin */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-surface-700">
                   <MapPin className="w-4 h-4 text-brand-500" />
                   From
@@ -153,15 +161,37 @@ export function Home() {
                   type="text"
                   id="origin-input"
                   value={origin}
-                  onChange={(e) => setOrigin(e.target.value)}
+                  onChange={(e) => {
+                    setOrigin(e.target.value);
+                    setShowOriginDropdown(true);
+                  }}
+                  onFocus={() => setShowOriginDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowOriginDropdown(false), 200)}
                   placeholder="e.g. Dhaka"
                   className="input-premium"
                   required
+                  autoComplete="off"
                 />
+                {showOriginDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg max-h-60 overflow-y-auto top-[72px]">
+                    {CITIES.filter(c => c.toLowerCase().includes(origin.toLowerCase())).map(city => (
+                      <div
+                        key={city}
+                        onMouseDown={() => {
+                          setOrigin(city);
+                          setShowOriginDropdown(false);
+                        }}
+                        className="px-4 py-2 hover:bg-brand-50 cursor-pointer text-sm font-medium text-surface-700 hover:text-brand-700"
+                      >
+                        {city}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Destination */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative">
                 <label className="flex items-center gap-1.5 text-sm font-semibold text-surface-700">
                   <MapPin className="w-4 h-4 text-brand-500" />
                   To
@@ -170,11 +200,33 @@ export function Home() {
                   type="text"
                   id="destination-input"
                   value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
+                  onChange={(e) => {
+                    setDestination(e.target.value);
+                    setShowDestDropdown(true);
+                  }}
+                  onFocus={() => setShowDestDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDestDropdown(false), 200)}
                   placeholder="e.g. Chittagong"
                   className="input-premium"
                   required
+                  autoComplete="off"
                 />
+                {showDestDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg max-h-60 overflow-y-auto top-[72px]">
+                    {CITIES.filter(c => c.toLowerCase().includes(destination.toLowerCase())).map(city => (
+                      <div
+                        key={city}
+                        onMouseDown={() => {
+                          setDestination(city);
+                          setShowDestDropdown(false);
+                        }}
+                        className="px-4 py-2 hover:bg-brand-50 cursor-pointer text-sm font-medium text-surface-700 hover:text-brand-700"
+                      >
+                        {city}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Date */}
