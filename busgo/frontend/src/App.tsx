@@ -18,9 +18,13 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { OperatorPortal } from "./pages/OperatorPortal";
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
+
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) return <Navigate to="/" replace />;
+  
   return <>{children}</>;
 };
 
@@ -81,10 +85,24 @@ function App() {
       </Route>
 
       {/* Operator Portal Route */}
-      <Route path="/operator/*" element={<OperatorPortal />} />
+      <Route 
+        path="/operator/*" 
+        element={
+          <ProtectedRoute allowedRoles={["OPERATOR", "ADMIN"]}>
+            <OperatorPortal />
+          </ProtectedRoute>
+        } 
+      />
 
       {/* Admin Portal Route */}
-      <Route path="/admin/*" element={<AdminPortal />} />
+      <Route 
+        path="/admin/*" 
+        element={
+          <ProtectedRoute allowedRoles={["ADMIN"]}>
+            <AdminPortal />
+          </ProtectedRoute>
+        } 
+      />
     </Routes>
   );
 }

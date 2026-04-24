@@ -33,7 +33,13 @@ export function Login() {
           access_token,
           refresh_token
         );
-        navigate("/");
+        if (user.role === "ADMIN") {
+          navigate("/admin");
+        } else if (user.role === "OPERATOR") {
+          navigate("/operator");
+        } else {
+          navigate("/");
+        }
       } else {
         setError(response.data.message || "Login failed");
       }

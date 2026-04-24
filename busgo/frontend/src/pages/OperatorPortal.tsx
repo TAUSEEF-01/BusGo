@@ -6,6 +6,8 @@ import {
   Calendar, ChevronRight, Menu, X, Bell,
 } from "lucide-react";
 
+import { ManageTrips } from "./ManageTrips";
+
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
   { label: "Total Bookings", value: "2,847", change: "+12.5%", up: true, icon: Ticket, color: "from-brand-500 to-brand-600" },
@@ -252,7 +254,7 @@ export function OperatorPortal() {
         <main className="flex-1 p-4 sm:p-6 lg:p-8">
           <Routes>
             <Route path="/" element={<DashboardHome />} />
-            <Route path="/trips" element={<PlaceholderPage title="Manage Trips" icon={Bus} />} />
+            <Route path="/trips" element={<ManageTrips />} />
             <Route path="/bookings" element={<PlaceholderPage title="All Bookings" icon={Ticket} />} />
             <Route path="/analytics" element={<PlaceholderPage title="Analytics" icon={BarChart3} />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" icon={Settings} />} />
