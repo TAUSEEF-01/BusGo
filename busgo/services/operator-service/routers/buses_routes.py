@@ -20,8 +20,20 @@ router = APIRouter(tags=["buses-routes"])
 async def create_bus(id: UUID, req: BusCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     # Verify operator exists
     op_res = await db.execute(select(Operator).where(Operator.id == id))
-    if not op_res.scalars().first():
-        raise HTTPException(status_code=404, detail="Operator not found")
+    operator = op_res.scalars().first()
+    if not operator:
+        # Auto-create Operator
+        operator = Operator(
+            id=id,
+            name=payload.get("phone", "Auto Operator"),
+            contact_phone=payload.get("phone", "Unknown"),
+            contact_email="operator@example.com",
+            address="Not specified",
+            license_no="PENDING"
+        )
+        db.add(operator)
+        await db.commit()
+        await db.refresh(operator)
         
     bus = Bus(operator_id=id, **req.model_dump())
     db.add(bus)
@@ -58,8 +70,20 @@ async def update_bus(id: UUID, req: BusUpdate, db: AsyncSession = Depends(get_db
 @router.post("/operators/{id}/routes", response_model=BaseResponse[RouteResponse])
 async def create_route(id: UUID, req: RouteCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     op_res = await db.execute(select(Operator).where(Operator.id == id))
-    if not op_res.scalars().first():
-        raise HTTPException(status_code=404, detail="Operator not found")
+    operator = op_res.scalars().first()
+    if not operator:
+        # Auto-create Operator
+        operator = Operator(
+            id=id,
+            name=payload.get("phone", "Auto Operator"),
+            contact_phone=payload.get("phone", "Unknown"),
+            contact_email="operator@example.com",
+            address="Not specified",
+            license_no="PENDING"
+        )
+        db.add(operator)
+        await db.commit()
+        await db.refresh(operator)
         
     # Convert Points to dict for JSON injection
     route_data = req.model_dump()
@@ -93,3 +117,31 @@ async def list_all_routes(
     result = await db.execute(query)
     routes = result.scalars().all()
     return BaseResponse(success=True, data=[RouteResponse.model_validate(r) for r in routes])
+
+@router.delete("/buses/{id}", response_model=BaseResponse)
+async def delete_bus(id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    result = await db.execute(select(Bus).where(Bus.id == id))
+    bus = result.scalars().first()
+    if not bus:
+        raise HTTPException(status_code=404, detail="Bus not found")
+    try:
+        await db.delete(bus)
+        await db.commit()
+        return BaseResponse(success=True, message="Bus deleted successfully")
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Cannot delete bus because it has scheduled trips.")
+
+@router.delete("/routes/{id}", response_model=BaseResponse)
+async def delete_route(id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    result = await db.execute(select(Route).where(Route.id == id))
+    route = result.scalars().first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+    try:
+        await db.delete(route)
+        await db.commit()
+        return BaseResponse(success=True, message="Route deleted successfully")
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Cannot delete route because it has scheduled trips.")

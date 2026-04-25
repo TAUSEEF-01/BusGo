@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
-import { Bus, Map, Clock, Plus, Loader2, X } from "lucide-react";
+import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
-const OPERATOR_ID = "84cd0cc6-ac4a-43f9-ade7-d982f7494077"; // Seeded Greenline Operator
+import { useAuthStore } from "../stores/authStore";
 
 export function ManageTrips() {
+  const user = useAuthStore((s) => s.user);
+  const OPERATOR_ID = user?.id || "";
+
   const [activeTab, setActiveTab] = useState("Trips");
   const [buses, setBuses] = useState<any[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
@@ -15,12 +18,50 @@ export function ManageTrips() {
   // Modals
   const [isAddBusOpen, setIsAddBusOpen] = useState(false);
   const [isAddTripOpen, setIsAddTripOpen] = useState(false);
+  const [isAddRouteOpen, setIsAddRouteOpen] = useState(false);
+  const [editingBusId, setEditingBusId] = useState<string | null>(null);
+
+  const openAddBus = () => {
+    setBusForm({
+      registration_no: "",
+      bus_type: "AC",
+      total_seats: 40,
+      is_active: true,
+      assign_route: false,
+      route_id: "",
+      departure_datetime: "",
+      arrival_datetime: "",
+      fare_amount: 1000,
+    });
+    setEditingBusId(null);
+    setIsAddBusOpen(true);
+  };
+
+  const openEditBus = (bus: any) => {
+    setBusForm({
+      ...busForm,
+      registration_no: bus.registration_no,
+      bus_type: bus.bus_type,
+      total_seats: bus.total_seats,
+      is_active: bus.is_active !== undefined ? bus.is_active : true,
+      assign_route: false,
+    });
+    setEditingBusId(bus.id);
+    setIsAddBusOpen(true);
+  };
 
   // Form States
   const [busForm, setBusForm] = useState({
     registration_no: "",
     bus_type: "AC",
     total_seats: 40,
+    is_active: true,
+    // Optional schedule fields
+    assign_route: false,
+    route_id: "",
+    departure_datetime: "",
+    arrival_datetime: "",
+    fare_amount: 1000,
   });
 
   const [tripForm, setTripForm] = useState({
@@ -29,6 +70,13 @@ export function ManageTrips() {
     departure_datetime: "",
     arrival_datetime: "",
     fare_amount: 1000,
+  });
+
+  const [routeForm, setRouteForm] = useState({
+    origin_city: "",
+    destination_city: "",
+    distance_km: 100,
+    estimated_duration_hours: 2,
   });
 
   const fetchData = async () => {
@@ -53,22 +101,90 @@ export function ManageTrips() {
     fetchData();
   }, []);
 
+  const handleDeleteBus = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this bus?")) return;
+    try {
+      const res = await apiClient.delete(`/api/operators/buses/${id}`);
+      if (res.data.success) {
+        toast.success("Bus removed successfully");
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to remove bus");
+    }
+  };
+
+  const handleDeleteRoute = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this route?")) return;
+    try {
+      const res = await apiClient.delete(`/api/operators/routes/${id}`);
+      if (res.data.success) {
+        toast.success("Route removed successfully");
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to remove route");
+    }
+  };
+
   const handleAddBus = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const payload = {
-        ...busForm,
+        registration_no: busForm.registration_no,
+        bus_type: busForm.bus_type,
+        total_seats: busForm.total_seats,
+        is_active: busForm.is_active,
         seat_layout: {}, // Minimal mock payload
         amenities: ["WiFi", "Water"]
       };
-      const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/buses`, payload);
-      if (res.data.success) {
-        toast.success("Bus added successfully");
-        setIsAddBusOpen(false);
-        fetchData();
+
+      if (editingBusId) {
+        const res = await apiClient.put(`/api/operators/buses/${editingBusId}`, payload);
+        if (res.data.success) {
+          toast.success("Bus updated successfully");
+          setIsAddBusOpen(false);
+          fetchData();
+        }
+      } else {
+        const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/buses`, payload);
+        
+        if (res.data.success) {
+          const newBusId = res.data.data.id;
+          toast.success("Bus added successfully");
+          
+          // If user wanted to assign a route right away
+          if (busForm.assign_route && busForm.route_id && busForm.departure_datetime && busForm.arrival_datetime) {
+            const tripPayload = {
+              operator_id: OPERATOR_ID,
+              bus_id: newBusId,
+              route_id: busForm.route_id,
+              departure_datetime: new Date(busForm.departure_datetime).toISOString(),
+              arrival_datetime: new Date(busForm.arrival_datetime).toISOString(),
+              fare_amount: busForm.fare_amount,
+              available_seats: busForm.total_seats
+            };
+            await apiClient.post(`/api/operators/trips/`, tripPayload);
+            toast.success("Bus mapped to route successfully");
+          }
+
+          setIsAddBusOpen(false);
+          fetchData();
+          setBusForm({
+            registration_no: "",
+            bus_type: "AC",
+            total_seats: 40,
+            is_active: true,
+            assign_route: false,
+            route_id: "",
+            departure_datetime: "",
+            arrival_datetime: "",
+            fare_amount: 1000,
+          });
+        }
       }
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to add bus");
+      toast.error(err.response?.data?.detail || `Failed to ${editingBusId ? 'update' : 'add'} bus`);
     }
   };
 
@@ -100,6 +216,26 @@ export function ManageTrips() {
     }
   };
 
+  const handleAddRoute = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...routeForm,
+        boarding_points: [{ name: "Main Counter", address: "Main Station", lat: 0, lng: 0 }],
+        dropping_points: [{ name: "Main Drop", address: "Main Drop Station", lat: 0, lng: 0 }]
+      };
+      const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/routes`, payload);
+      if (res.data.success) {
+        toast.success("Route added successfully");
+        setIsAddRouteOpen(false);
+        fetchData();
+      }
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Failed to add route");
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-brand-600" /></div>;
   }
@@ -126,7 +262,7 @@ export function ManageTrips() {
           <div>
             <div className="p-5 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-surface-900 flex items-center gap-2"><Bus className="w-5 h-5 text-brand-500" /> Fleet List</h3>
-              <button onClick={() => setIsAddBusOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Bus</button>
+              <button onClick={openAddBus} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Bus</button>
             </div>
             <table className="w-full text-left">
               <thead>
@@ -134,19 +270,40 @@ export function ManageTrips() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Reg Number</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Type</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Seats</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Current Route</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
-                {buses.map(b => (
+                {buses.map(b => {
+                  const busTrips = trips.filter(t => t.bus_id === b.id);
+                  const latestTrip = busTrips[busTrips.length - 1];
+                  const activeRoute = latestTrip ? routes.find(r => r.id === latestTrip.route_id) : null;
+                  return (
                   <tr key={b.id} className="hover:bg-surface-50">
                     <td className="px-5 py-4 text-sm font-bold text-surface-900">{b.registration_no}</td>
                     <td className="px-5 py-4 text-sm text-surface-600">{b.bus_type}</td>
                     <td className="px-5 py-4 text-sm text-surface-600">{b.total_seats}</td>
-                    <td className="px-5 py-4 text-sm"><span className="badge badge-success">Active</span></td>
+                    <td className="px-5 py-4 text-sm text-surface-600">{activeRoute ? `${activeRoute.origin_city} → ${activeRoute.destination_city}` : <span className="text-surface-400 italic">Unassigned</span>}</td>
+                    <td className="px-5 py-4 text-sm font-bold text-surface-900">{latestTrip ? `৳ ${latestTrip.fare_amount}` : '-'}</td>
+                    <td className="px-5 py-4 text-sm">
+                      {b.is_active === false ? <span className="badge badge-error">Unavailable</span> : <span className="badge badge-success">Active</span>}
+                    </td>
+                    <td className="px-5 py-4 text-sm text-right">
+                      <button onClick={() => openEditBus(b)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteBus(b.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
-                ))}
-                {buses.length === 0 && <tr><td colSpan={4} className="px-5 py-8 text-center text-surface-500">No buses found in fleet.</td></tr>}
+                  )
+                })}
+                {buses.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-surface-500">No buses found in fleet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -154,8 +311,9 @@ export function ManageTrips() {
 
         {activeTab === "Routes" && (
           <div>
-            <div className="p-5 border-b border-surface-100">
+            <div className="p-5 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-surface-900 flex items-center gap-2"><Map className="w-5 h-5 text-brand-500" /> Permitted Routes</h3>
+              <button onClick={() => setIsAddRouteOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Route</button>
             </div>
             <table className="w-full text-left">
               <thead>
@@ -163,6 +321,7 @@ export function ManageTrips() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Origin</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Destination</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Distance</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
@@ -171,6 +330,11 @@ export function ManageTrips() {
                     <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.origin_city}</td>
                     <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
                     <td className="px-5 py-4 text-sm text-surface-600">{r.distance_km} km</td>
+                    <td className="px-5 py-4 text-sm text-right">
+                      <button onClick={() => handleDeleteRoute(r.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -215,32 +379,127 @@ export function ManageTrips() {
         )}
       </div>
 
+      {/* Add Route Modal */}
+      {isAddRouteOpen && (
+        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
+            <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
+              <h3 className="font-bold text-lg text-surface-900">Add New Route</h3>
+              <button onClick={() => setIsAddRouteOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
+            </div>
+            <form onSubmit={handleAddRoute} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1">Origin City</label>
+                <select required className="input-premium w-full" value={routeForm.origin_city} onChange={e => setRouteForm({...routeForm, origin_city: e.target.value})}>
+                  <option value="">-- Select Origin --</option>
+                  {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1">Destination City</label>
+                <select required className="input-premium w-full" value={routeForm.destination_city} onChange={e => setRouteForm({...routeForm, destination_city: e.target.value})}>
+                  <option value="">-- Select Destination --</option>
+                  {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
+                    <option key={city} value={city}>{city}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Distance (km)</label>
+                  <input type="number" required className="input-premium w-full" value={routeForm.distance_km} onChange={e => setRouteForm({...routeForm, distance_km: parseInt(e.target.value)})} min="1" />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Duration (hrs)</label>
+                  <input type="number" step="0.5" required className="input-premium w-full" value={routeForm.estimated_duration_hours} onChange={e => setRouteForm({...routeForm, estimated_duration_hours: parseFloat(e.target.value)})} min="0.5" />
+                </div>
+              </div>
+              <button type="submit" className="btn-primary w-full mt-4">Save Route</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Add Bus Modal */}
       {isAddBusOpen && (
         <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-surface-900">Add New Bus</h3>
+              <h3 className="font-bold text-lg text-surface-900">{editingBusId ? "Edit Bus" : "Add New Bus"}</h3>
               <button onClick={() => setIsAddBusOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleAddBus} className="p-6 space-y-4">
+            <form onSubmit={handleAddBus} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div>
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Registration Number</label>
                 <input type="text" required className="input-premium w-full" value={busForm.registration_no} onChange={e => setBusForm({...busForm, registration_no: e.target.value})} placeholder="e.g. DHAKA-METRO-B-11-2233" />
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-surface-700 mb-1">Bus Type</label>
-                <select className="input-premium w-full" value={busForm.bus_type} onChange={e => setBusForm({...busForm, bus_type: e.target.value})}>
-                  <option value="AC">AC</option>
-                  <option value="NON_AC">Non-AC</option>
-                  <option value="SLEEPER">Sleeper</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Bus Type</label>
+                  <select className="input-premium w-full" value={busForm.bus_type} onChange={e => setBusForm({...busForm, bus_type: e.target.value})}>
+                    <option value="AC">AC</option>
+                    <option value="NON_AC">Non-AC</option>
+                    <option value="SLEEPER">Sleeper</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Total Seats</label>
+                  <input type="number" required className="input-premium w-full" value={busForm.total_seats} onChange={e => setBusForm({...busForm, total_seats: parseInt(e.target.value)})} min="10" max="60" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-semibold text-surface-700 mb-1">Total Seats</label>
-                <input type="number" required className="input-premium w-full" value={busForm.total_seats} onChange={e => setBusForm({...busForm, total_seats: parseInt(e.target.value)})} min="10" max="60" />
+
+              
+              <div className="pt-2 border-t border-surface-100">
+                <label className="flex items-center gap-2 text-sm font-semibold text-surface-900 cursor-pointer mb-4">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
+                    checked={busForm.is_active}
+                    onChange={e => setBusForm({...busForm, is_active: e.target.checked})}
+                  />
+                  Bus is Active and Available
+                </label>
+
+                <label className="flex items-center gap-2 text-sm font-semibold text-surface-900 cursor-pointer mb-2">
+                  <input 
+                    type="checkbox" 
+                    className="rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
+                    checked={busForm.assign_route}
+                    onChange={e => setBusForm({...busForm, assign_route: e.target.checked})}
+                  />
+                  {editingBusId ? "Schedule a new trip for this bus?" : "Schedule a trip for this bus now?"}
+                </label>
+
+                {busForm.assign_route && (
+                  <div className="space-y-4 mt-3 bg-surface-50 p-4 rounded-xl border border-surface-100">
+                    <div>
+                      <label className="block text-sm font-semibold text-surface-700 mb-1">Select Route</label>
+                      <select required={busForm.assign_route} className="input-premium w-full" value={busForm.route_id} onChange={e => setBusForm({...busForm, route_id: e.target.value})}>
+                        <option value="">{routes.length === 0 ? "-- No routes available, add one first --" : "-- Choose Route --"}</option>
+                        {routes.map(r => <option key={r.id} value={r.id}>{r.origin_city} to {r.destination_city}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-surface-700 mb-1">Departure Time</label>
+                        <input type="datetime-local" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-surface-700 mb-1">Arrival Time</label>
+                        <input type="datetime-local" required={busForm.assign_route} className="input-premium w-full" value={busForm.arrival_datetime} onChange={e => setBusForm({...busForm, arrival_datetime: e.target.value})} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
+                      <input type="number" required={busForm.assign_route} className="input-premium w-full" value={busForm.fare_amount} onChange={e => setBusForm({...busForm, fare_amount: parseInt(e.target.value)})} min="100" />
+                    </div>
+                  </div>
+                )}
               </div>
-              <button type="submit" className="btn-primary w-full mt-4">Save Bus</button>
+
+              <button type="submit" className="btn-primary w-full mt-4">{editingBusId ? "Update Bus" : "Save Bus"}</button>
             </form>
           </div>
         </div>
@@ -265,7 +524,7 @@ export function ManageTrips() {
               <div>
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Select Bus</label>
                 <select required className="input-premium w-full" value={tripForm.bus_id} onChange={e => setTripForm({...tripForm, bus_id: e.target.value})}>
-                  <option value="">-- Choose Bus --</option>
+                  <option value="">{buses.length === 0 ? "-- No buses available, add one first --" : "-- Choose Bus --"}</option>
                   {buses.map(b => <option key={b.id} value={b.id}>{b.registration_no} ({b.bus_type})</option>)}
                 </select>
               </div>
