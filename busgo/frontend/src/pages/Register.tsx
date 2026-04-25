@@ -19,6 +19,7 @@ export function Register() {
     confirmPassword: "",
     name: "",
     phone: "",
+    role: "CUSTOMER",
     agreedToTerms: false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -31,6 +32,7 @@ export function Register() {
   const validateStep = () => {
     const errs: Record<string, string> = {};
     if (step === 0) {
+      if (!form.role) errs.role = "Role is required";
       if (!form.email) errs.email = "Email is required";
       else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = "Invalid email address";
       if (!form.password) errs.password = "Password is required";
@@ -66,6 +68,7 @@ export function Register() {
         full_name: form.name,
         password: form.password,
         email: form.email,
+        role: form.role,
       });
       
       if (registerResponse.data.success) {
@@ -82,7 +85,15 @@ export function Register() {
               access_token,
               refresh_token
             );
-            navigate("/");
+            
+            const role = user.role?.toUpperCase();
+            if (role === "ADMIN") {
+              navigate("/admin");
+            } else if (role === "OPERATOR") {
+              navigate("/operator");
+            } else {
+              navigate("/");
+            }
             return;
           }
         } catch {
@@ -189,6 +200,36 @@ export function Register() {
             {step === 0 && (
               <div className="space-y-5 animate-fade-in">
                 <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-2">Register as</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => set("role", "CUSTOMER")}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                        form.role === "CUSTOMER" 
+                          ? "border-brand-600 bg-brand-50 text-brand-700 shadow-sm" 
+                          : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
+                      }`}
+                    >
+                      <User className="h-5 w-5 mb-1" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Customer</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => set("role", "OPERATOR")}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
+                        form.role === "OPERATOR" 
+                          ? "border-brand-600 bg-brand-50 text-brand-700 shadow-sm" 
+                          : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
+                      }`}
+                    >
+                      <Bus className="h-5 w-5 mb-1" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Operator</span>
+                    </button>
+                  </div>
+                  {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
+                </div>
+                <div>
                   <label htmlFor="reg-email" className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
@@ -264,9 +305,13 @@ export function Register() {
                       <span className="text-surface-500">Name</span>
                       <span className="font-medium text-surface-900">{form.name}</span>
                     </div>
-                    <div className="flex justify-between py-2">
+                    <div className="flex justify-between py-2 border-b border-surface-100">
                       <span className="text-surface-500">Phone</span>
                       <span className="font-medium text-surface-900">{form.phone}</span>
+                    </div>
+                    <div className="flex justify-between py-2">
+                      <span className="text-surface-500">Register as</span>
+                      <span className="font-bold text-brand-600 uppercase tracking-wider">{form.role}</span>
                     </div>
                   </div>
                 </div>

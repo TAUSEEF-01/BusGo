@@ -139,10 +139,25 @@ function Navbar() {
                       <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                       <div className="absolute right-0 mt-2 w-56 z-50 bg-white rounded-xl shadow-glass-lg border border-surface-200 overflow-hidden animate-scale-in origin-top-right">
                         <div className="px-4 py-3 border-b border-surface-100 bg-surface-50">
-                          <p className="text-sm font-semibold text-surface-900">{user?.name}</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-semibold text-surface-900">{user?.name}</p>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand-100 text-brand-700 uppercase">
+                              {user?.role}
+                            </span>
+                          </div>
                           <p className="text-xs text-surface-500 truncate">{user?.email}</p>
                         </div>
                         <div className="py-1">
+                          {user?.role?.toUpperCase() === "OPERATOR" && (
+                            <Link to="/operator" className="flex items-center gap-2 px-4 py-2.5 text-sm text-brand-600 font-bold hover:bg-brand-50 transition-colors">
+                              <Bus className="h-4 w-4" /> Operator Portal
+                            </Link>
+                          )}
+                          {user?.role?.toUpperCase() === "ADMIN" && (
+                            <Link to="/admin" className="flex items-center gap-2 px-4 py-2.5 text-sm text-accent-600 font-bold hover:bg-accent-50 transition-colors">
+                              <Shield className="h-4 w-4" /> Admin Portal
+                            </Link>
+                          )}
                           <Link to="/my-bookings" className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 transition-colors">
                             <Ticket className="h-4 w-4 text-surface-400" /> My Bookings
                           </Link>
@@ -228,6 +243,24 @@ function Navbar() {
             )}
 
             <div className="p-3 space-y-1">
+              {user?.role?.toUpperCase() === "OPERATOR" && (
+                <Link
+                  to="/operator"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-brand-600 bg-brand-50"
+                >
+                  <Bus className="h-5 w-5" />
+                  Operator Portal
+                </Link>
+              )}
+              {user?.role?.toUpperCase() === "ADMIN" && (
+                <Link
+                  to="/admin"
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-accent-600 bg-accent-50"
+                >
+                  <Shield className="h-5 w-5" />
+                  Admin Portal
+                </Link>
+              )}
               {navLinks.map((link) => (
                 <Link
                   key={link.to}

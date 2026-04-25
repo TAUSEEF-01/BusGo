@@ -6,7 +6,7 @@ interface User {
   name: string;
   email: string;
   phone: string;
-  role: "USER" | "OPERATOR" | "ADMIN";
+  role: "CUSTOMER" | "OPERATOR" | "ADMIN";
 }
 
 interface AuthState {

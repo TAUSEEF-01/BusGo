@@ -45,8 +45,10 @@ async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
         email=req.email,
         full_name=req.full_name,
         password_hash=get_password_hash(req.password),
-        is_verified=True  # Auto-verify in dev (no OTP infrastructure yet)
+        is_verified=True,  # Auto-verify in dev (no OTP infrastructure yet)
+        role=req.role
     )
+        
     db.add(user)
     await db.commit()
     await db.refresh(user)

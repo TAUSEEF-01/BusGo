@@ -9,6 +9,7 @@ export function Login() {
   const login = useAuthStore((s) => s.login);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "OPERATOR">("CUSTOMER");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,21 +26,24 @@ export function Login() {
       const response = await apiClient.post("/api/auth/login", {
         phone,
         password,
+        expected_role: selectedRole,
       });
       if (response.data.success) {
         const { access_token, refresh_token, user } = response.data.data;
-        login(
-          { id: user.id, name: user.full_name, email: user.email || "", phone: user.phone, role: user.role },
-          access_token,
-          refresh_token
-        );
-        if (user.role === "ADMIN") {
-          navigate("/admin");
-        } else if (user.role === "OPERATOR") {
-          navigate("/operator");
-        } else {
-          navigate("/");
-        }
+          login(
+            { id: user.id, name: user.full_name, email: user.email || "", phone: user.phone, role: user.role },
+            access_token,
+            refresh_token
+          );
+          
+          const role = user.role?.toUpperCase();
+          if (role === "ADMIN") {
+            navigate("/admin");
+          } else if (role === "OPERATOR") {
+            navigate("/operator");
+          } else {
+            navigate("/");
+          }
       } else {
         setError(response.data.message || "Login failed");
       }
@@ -115,6 +119,34 @@ export function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
+            <div>
+              <label className="block text-sm font-semibold text-surface-700 mb-2">Sign in as</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole("CUSTOMER")}
+                  className={`flex items-center justify-center p-2.5 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-all ${
+                    selectedRole === "CUSTOMER"
+                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                      : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
+                  }`}
+                >
+                  Customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedRole("OPERATOR")}
+                  className={`flex items-center justify-center p-2.5 rounded-xl border-2 text-sm font-bold uppercase tracking-wider transition-all ${
+                    selectedRole === "OPERATOR"
+                      ? "border-brand-600 bg-brand-50 text-brand-700"
+                      : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
+                  }`}
+                >
+                  Operator
+                </button>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="login-phone" className="block text-sm font-semibold text-surface-700 mb-1.5">
                 Phone number or Email

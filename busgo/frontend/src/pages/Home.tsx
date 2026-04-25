@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/authStore";
 import {
   Calendar,
   MapPin,
@@ -84,7 +85,27 @@ const CITIES = [
    ════════════════════════════════════════════════════ */
 export function Home() {
   const navigate = useNavigate();
+  const { user, isAuthenticated } = useAuthStore();
   const [origin, setOrigin] = useState("");
+
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const role = user.role?.toUpperCase();
+      if (role === "OPERATOR") {
+        navigate("/operator", { replace: true });
+      } else if (role === "ADMIN") {
+        navigate("/admin", { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  if (isAuthenticated && user && (user.role?.toUpperCase() === "OPERATOR" || user.role?.toUpperCase() === "ADMIN")) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50">
+        <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
   const [destination, setDestination] = useState("");
   const [date, setDate] = useState("");
   const [showOriginDropdown, setShowOriginDropdown] = useState(false);
