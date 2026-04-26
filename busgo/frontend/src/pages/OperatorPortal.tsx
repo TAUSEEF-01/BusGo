@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Routes, Route, Link, useLocation } from "react-router-dom";
+import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuthStore } from "../stores/authStore";
 import {
   LayoutDashboard, Bus, Ticket, BarChart3, Settings, LogOut,
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
@@ -35,6 +36,13 @@ const NAV_ITEMS = [
 /* ─── Sidebar ──────────────────────────────────────── */
 function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <>
@@ -87,15 +95,17 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
         {/* User */}
         <div className="p-4 border-t border-surface-800">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold">G</div>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold">
+              {user?.name?.charAt(0).toUpperCase() || "O"}
+            </div>
             <div>
-              <p className="text-sm font-semibold text-white">Greenline</p>
+              <p className="text-sm font-semibold text-white truncate w-32">{user?.name || "Operator"}</p>
               <p className="text-xs text-surface-500">Operator</p>
             </div>
           </div>
-          <Link to="/" className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-surface-400 hover:text-white hover:bg-surface-800 transition-colors">
-            <LogOut className="h-4 w-4" /> Exit Portal
-          </Link>
+          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-red-400 hover:text-white hover:bg-red-500/20 transition-colors">
+            <LogOut className="h-4 w-4" /> Sign out
+          </button>
         </div>
       </aside>
     </>
@@ -218,6 +228,14 @@ function PlaceholderPage({ title, icon: Icon }: { title: string; icon: typeof Bu
    ═══════════════════════════════════════════════════ */
 export function OperatorPortal() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <div className="flex min-h-screen bg-surface-50" id="operator-portal">
@@ -245,7 +263,56 @@ export function OperatorPortal() {
                 <Bell className="h-5 w-5" />
                 <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-brand-500" />
               </button>
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-xs font-bold">G</div>
+              
+              {/* Profile Dropdown */}
+              <div className="relative">
+                <button 
+                  onClick={() => setProfileOpen(!profileOpen)}
+                  className="w-8 h-8 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-xs font-bold hover:shadow-lg transition-shadow"
+                  id="profile-button"
+                >
+                  {user?.name?.charAt(0).toUpperCase() || "G"}
+                </button>
+                
+                {profileOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-elevation-3 border border-surface-200 py-2 z-50 animate-fade-in">
+                      <div className="px-4 py-3 border-b border-surface-100">
+                        <p className="text-sm font-semibold text-surface-900">{user?.name || "Operator"}</p>
+                        <p className="text-xs text-surface-500">{user?.email || "operator@busgo.com"}</p>
+                      </div>
+                      <div className="py-1">
+                        <Link
+                          to="/operator/settings"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                        >
+                          <Settings className="h-4 w-4" />
+                          Settings
+                        </Link>
+                        <Link
+                          to="/operator"
+                          onClick={() => setProfileOpen(false)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-surface-700 hover:bg-surface-50 transition-colors"
+                        >
+                          <Users className="h-4 w-4" />
+                          Profile
+                        </Link>
+                      </div>
+                      <div className="border-t border-surface-100 pt-1">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <LogOut className="h-4 w-4" />
+                          Sign out
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </header>

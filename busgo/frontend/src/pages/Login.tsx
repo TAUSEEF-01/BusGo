@@ -119,7 +119,7 @@ export function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5" id="login-form">
-            <div>
+            {/* <div>
               <label className="block text-sm font-semibold text-surface-700 mb-2">Sign in as</label>
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -145,7 +145,7 @@ export function Login() {
                   Operator
                 </button>
               </div>
-            </div>
+            </div> */}
 
             <div>
               <label htmlFor="login-phone" className="block text-sm font-semibold text-surface-700 mb-1.5">
