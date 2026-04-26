@@ -1,0 +1,12 @@
+docker exec infrastructure-postgres-1 psql -U user -d operator_db -c "SELECT id, operator_id, origin_city, destination_city FROM routes LIMIT 5;"
+
+docker exec infrastructure-postgres-1 psql -U user -d operator_db -c "SELECT id, operator_id, registration_no, bus_type, total_seats FROM buses LIMIT 5;"
+
+docker logs infrastructure-operator-service-1 --tail 30
+
+docker exec infrastructure-postgres-1 psql -U user -d operator_db -c "SELECT COUNT(*) FROM trips WHERE status = 'SCHEDULED' AND departure_datetime >= NOW();"
+
+docker exec infrastructure-postgres-1 psql -U user -d operator_db -c "INSERT INTO trips (id, operator_id, bus_id, route_id, departure_datetime, arrival_datetime, fare_amount, available_seats, status) VALUES (gen_random_uuid(), '84cd0cc6-ac4a-43f9-ade7-d982f7494077', 'e817951f-f13b-4dc3-afb2-8b5334c9db96', 'bedeffc9-9efe-4980-a2a2-8bc5c98e5cfa', '2026-05-01 11:00:00', '2026-05-01 16:30:00', 750, 32, 'SCHEDULED'), (gen_random_uuid(), '84cd0cc6-ac4a-43f9-ade7-d982f7494077', 'e817951f-f13b-4dc3-afb2-8b5334c9db96', 'ca99a2da-5432-485b-b08c-5ed99ede61ad', '2026-05-01 13:00:00', '2026-05-01 19:00:00', 650, 28, 'SCHEDULED'), (gen_random_uuid(), '84cd0cc6-ac4a-43f9-ade7-d982f7494077', 'e817951f-f13b-4dc3-afb2-8b5334c9db96', 'bedeffc9-9efe-4980-a2a2-8bc5c98e5cfa', '2026-05-01 15:00:00', '2026-05-01 20:30:00', 900, 25, 'SCHEDULED');"
+
+docker exec infrastructure-postgres-1 psql -U user -d operator_db -t -c "SELECT r.id, r.operator_id, o.name, r.origin_city, r.destination_city FROM routes r JOIN operators o ON r.operator_id = o.id WHERE r.operator_id IN ('a1b2c3d4-e5f6-4a5b-8c9d-0e1f2a3b4c5d', 'b2c3d4e5-f6a7-4b5c-9d0e-1f2a3b4c5d6e', 'c3d4e5f6-a7b8-4c5d-0e1f-2a3b4c5d6e7f', 'd4e5f6a7-b8c9-4d5e-1f2a-3b4c5d6e7f8a');"
+

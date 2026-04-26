@@ -7,6 +7,7 @@ import { MainLayout } from "./layout/MainLayout";
 // Pages
 import { Home } from "./pages/Home";
 import { SearchResults } from "./pages/SearchResults";
+import { Routes as RoutesPage } from "./pages/Routes";
 import { SelectSeats } from "./pages/SelectSeats";
 import { PassengerDetails } from "./pages/PassengerDetails";
 import { Payment } from "./pages/Payment";
@@ -39,6 +40,7 @@ function App() {
       <Route element={<MainLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<SearchResults />} />
+        <Route path="/routes" element={<RoutesPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 

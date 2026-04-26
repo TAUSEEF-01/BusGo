@@ -163,139 +163,55 @@ export function Home() {
             <p className="mt-6 text-lg sm:text-xl text-white/70 max-w-2xl mx-auto font-body animate-fade-in-up animate-delay-200" id="hero-subtitle">
               Compare operators, choose your seat, and book bus tickets in under 60 seconds. The smartest way to travel across Bangladesh.
             </p>
+
+            {/* Bus Animation */}
+            <div className="mt-12 mb-8 animate-fade-in-up animate-delay-300">
+              <div className="relative inline-block">
+                {/* Animated Bus */}
+                <div className="bus-animation">
+                  <Bus className="h-24 w-24 sm:h-32 sm:w-32 text-white drop-shadow-2xl" />
+                </div>
+                {/* Road line */}
+                <div className="mt-4 h-1 w-64 sm:w-80 bg-white/20 rounded-full overflow-hidden">
+                  <div className="h-full w-1/3 bg-white/60 rounded-full animate-road-line" />
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Features */}
+            <div className="mb-10 animate-fade-in-up animate-delay-400">
+              <div className="flex flex-wrap items-center justify-center gap-6 text-white/80 text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                    <Zap className="h-4 w-4 text-accent-400" />
+                  </div>
+                  <span>Instant Booking</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                    <Shield className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <span>Secure Payment</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
+                    <Star className="h-4 w-4 text-accent-400" />
+                  </div>
+                  <span>Best Prices</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Continue Button */}
+            <button
+              onClick={() => navigate("/routes")}
+              className="btn-primary !py-4 !px-8 text-lg font-bold inline-flex items-center gap-3 shadow-2xl hover:shadow-brand hover:scale-105 transition-all duration-300 animate-fade-in-up animate-delay-500"
+              id="continue-to-routes"
+            >
+              Explore Available Routes
+              <ArrowRight className="h-6 w-6" />
+            </button>
           </div>
-
-          {/* ──── SEARCH FORM ──── */}
-          <form
-            onSubmit={handleSearch}
-            id="search-form"
-            className="mt-12 max-w-5xl mx-auto bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl p-4 sm:p-6 border border-white/50 animate-fade-in-up animate-delay-300"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-              {/* Origin */}
-              <div className="space-y-1.5 relative">
-                <label className="flex items-center gap-1.5 text-sm font-semibold text-surface-700">
-                  <MapPin className="w-4 h-4 text-brand-500" />
-                  From
-                </label>
-                <input
-                  type="text"
-                  id="origin-input"
-                  value={origin}
-                  onChange={(e) => {
-                    setOrigin(e.target.value);
-                    setShowOriginDropdown(true);
-                  }}
-                  onFocus={() => setShowOriginDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowOriginDropdown(false), 200)}
-                  placeholder="e.g. Dhaka"
-                  className="input-premium"
-                  required
-                  autoComplete="off"
-                />
-                {showOriginDropdown && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg max-h-60 overflow-y-auto top-[72px]">
-                    {CITIES.filter(c => c.toLowerCase().includes(origin.toLowerCase())).map(city => (
-                      <div
-                        key={city}
-                        onMouseDown={() => {
-                          setOrigin(city);
-                          setShowOriginDropdown(false);
-                        }}
-                        className="px-4 py-2 hover:bg-brand-50 cursor-pointer text-sm font-medium text-surface-700 hover:text-brand-700"
-                      >
-                        {city}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Destination */}
-              <div className="space-y-1.5 relative">
-                <label className="flex items-center gap-1.5 text-sm font-semibold text-surface-700">
-                  <MapPin className="w-4 h-4 text-brand-500" />
-                  To
-                </label>
-                <input
-                  type="text"
-                  id="destination-input"
-                  value={destination}
-                  onChange={(e) => {
-                    setDestination(e.target.value);
-                    setShowDestDropdown(true);
-                  }}
-                  onFocus={() => setShowDestDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowDestDropdown(false), 200)}
-                  placeholder="e.g. Chittagong"
-                  className="input-premium"
-                  required
-                  autoComplete="off"
-                />
-                {showDestDropdown && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border border-surface-200 rounded-xl shadow-lg max-h-60 overflow-y-auto top-[72px]">
-                    {CITIES.filter(c => c.toLowerCase().includes(destination.toLowerCase())).map(city => (
-                      <div
-                        key={city}
-                        onMouseDown={() => {
-                          setDestination(city);
-                          setShowDestDropdown(false);
-                        }}
-                        className="px-4 py-2 hover:bg-brand-50 cursor-pointer text-sm font-medium text-surface-700 hover:text-brand-700"
-                      >
-                        {city}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Date */}
-              <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-sm font-semibold text-surface-700">
-                  <Calendar className="w-4 h-4 text-brand-500" />
-                  Date
-                </label>
-                <input
-                  type="date"
-                  id="date-input"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="input-premium"
-                  required
-                />
-              </div>
-
-              {/* Submit */}
-              <button
-                type="submit"
-                id="search-button"
-                className="btn-primary flex items-center justify-center gap-2 !py-3 text-base"
-              >
-                <Search className="w-5 h-5" />
-                Search Buses
-              </button>
-            </div>
-
-            {/* Quick suggestions */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-surface-400">Popular:</span>
-              {["Dhaka → Chittagong", "Dhaka → Cox's Bazar", "Dhaka → Sylhet"].map((route) => (
-                <button
-                  key={route}
-                  type="button"
-                  onClick={() => {
-                    const [from, to] = route.split(" → ");
-                    setOrigin(from);
-                    setDestination(to);
-                  }}
-                  className="px-3 py-1 rounded-full bg-surface-50 text-surface-600 hover:bg-brand-50 hover:text-brand-600 border border-surface-200 transition-colors font-medium"
-                >
-                  {route}
-                </button>
-              ))}
-            </div>
-          </form>
         </div>
 
         {/* Bottom wave */}

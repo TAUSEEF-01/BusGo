@@ -70,7 +70,7 @@ function Navbar() {
 
   const navLinks = [
     { to: "/", label: "Home", icon: Home },
-    { to: "/search?origin=Dhaka&destination=Chittagong&date=2026-05-01", label: "Routes", icon: MapPin },
+    { to: "/routes", label: "Routes", icon: MapPin },
     ...(isAuthenticated ? [{ to: "/my-bookings", label: "My Bookings", icon: Ticket }] : []),
   ];
 
@@ -276,7 +276,7 @@ function Navbar() {
                 </Link>
               ))}
               <Link
-                to="/search?origin=Dhaka&destination=Chittagong&date=2026-05-01"
+                to="/routes"
                 className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors"
               >
                 <HelpCircle className="h-5 w-5" />

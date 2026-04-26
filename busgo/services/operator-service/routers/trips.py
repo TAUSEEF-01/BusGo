@@ -48,18 +48,44 @@ async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
 async def list_trips(
     operator_id: Optional[UUID] = None,
     date: Optional[datetime] = None,
+    origin: Optional[str] = None,
+    destination: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(Trip)
+    query = (
+        select(Trip, Operator, Bus, Route)
+        .select_from(Trip)
+        .join(Operator, Trip.operator_id == Operator.id)
+        .join(Bus, Trip.bus_id == Bus.id)
+        .join(Route, Trip.route_id == Route.id)
+    )
+    
     if operator_id:
         query = query.where(Trip.operator_id == operator_id)
     if date:
-        # Ideally filter by date range for the day, but matching exact here as placeholder
+        # Filter by date (ignoring time)
         query = query.where(Trip.departure_datetime >= date)
+    if origin:
+        query = query.where(Route.origin_city == origin)
+    if destination:
+        query = query.where(Route.destination_city == destination)
         
     result = await db.execute(query)
-    trips = result.scalars().all()
-    return BaseResponse(success=True, data=[TripResponse.model_validate(trip) for trip in trips])
+    rows = result.all()
+    
+    # Build enriched response
+    enriched_trips = []
+    for trip, operator, bus, route in rows:
+        trip_dict = TripResponse.model_validate(trip).model_dump()
+        trip_dict['operator_name'] = operator.name
+        trip_dict['bus_type'] = bus.bus_type.value
+        trip_dict['amenities'] = bus.amenities
+        trip_dict['origin_city'] = route.origin_city
+        trip_dict['destination_city'] = route.destination_city
+        trip_dict['trip_id'] = str(trip.id)
+        enriched_trips.append(trip_dict)
+    
+    return BaseResponse(success=True, data=enriched_trips)
 
 @router.put("/{id}", response_model=BaseResponse[TripResponse])
 async def update_trip(id: UUID, req: TripUpdate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
