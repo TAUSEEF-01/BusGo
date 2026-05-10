@@ -42,6 +42,7 @@ class BusBase(BaseModel):
     bus_type: BusType
     total_seats: int
     seat_layout: Dict[str, Any]
+    booked_seats: Optional[List[str]] = []
     amenities: List[str]
     is_active: Optional[bool] = True
 
@@ -53,6 +54,7 @@ class BusUpdate(BaseModel):
     bus_type: Optional[BusType] = None
     total_seats: Optional[int] = None
     seat_layout: Optional[Dict[str, Any]] = None
+    booked_seats: Optional[List[str]] = None
     amenities: Optional[List[str]] = None
     is_active: Optional[bool] = None
 
@@ -72,6 +74,14 @@ class RouteBase(BaseModel):
 
 class RouteCreate(RouteBase):
     pass
+
+class RouteUpdate(BaseModel):
+    origin_city: Optional[str] = None
+    destination_city: Optional[str] = None
+    distance_km: Optional[float] = None
+    estimated_duration_hours: Optional[float] = None
+    boarding_points: Optional[List[Point]] = None
+    dropping_points: Optional[List[Point]] = None
 
 class RouteResponse(RouteBase):
     id: UUID
@@ -104,3 +114,11 @@ class TripResponse(TripBase):
     created_at: datetime
     class Config:
         from_attributes = True
+
+class TripEnrichedResponse(TripResponse):
+    trip_id: str
+    operator_name: str
+    bus_type: str
+    amenities: List[str]
+    origin_city: str
+    destination_city: str

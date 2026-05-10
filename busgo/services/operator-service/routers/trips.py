@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 
 from database import get_db
 from models.models import Trip, TripStatus, Bus, Route, Operator
-from schemas.schemas import TripCreate, TripUpdate, TripResponse
+from schemas.schemas import TripCreate, TripUpdate, TripResponse, TripEnrichedResponse
 from api.deps import get_current_user_payload
 
 import sys
@@ -44,7 +44,7 @@ async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Trip not found")
     return BaseResponse(success=True, data=TripResponse.model_validate(trip))
 
-@router.get("/", response_model=BaseResponse[List[TripResponse]])
+@router.get("/", response_model=BaseResponse[List[TripEnrichedResponse]])
 async def list_trips(
     operator_id: Optional[UUID] = None,
     date: Optional[datetime] = None,

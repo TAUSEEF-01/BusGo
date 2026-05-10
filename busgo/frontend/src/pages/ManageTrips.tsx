@@ -20,6 +20,7 @@ export function ManageTrips() {
   const [isAddTripOpen, setIsAddTripOpen] = useState(false);
   const [isAddRouteOpen, setIsAddRouteOpen] = useState(false);
   const [editingBusId, setEditingBusId] = useState<string | null>(null);
+  const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
 
   const openAddBus = () => {
     setBusForm({
@@ -78,6 +79,28 @@ export function ManageTrips() {
     distance_km: 100,
     estimated_duration_hours: 2,
   });
+
+  const openAddRoute = () => {
+    setRouteForm({
+      origin_city: "",
+      destination_city: "",
+      distance_km: 100,
+      estimated_duration_hours: 2,
+    });
+    setEditingRouteId(null);
+    setIsAddRouteOpen(true);
+  };
+
+  const openEditRoute = (route: any) => {
+    setRouteForm({
+      origin_city: route.origin_city,
+      destination_city: route.destination_city,
+      distance_km: route.distance_km,
+      estimated_duration_hours: route.estimated_duration_hours,
+    });
+    setEditingRouteId(route.id);
+    setIsAddRouteOpen(true);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -139,37 +162,39 @@ export function ManageTrips() {
         amenities: ["WiFi", "Water"]
       };
 
+      let currentBusId = editingBusId;
+
       if (editingBusId) {
         const res = await apiClient.put(`/api/operators/buses/${editingBusId}`, payload);
         if (res.data.success) {
           toast.success("Bus updated successfully");
-          setIsAddBusOpen(false);
-          fetchData();
         }
       } else {
         const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/buses`, payload);
-        
         if (res.data.success) {
-          const newBusId = res.data.data.id;
+          currentBusId = res.data.data.id;
           toast.success("Bus added successfully");
-          
-          // If user wanted to assign a route right away
-          if (busForm.assign_route && busForm.route_id && busForm.departure_datetime && busForm.arrival_datetime) {
-            const tripPayload = {
-              operator_id: OPERATOR_ID,
-              bus_id: newBusId,
-              route_id: busForm.route_id,
-              departure_datetime: new Date(busForm.departure_datetime).toISOString(),
-              arrival_datetime: new Date(busForm.arrival_datetime).toISOString(),
-              fare_amount: busForm.fare_amount,
-              available_seats: busForm.total_seats
-            };
-            await apiClient.post(`/api/operators/trips/`, tripPayload);
-            toast.success("Bus mapped to route successfully");
-          }
+        }
+      }
 
-          setIsAddBusOpen(false);
-          fetchData();
+      if (currentBusId) {
+        if (busForm.assign_route && busForm.route_id && busForm.departure_datetime && busForm.arrival_datetime) {
+          const tripPayload = {
+            operator_id: OPERATOR_ID,
+            bus_id: currentBusId,
+            route_id: busForm.route_id,
+            departure_datetime: new Date(busForm.departure_datetime).toISOString(),
+            arrival_datetime: new Date(busForm.arrival_datetime).toISOString(),
+            fare_amount: busForm.fare_amount,
+            available_seats: busForm.total_seats
+          };
+          await apiClient.post(`/api/operators/trips/`, tripPayload);
+          toast.success("Bus mapped to route successfully");
+        }
+
+        setIsAddBusOpen(false);
+        fetchData();
+        if (!editingBusId) {
           setBusForm({
             registration_no: "",
             bus_type: "AC",
@@ -224,15 +249,25 @@ export function ManageTrips() {
         boarding_points: [{ name: "Main Counter", address: "Main Station", lat: 0, lng: 0 }],
         dropping_points: [{ name: "Main Drop", address: "Main Drop Station", lat: 0, lng: 0 }]
       };
-      const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/routes`, payload);
-      if (res.data.success) {
-        toast.success("Route added successfully");
-        setIsAddRouteOpen(false);
-        fetchData();
+      
+      if (editingRouteId) {
+        const res = await apiClient.put(`/api/operators/routes/${editingRouteId}`, payload);
+        if (res.data.success) {
+          toast.success("Route updated successfully");
+          setIsAddRouteOpen(false);
+          fetchData();
+        }
+      } else {
+        const res = await apiClient.post(`/api/operators/operators/${OPERATOR_ID}/routes`, payload);
+        if (res.data.success) {
+          toast.success("Route added successfully");
+          setIsAddRouteOpen(false);
+          fetchData();
+        }
       }
     } catch (err: any) {
       const detail = err.response?.data?.detail;
-      toast.error(typeof detail === "string" ? detail : "Failed to add route");
+      toast.error(typeof detail === "string" ? detail : `Failed to ${editingRouteId ? 'update' : 'add'} route`);
     }
   };
 
@@ -313,7 +348,7 @@ export function ManageTrips() {
           <div>
             <div className="p-5 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-surface-900 flex items-center gap-2"><Map className="w-5 h-5 text-brand-500" /> Permitted Routes</h3>
-              <button onClick={() => setIsAddRouteOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Route</button>
+              <button onClick={openAddRoute} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Route</button>
             </div>
             <table className="w-full text-left">
               <thead>
@@ -331,7 +366,10 @@ export function ManageTrips() {
                     <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
                     <td className="px-5 py-4 text-sm text-surface-600">{r.distance_km} km</td>
                     <td className="px-5 py-4 text-sm text-right">
-                      <button onClick={() => handleDeleteRoute(r.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                      <button onClick={() => openEditRoute(r)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteRoute(r.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </td>
@@ -384,7 +422,7 @@ export function ManageTrips() {
         <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-surface-900">Add New Route</h3>
+              <h3 className="font-bold text-lg text-surface-900">{editingRouteId ? "Edit Route" : "Add New Route"}</h3>
               <button onClick={() => setIsAddRouteOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
             </div>
             <form onSubmit={handleAddRoute} className="p-6 space-y-4">
@@ -416,7 +454,7 @@ export function ManageTrips() {
                   <input type="number" step="0.5" required className="input-premium w-full" value={routeForm.estimated_duration_hours} onChange={e => setRouteForm({...routeForm, estimated_duration_hours: parseFloat(e.target.value)})} min="0.5" />
                 </div>
               </div>
-              <button type="submit" className="btn-primary w-full mt-4">Save Route</button>
+              <button type="submit" className="btn-primary w-full mt-4">{editingRouteId ? "Update Route" : "Save Route"}</button>
             </form>
           </div>
         </div>

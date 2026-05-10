@@ -1,0 +1,345 @@
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\auth-service\models\user.py ===
+import uuid
+import sys
+import os
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+from .base import Base
+
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.enums import UserRole
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    phone = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, nullable=True)
+    full_name = Column(String, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(Enum(UserRole), default=UserRole.CUSTOMER)
+    is_verified = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+class OTPRecord(Base):
+    __tablename__ = "otp_records"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    phone = Column(String, index=True, nullable=False)
+    otp_code = Column(String(6), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_used = Column(Boolean, default=False)
+    
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    token = Column(String, unique=True, index=True, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_revoked = Column(Boolean, default=False)
+    user = relationship("User")
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\booking-service\models\models.py ===
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
+from .base import Base
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.enums import BookingStatus
+
+class Booking(Base):
+    __tablename__ = "bookings"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    operator_id = Column(UUID(as_uuid=True), nullable=False)
+    
+    seat_numbers = Column(JSONB, nullable=False)
+    passenger_details = Column(JSONB, nullable=False)
+    
+    boarding_point = Column(String, nullable=False)
+    dropping_point = Column(String, nullable=False)
+    journey_date = Column(Date, nullable=False)
+    departure_time = Column(Time, nullable=False)
+    
+    total_fare = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0.0)
+    promo_code = Column(String, nullable=True)
+    
+    status = Column(Enum(BookingStatus), default=BookingStatus.INITIATED)
+    idempotency_key = Column(String, unique=True, index=True, nullable=False)
+    payment_id = Column(UUID(as_uuid=True), nullable=True)
+    
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+    history = relationship("BookingStatusHistory", back_populates="booking", cascade="all, delete")
+
+class BookingStatusHistory(Base):
+    __tablename__ = "booking_status_history"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
+    from_status = Column(Enum(BookingStatus), nullable=True)
+    to_status = Column(Enum(BookingStatus), nullable=False)
+    changed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    reason = Column(String, nullable=True)
+
+    booking = relationship("Booking", back_populates="history")
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\cancellation-service\models\cancellation.py ===
+from sqlalchemy import Column, String, DateTime, Numeric, Enum
+from sqlalchemy.dialects.postgresql import UUID
+from datetime import datetime
+import uuid
+import enum
+from database import Base
+
+
+class CancellationStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class CancellationRequest(Base):
+    __tablename__ = "cancellation_requests"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), nullable=False)
+    user_id = Column(UUID(as_uuid=True), nullable=False)
+    reason = Column(String, nullable=False)
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(Enum(CancellationStatus), default=CancellationStatus.PENDING)
+    rejection_reason = Column(String, nullable=True)
+    refund_amount = Column(Numeric(10, 2), nullable=True)
+    processed_at = Column(DateTime, nullable=True)
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\inventory-service\models\models.py ===
+import uuid
+from datetime import datetime, timezone
+import enum
+from sqlalchemy import Column, String, DateTime, Enum
+from sqlalchemy.dialects.postgresql import UUID
+from .base import Base
+
+class SeatType(str, enum.Enum):
+    WINDOW = 'WINDOW'
+    AISLE = 'AISLE'
+    SLEEPER_UPPER = 'SLEEPER_UPPER'
+    SLEEPER_LOWER = 'SLEEPER_LOWER'
+
+class SeatStatus(str, enum.Enum):
+    AVAILABLE = 'AVAILABLE'
+    LOCKED = 'LOCKED'
+    BOOKED = 'BOOKED'
+
+class SeatInventory(Base):
+    __tablename__ = "seat_inventory"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    seat_number = Column(String, nullable=False)
+    seat_type = Column(Enum(SeatType), nullable=False)
+    status = Column(Enum(SeatStatus), default=SeatStatus.AVAILABLE)
+    locked_by_booking_id = Column(UUID(as_uuid=True), nullable=True)
+    lock_expires_at = Column(DateTime(timezone=True), nullable=True)
+    booked_by_user_id = Column(UUID(as_uuid=True), nullable=True)
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\operator-service\models\models.py ===
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, Boolean, DateTime, Enum, ForeignKey, Float, Integer, Numeric, JSON
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
+import enum
+from .base import Base
+
+class BusType(str, enum.Enum):
+    AC = 'AC'
+    NON_AC = 'NON_AC'
+    SLEEPER = 'SLEEPER'
+
+class TripStatus(str, enum.Enum):
+    SCHEDULED = 'SCHEDULED'
+    CANCELLED = 'CANCELLED'
+    COMPLETED = 'COMPLETED'
+
+class Operator(Base):
+    __tablename__ = "operators"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    contact_phone = Column(String, nullable=False)
+    contact_email = Column(String, nullable=False)
+    address = Column(String, nullable=False)
+    license_no = Column(String, nullable=False)
+    commission_rate = Column(Float, default=10.0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    buses = relationship("Bus", back_populates="operator")
+    routes = relationship("Route", back_populates="operator")
+    trips = relationship("Trip", back_populates="operator")
+
+class Bus(Base):
+    __tablename__ = "buses"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), nullable=False)
+    registration_no = Column(String, unique=True, index=True, nullable=False)
+    bus_type = Column(Enum(BusType), nullable=False)
+    total_seats = Column(Integer, nullable=False)
+    seat_layout = Column(JSONB, nullable=False)
+    amenities = Column(JSONB, nullable=False)
+    is_active = Column(Boolean, default=True)
+    
+    operator = relationship("Operator", back_populates="buses")
+    trips = relationship("Trip", back_populates="bus")
+
+class Route(Base):
+    __tablename__ = "routes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), nullable=False)
+    origin_city = Column(String, index=True, nullable=False)
+    destination_city = Column(String, index=True, nullable=False)
+    distance_km = Column(Float, nullable=False)
+    estimated_duration_hours = Column(Float, nullable=False)
+    boarding_points = Column(JSONB, nullable=False)
+    dropping_points = Column(JSONB, nullable=False)
+
+    operator = relationship("Operator", back_populates="routes")
+    trips = relationship("Trip", back_populates="route")
+
+class Trip(Base):
+    __tablename__ = "trips"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), nullable=False)
+    bus_id = Column(UUID(as_uuid=True), ForeignKey("buses.id"), nullable=False)
+    route_id = Column(UUID(as_uuid=True), ForeignKey("routes.id"), nullable=False)
+    departure_datetime = Column(DateTime(timezone=True), nullable=False)
+    arrival_datetime = Column(DateTime(timezone=True), nullable=False)
+    fare_amount = Column(Numeric(10, 2), nullable=False)
+    available_seats = Column(Integer, nullable=False)
+    status = Column(Enum(TripStatus), default=TripStatus.SCHEDULED)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    operator = relationship("Operator", back_populates="trips")
+    bus = relationship("Bus", back_populates="trips")
+    route = relationship("Route", back_populates="trips")
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\payment-service\models\models.py ===
+import uuid
+from datetime import datetime, timezone
+import enum
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Integer
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.orm import relationship
+from .base import Base
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.enums import PaymentMethod
+
+class PaymentStatus(str, enum.Enum):
+    PENDING = 'PENDING'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+    REFUNDED = 'REFUNDED'
+
+class RefundStatus(str, enum.Enum):
+    PENDING = 'PENDING'
+    PROCESSING = 'PROCESSING'
+    COMPLETED = 'COMPLETED'
+    FAILED = 'FAILED'
+
+class Payment(Base):
+    __tablename__ = "payments"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    trip_id = Column(UUID(as_uuid=True), index=True, nullable=False) # added for fraud detection
+    
+    amount = Column(Numeric(10, 2), nullable=False)
+    method = Column(Enum(PaymentMethod), nullable=False)
+    gateway_transaction_id = Column(String, nullable=True, unique=True)
+    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
+    gateway_response = Column(JSONB, nullable=True)
+    
+    initiated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    refunds = relationship("Refund", back_populates="payment")
+
+class Refund(Base):
+    __tablename__ = "refunds"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    payment_id = Column(UUID(as_uuid=True), ForeignKey("payments.id"), nullable=False)
+    booking_id = Column(UUID(as_uuid=True), nullable=False)
+    
+    amount = Column(Numeric(10, 2), nullable=False)
+    reason = Column(String, nullable=False)
+    status = Column(Enum(RefundStatus), default=RefundStatus.PENDING)
+    gateway_refund_id = Column(String, nullable=True)
+    
+    initiated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    estimated_days = Column(Integer, nullable=False)
+
+    payment = relationship("Payment", back_populates="refunds")
+
+
+
+=== E:\My_Github_Projects\Jaabo\busgo\services\ticket-service\models\models.py ===
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, DateTime, Enum, Index
+from sqlalchemy.dialects.postgresql import UUID, JSONB
+from .base import Base
+
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+from shared.enums import TicketStatus
+
+class Ticket(Base):
+    __tablename__ = "tickets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    booking_id = Column(UUID(as_uuid=True), unique=True, nullable=False)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    
+    seat_numbers = Column(JSONB, nullable=False)
+    passenger_details = Column(JSONB, nullable=False)
+    
+    qr_code_data = Column(String, unique=True, nullable=False)
+    qr_code_url = Column(String, nullable=True)
+    pdf_url = Column(String, nullable=True)
+    
+    status = Column(Enum(TicketStatus), default=TicketStatus.ACTIVE)
+    
+    issued_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    used_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index('ix_tickets_qr_data', 'qr_code_data'),
+    )
+

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from database import get_db
 from models.models import Bus, Route, Operator
-from schemas.schemas import BusCreate, BusUpdate, BusResponse, RouteCreate, RouteResponse
+from schemas.schemas import BusCreate, BusUpdate, BusResponse, RouteCreate, RouteUpdate, RouteResponse
 from api.deps import get_current_user_payload
 
 import sys
@@ -101,6 +101,26 @@ async def list_operator_routes(id: UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Route).where(Route.operator_id == id))
     routes = result.scalars().all()
     return BaseResponse(success=True, data=[RouteResponse.model_validate(r) for r in routes])
+
+@router.put("/routes/{id}", response_model=BaseResponse[RouteResponse])
+async def update_route(id: UUID, req: RouteUpdate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    result = await db.execute(select(Route).where(Route.id == id))
+    route = result.scalars().first()
+    if not route:
+        raise HTTPException(status_code=404, detail="Route not found")
+    
+    update_data = req.model_dump(exclude_unset=True)
+    if "boarding_points" in update_data:
+        update_data["boarding_points"] = [p for p in update_data["boarding_points"]]
+    if "dropping_points" in update_data:
+        update_data["dropping_points"] = [p for p in update_data["dropping_points"]]
+
+    for key, value in update_data.items():
+        setattr(route, key, value)
+        
+    await db.commit()
+    await db.refresh(route)
+    return BaseResponse(success=True, data=RouteResponse.model_validate(route), message="Route updated")
 
 @router.get("/routes/", response_model=BaseResponse[List[RouteResponse]])
 async def list_all_routes(

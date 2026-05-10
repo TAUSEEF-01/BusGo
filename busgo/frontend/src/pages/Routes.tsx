@@ -121,8 +121,18 @@ export function Routes() {
       let dbTrips: Trip[] = [];
       if (response.data.success) {
         const allTrips = response.data.data || [];
-        // Filter only scheduled trips
-        dbTrips = allTrips.filter((trip: any) => trip.status === 'SCHEDULED');
+        // Filter only scheduled trips and safely map missing fields
+        dbTrips = allTrips.filter((trip: any) => trip.status === 'SCHEDULED').map((trip: any) => ({
+          ...trip,
+          trip_id: trip.trip_id || trip.id,
+          operator_name: trip.operator_name || "Unknown Operator",
+          bus_type: trip.bus_type || "Standard",
+          origin_city: trip.origin_city || "Unknown Origin",
+          destination_city: trip.destination_city || "Unknown Destination",
+          available_seats: trip.available_seats || 0,
+          fare_amount: trip.fare_amount || 0,
+          amenities: trip.amenities || []
+        }));
       }
       
       // Generate dummy trips

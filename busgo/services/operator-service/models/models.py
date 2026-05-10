@@ -40,6 +40,7 @@ class Bus(Base):
     bus_type = Column(Enum(BusType), nullable=False)
     total_seats = Column(Integer, nullable=False)
     seat_layout = Column(JSONB, nullable=False)
+    booked_seats = Column(JSONB, default=list)
     amenities = Column(JSONB, nullable=False)
     is_active = Column(Boolean, default=True)
     
