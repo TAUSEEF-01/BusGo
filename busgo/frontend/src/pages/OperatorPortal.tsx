@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiClient } from "../api/client";
 import { Routes, Route, Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import {
@@ -17,13 +18,7 @@ const STATS = [
   { label: "Avg Rating", value: "4.8", change: "-0.1", up: false, icon: Star, color: "from-accent-500 to-accent-600" },
 ];
 
-const RECENT_BOOKINGS = [
-  { id: "BG-001", passenger: "Rashida Akter", route: "Dhaka → Chittagong", date: "Today", amount: "৳ 850", status: "Confirmed" },
-  { id: "BG-002", passenger: "Kamal Hossain", route: "Dhaka → Sylhet", date: "Today", amount: "৳ 700", status: "Confirmed" },
-  { id: "BG-003", passenger: "Nusrat Jahan", route: "Dhaka → Cox's Bazar", date: "Yesterday", amount: "৳ 1,200", status: "Completed" },
-  { id: "BG-004", passenger: "Rahman Ali", route: "Dhaka → Rajshahi", date: "Yesterday", amount: "৳ 650", status: "Cancelled" },
-  { id: "BG-005", passenger: "Fatema Begum", route: "Dhaka → Khulna", date: "2 days ago", amount: "৳ 750", status: "Confirmed" },
-];
+
 
 const NAV_ITEMS = [
   { to: "/operator", label: "Dashboard", icon: LayoutDashboard },
@@ -114,6 +109,28 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
 
 /* ─── Dashboard Content ────────────────────────────── */
 function DashboardHome() {
+  const { user } = useAuthStore();
+  const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      try {
+        if (user?.id) {
+          const res = await apiClient.get(`/api/bookings/operator/${user.id}?limit=5`);
+          if (res.data.success) {
+            setRecentBookings(res.data.data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch bookings", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBookings();
+  }, [user]);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Stats Grid */}
@@ -165,43 +182,51 @@ function DashboardHome() {
       <div className="card-premium overflow-hidden">
         <div className="p-5 border-b border-surface-100 flex items-center justify-between">
           <h3 className="font-bold text-surface-900">Recent Bookings</h3>
-          <button className="text-sm text-brand-600 font-semibold flex items-center gap-1 hover:text-brand-700">
+          <Link to="/operator/bookings" className="text-sm text-brand-600 font-semibold flex items-center gap-1 hover:text-brand-700">
             View all <ChevronRight className="h-4 w-4" />
-          </button>
+          </Link>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-surface-50 text-left">
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Ticket ID</th>
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Passenger</th>
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Route</th>
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Date</th>
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Amount</th>
-                <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-100">
-              {RECENT_BOOKINGS.map((b) => (
-                <tr key={b.id} className="hover:bg-surface-50 transition-colors">
-                  <td className="px-5 py-3.5 text-sm font-mono font-semibold text-surface-900">{b.id}</td>
-                  <td className="px-5 py-3.5 text-sm text-surface-700 font-medium">{b.passenger}</td>
-                  <td className="px-5 py-3.5 text-sm text-surface-600">{b.route}</td>
-                  <td className="px-5 py-3.5 text-sm text-surface-500">{b.date}</td>
-                  <td className="px-5 py-3.5 text-sm font-semibold text-surface-900">{b.amount}</td>
-                  <td className="px-5 py-3.5">
-                    <span className={`badge text-[10px] ${
-                      b.status === "Confirmed" ? "badge-success" :
-                      b.status === "Completed" ? "badge-info" :
-                      "badge-error"
-                    }`}>
-                      {b.status}
-                    </span>
-                  </td>
+          {loading ? (
+            <div className="p-8 text-center text-surface-500">Loading bookings...</div>
+          ) : (
+            <table className="w-full">
+              <thead>
+                <tr className="bg-surface-50 text-left">
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Ticket ID</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Passenger</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Route</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Date</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Amount</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-surface-100">
+                {recentBookings.length > 0 ? recentBookings.map((b) => (
+                  <tr key={b.id} className="hover:bg-surface-50 transition-colors">
+                    <td className="px-5 py-3.5 text-sm font-mono font-semibold text-surface-900">{b.id.split('-')[0].toUpperCase()}</td>
+                    <td className="px-5 py-3.5 text-sm text-surface-700 font-medium">{b.passenger_details?.[0]?.name || "N/A"}</td>
+                    <td className="px-5 py-3.5 text-sm text-surface-600">{b.boarding_point} → {b.dropping_point}</td>
+                    <td className="px-5 py-3.5 text-sm text-surface-500">{b.journey_date}</td>
+                    <td className="px-5 py-3.5 text-sm font-semibold text-surface-900">৳ {b.total_fare}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`badge text-[10px] ${
+                        b.status === "CONFIRMED" || b.status === "COMPLETED" ? "badge-success" :
+                        b.status === "CANCELLED" || b.status === "EXPIRED" || b.status === "REFUNDED" ? "badge-error" :
+                        "badge-info"
+                      }`}>
+                        {b.status}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-8 text-center text-surface-500">No recent bookings found.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

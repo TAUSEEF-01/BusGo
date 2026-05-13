@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 /* ─── Types ───────────────────────────────────────── */
 interface Trip {
   trip_id: string;
+  operator_id: string;
   operator_name: string;
   bus_type: string;
   departure_datetime: string;
@@ -321,6 +322,7 @@ export function SearchResults() {
                                   date,
                                   price: trip.fare_amount,
                                   operator: trip.operator_name,
+                                  operator_id: trip.operator_id,
                                   departureTime: departure
                                 }
                               })}

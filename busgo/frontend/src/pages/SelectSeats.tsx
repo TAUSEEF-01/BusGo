@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, Bus, Clock, MapPin, Star, Info, X } from "lucide-react";
+import { apiClient } from "../api/client";
+import { toast } from "react-hot-toast";
 
 /* ─── Seat Layout ──────────────────────────────────── */
 type SeatStatus = "available" | "booked" | "ladies" | "selected";
@@ -12,27 +14,8 @@ interface Seat {
   status: SeatStatus;
 }
 
-function generateSeats(): Seat[] {
+function generateDefaultLayout(): Seat[] {
   const seats: Seat[] = [];
-  // Since we don't have an endpoint to fetch available seats for a specific trip,
-  // we generate a random seat map.
-  const bookedCount = Math.floor(Math.random() * 15) + 5;
-  const bookedIds = new Set<string>();
-  
-  while(bookedIds.size < bookedCount) {
-    const row = Math.floor(Math.random() * 10);
-    const col = Math.floor(Math.random() * 4);
-    bookedIds.add(`${String.fromCharCode(65 + row)}${col + 1}`);
-  }
-
-  const ladiesIds = new Set<string>();
-  while(ladiesIds.size < 4) {
-    const row = Math.floor(Math.random() * 10);
-    const col = Math.floor(Math.random() * 4);
-    const id = `${String.fromCharCode(65 + row)}${col + 1}`;
-    if (!bookedIds.has(id)) ladiesIds.add(id);
-  }
-
   for (let row = 0; row < 10; row++) {
     const rowLetter = String.fromCharCode(65 + row);
     for (let col = 0; col < 4; col++) {
@@ -41,7 +24,7 @@ function generateSeats(): Seat[] {
         id,
         row,
         col,
-        status: bookedIds.has(id) ? "booked" : ladiesIds.has(id) ? "ladies" : "available",
+        status: "available",
       });
     }
   }
@@ -53,9 +36,52 @@ export function SelectSeats() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state || {};
-  const [seats, setSeats] = useState<Seat[]>(generateSeats);
+  const [seats, setSeats] = useState<Seat[]>([]);
+  const [loading, setLoading] = useState(true);
   const selected = seats.filter((s) => s.status === "selected");
   const pricePerSeat = state.price || 850;
+
+  useEffect(() => {
+    if (trip_id) {
+      fetchSeats();
+    }
+  }, [trip_id]);
+
+  const fetchSeats = async () => {
+    try {
+      setLoading(true);
+      const res = await apiClient.get(`/api/inventory/inventory/trips/${trip_id}/seats`);
+      if (res.data.success && res.data.data && res.data.data.length > 0) {
+        const dbSeats = res.data.data.map((s: any) => {
+          const rowChar = s.seat_number.charAt(0).toUpperCase();
+          const colStr = s.seat_number.substring(1);
+          const row = rowChar.charCodeAt(0) - 65;
+          const col = parseInt(colStr, 10) - 1;
+          
+          let frontendStatus: SeatStatus = "available";
+          if (s.status === "BOOKED" || s.status === "LOCKED") {
+             frontendStatus = "booked";
+          }
+          
+          return {
+            id: s.seat_number,
+            row,
+            col,
+            status: frontendStatus
+          };
+        });
+        setSeats(dbSeats);
+      } else {
+        setSeats(generateDefaultLayout());
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to fetch seat map.");
+      setSeats(generateDefaultLayout());
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleSeat = (id: string) => {
     setSeats((prev) =>
@@ -130,47 +156,53 @@ export function SelectSeats() {
 
                 {/* Seat Grid */}
                 <div className="border-2 border-surface-200 rounded-2xl p-4 bg-surface-50/50">
-                  <div className="space-y-2">
-                    {Array.from({ length: 10 }).map((_, row) => {
-                      const rowSeats = seats.filter((s) => s.row === row);
-                      return (
-                        <div key={row} className="flex items-center justify-center gap-2">
-                          {/* Left 2 seats */}
-                          <div className="flex gap-2">
-                            {rowSeats.slice(0, 2).map((s) => (
-                              <button
-                                key={s.id}
-                                onClick={() => toggleSeat(s.id)}
-                                disabled={s.status === "booked"}
-                                className={`seat seat-${s.status}`}
-                                title={s.id}
-                                id={`seat-${s.id}`}
-                              >
-                                {s.id}
-                              </button>
-                            ))}
+                  {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                      <div className="w-10 h-10 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin"></div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {Array.from({ length: 10 }).map((_, row) => {
+                        const rowSeats = seats.filter((s) => s.row === row);
+                        return (
+                          <div key={row} className="flex items-center justify-center gap-2">
+                            {/* Left 2 seats */}
+                            <div className="flex gap-2">
+                              {rowSeats.slice(0, 2).map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => toggleSeat(s.id)}
+                                  disabled={s.status === "booked"}
+                                  className={`seat seat-${s.status}`}
+                                  title={s.id}
+                                  id={`seat-${s.id}`}
+                                >
+                                  {s.id}
+                                </button>
+                              ))}
+                            </div>
+                            {/* Aisle */}
+                            <div className="w-8" />
+                            {/* Right 2 seats */}
+                            <div className="flex gap-2">
+                              {rowSeats.slice(2, 4).map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => toggleSeat(s.id)}
+                                  disabled={s.status === "booked"}
+                                  className={`seat seat-${s.status}`}
+                                  title={s.id}
+                                  id={`seat-${s.id}`}
+                                >
+                                  {s.id}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                          {/* Aisle */}
-                          <div className="w-8" />
-                          {/* Right 2 seats */}
-                          <div className="flex gap-2">
-                            {rowSeats.slice(2, 4).map((s) => (
-                              <button
-                                key={s.id}
-                                onClick={() => toggleSeat(s.id)}
-                                disabled={s.status === "booked"}
-                                className={`seat seat-${s.status}`}
-                                title={s.id}
-                                id={`seat-${s.id}`}
-                              >
-                                {s.id}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 <div className="text-center mt-3">
@@ -248,7 +280,7 @@ export function SelectSeats() {
                       navigate("/booking/passengers", {
                         state: {
                           trip_id: trip_id || "12345678-1234-5678-1234-567812345678",
-                          operator_id: "12345678-1234-5678-1234-567812345678",
+                          operator_id: state.operator_id || "12345678-1234-5678-1234-567812345678",
                           seats: selected.map((s) => s.id),
                           totalFare: selected.length * pricePerSeat + 20,
                           origin: state.origin || "Dhaka",
