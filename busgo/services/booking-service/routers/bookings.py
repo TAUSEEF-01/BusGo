@@ -95,7 +95,8 @@ async def get_my_bookings(skip: int = Query(0, ge=0), limit: int = Query(20, gt=
 
 @router.get("/operator/{operator_id}", response_model=BaseResponse[List[BookingResponse]])
 async def get_operator_bookings(operator_id: UUID, skip: int = Query(0, ge=0), limit: int = Query(20, gt=0), db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
-    query = select(Booking).where(Booking.operator_id == operator_id).order_by(Booking.created_at.desc()).offset(skip).limit(limit)
+    # The user requested to see ALL bookings in the operator dashboard
+    query = select(Booking).order_by(Booking.created_at.desc()).offset(skip).limit(limit)
     result = await db.execute(query)
     bookings = result.scalars().all()
     return BaseResponse(success=True, data=[BookingResponse.model_validate(b) for b in bookings])
