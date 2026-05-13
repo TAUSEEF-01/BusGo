@@ -52,7 +52,7 @@ function SeatMapModal({
   useEffect(() => {
     const fetchSeats = async () => {
       try {
-        const res = await apiClient.get(`/api/inventory/inventory/trips/${tripId}/seats`);
+        const res = await apiClient.get(`/api/inventory/trips/${tripId}/seats`);
         if (res.data.success) {
           setSeats(res.data.data);
         }

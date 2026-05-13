@@ -1,9 +1,143 @@
 import { useState, useEffect } from "react";
-import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2 } from "lucide-react";
+import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
 import { useAuthStore } from "../stores/authStore";
+
+/* ─── Seat Map Modal ────────────────────────────────── */
+interface SeatInfo {
+  id: string;
+  trip_id: string;
+  seat_number: string;
+  seat_type: string;
+  status: string;
+  locked_by_booking_id: string | null;
+  booked_by_user_id: string | null;
+}
+
+function SeatMapModal({
+  tripId,
+  tripLabel,
+  onClose,
+}: {
+  tripId: string;
+  tripLabel: string;
+  onClose: () => void;
+}) {
+  const [seats, setSeats] = useState<SeatInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchSeats = async () => {
+      try {
+        const res = await apiClient.get(`/api/inventory/trips/${tripId}/seats`);
+        if (res.data.success) {
+          setSeats(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch seat data", err);
+        toast.error("Failed to load seat map");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchSeats();
+  }, [tripId]);
+
+  // Group seats into rows
+  const seatsByRow: Record<string, SeatInfo[]> = {};
+  seats.forEach((s) => {
+    const row = s.seat_number.replace(/[0-9]/g, "");
+    if (!seatsByRow[row]) seatsByRow[row] = [];
+    seatsByRow[row].push(s);
+  });
+
+  const sortedRows = Object.keys(seatsByRow).sort();
+  sortedRows.forEach((row) => {
+    seatsByRow[row].sort((a, b) => {
+      const numA = parseInt(a.seat_number.replace(/\D/g, ""));
+      const numB = parseInt(b.seat_number.replace(/\D/g, ""));
+      return numA - numB;
+    });
+  });
+
+  const totalSeats = seats.length;
+  const bookedSeats = seats.filter((s) => s.status === "BOOKED").length;
+  const lockedSeats = seats.filter((s) => s.status === "LOCKED").length;
+  const availableSeats = seats.filter((s) => s.status === "AVAILABLE").length;
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-elevation-3 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center bg-gradient-to-r from-brand-600 to-brand-700">
+          <div>
+            <h3 className="font-bold text-lg text-white">Seat Map</h3>
+            <p className="text-brand-100 text-sm">{tripLabel}</p>
+          </div>
+          <button onClick={onClose} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-brand-600" /></div>
+        ) : seats.length === 0 ? (
+          <div className="p-8 text-center text-surface-500">No seat data available for this trip.</div>
+        ) : (
+          <div className="p-6">
+            <div className="grid grid-cols-4 gap-3 mb-6">
+              <div className="text-center p-3 rounded-xl bg-surface-50 border border-surface-100">
+                <p className="text-xl font-extrabold text-surface-900">{totalSeats}</p>
+                <p className="text-[11px] font-semibold text-surface-500 uppercase tracking-wider">Total</p>
+              </div>
+              <div className="text-center p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                <p className="text-xl font-extrabold text-emerald-700">{availableSeats}</p>
+                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Available</p>
+              </div>
+              <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
+                <p className="text-xl font-extrabold text-red-700">{bookedSeats}</p>
+                <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">Booked</p>
+              </div>
+              <div className="text-center p-3 rounded-xl bg-amber-50 border border-amber-100">
+                <p className="text-xl font-extrabold text-amber-700">{lockedSeats}</p>
+                <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Locked</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-5 mb-4 text-xs font-semibold text-surface-600">
+              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-100 border-2 border-emerald-400 inline-block"></span> Available</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-500 border-2 border-red-600 inline-block"></span> Booked</span>
+              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-amber-400 border-2 border-amber-500 inline-block"></span> Locked</span>
+            </div>
+
+            <div className="bg-surface-50 rounded-xl p-4 border border-surface-100 max-h-[400px] overflow-y-auto">
+              <div className="flex flex-col gap-2">
+                {sortedRows.map((row) => (
+                  <div key={row} className="flex items-center gap-2">
+                    <span className="w-6 text-xs font-bold text-surface-400 text-center">{row}</span>
+                    <div className="flex gap-2 flex-wrap">
+                      {seatsByRow[row].map((seat) => {
+                        const isBooked = seat.status === "BOOKED";
+                        const isLocked = seat.status === "LOCKED";
+                        return (
+                          <div key={seat.id} className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold transition-all duration-200 border-2 ${isBooked ? "bg-red-500 border-red-600 text-white shadow-sm" : isLocked ? "bg-amber-400 border-amber-500 text-amber-900 shadow-sm" : "bg-emerald-100 border-emerald-400 text-emerald-700 hover:bg-emerald-200"}`}>
+                            {seat.seat_number}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 export function ManageTrips() {
   const user = useAuthStore((s) => s.user);
@@ -21,6 +155,15 @@ export function ManageTrips() {
   const [isAddRouteOpen, setIsAddRouteOpen] = useState(false);
   const [editingBusId, setEditingBusId] = useState<string | null>(null);
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const [seatMapTrip, setSeatMapTrip] = useState<{ tripId: string; label: string } | null>(null);
+
+  const combineDateAndTime = (timeStr: string) => {
+    if (!timeStr) return "";
+    const [hours, minutes] = timeStr.split(':');
+    const date = new Date();
+    date.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    return date.toISOString();
+  };
 
   const openAddBus = () => {
     setBusForm({
@@ -178,13 +321,26 @@ export function ManageTrips() {
       }
 
       if (currentBusId) {
-        if (busForm.assign_route && busForm.route_id && busForm.departure_datetime && busForm.arrival_datetime) {
+        if (busForm.assign_route && busForm.route_id && busForm.departure_datetime) {
+          const route = routes.find(r => r.id === busForm.route_id);
+          const departureISO = combineDateAndTime(busForm.departure_datetime);
+          const departure = new Date(departureISO);
+          const arrival = new Date(departure);
+          if (route) {
+            const hours = Math.floor(route.estimated_duration_hours);
+            const minutes = Math.round((route.estimated_duration_hours - hours) * 60);
+            arrival.setHours(arrival.getHours() + hours);
+            arrival.setMinutes(arrival.getMinutes() + minutes);
+          } else {
+            arrival.setHours(arrival.getHours() + 4); // Default 4 hours if no route data
+          }
+
           const tripPayload = {
             operator_id: OPERATOR_ID,
             bus_id: currentBusId,
             route_id: busForm.route_id,
-            departure_datetime: new Date(busForm.departure_datetime).toISOString(),
-            arrival_datetime: new Date(busForm.arrival_datetime).toISOString(),
+            departure_datetime: departureISO,
+            arrival_datetime: arrival.toISOString(),
             fare_amount: busForm.fare_amount,
             available_seats: busForm.total_seats
           };
@@ -224,8 +380,8 @@ export function ManageTrips() {
         operator_id: OPERATOR_ID,
         bus_id: tripForm.bus_id,
         route_id: tripForm.route_id,
-        departure_datetime: new Date(tripForm.departure_datetime).toISOString(),
-        arrival_datetime: new Date(tripForm.arrival_datetime).toISOString(),
+        departure_datetime: combineDateAndTime(tripForm.departure_datetime),
+        arrival_datetime: combineDateAndTime(tripForm.arrival_datetime),
         fare_amount: tripForm.fare_amount,
         available_seats: bus.total_seats
       };
@@ -308,8 +464,7 @@ export function ManageTrips() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Current Route</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
@@ -394,6 +549,7 @@ export function ManageTrips() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Bus</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
@@ -407,6 +563,15 @@ export function ManageTrips() {
                       <td className="px-5 py-4 text-sm text-surface-600">{bus?.registration_no || 'Unknown'}</td>
                       <td className="px-5 py-4 text-sm font-bold text-surface-900">৳ {t.fare_amount}</td>
                       <td className="px-5 py-4 text-sm"><span className="badge badge-info">{t.status}</span></td>
+                      <td className="px-5 py-4 text-sm text-right">
+                        <button 
+                          onClick={() => setSeatMapTrip({ tripId: t.id, label: `${route?.origin_city} → ${route?.destination_city} | ${new Date(t.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` })}
+                          className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                          title="View Booked Seats"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -519,14 +684,10 @@ export function ManageTrips() {
                         {routes.map(r => <option key={r.id} value={r.id}>{r.origin_city} to {r.destination_city}</option>)}
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-surface-700 mb-1">Departure Time</label>
-                        <input type="datetime-local" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-surface-700 mb-1">Arrival Time</label>
-                        <input type="datetime-local" required={busForm.assign_route} className="input-premium w-full" value={busForm.arrival_datetime} onChange={e => setBusForm({...busForm, arrival_datetime: e.target.value})} />
+                        <input type="time" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
                       </div>
                     </div>
                     <div>
@@ -569,11 +730,11 @@ export function ManageTrips() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1">Departure Time</label>
-                  <input type="datetime-local" required className="input-premium w-full" value={tripForm.departure_datetime} onChange={e => setTripForm({...tripForm, departure_datetime: e.target.value})} />
+                  <input type="time" required className="input-premium w-full" value={tripForm.departure_datetime} onChange={e => setTripForm({...tripForm, departure_datetime: e.target.value})} />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1">Arrival Time</label>
-                  <input type="datetime-local" required className="input-premium w-full" value={tripForm.arrival_datetime} onChange={e => setTripForm({...tripForm, arrival_datetime: e.target.value})} />
+                  <input type="time" required className="input-premium w-full" value={tripForm.arrival_datetime} onChange={e => setTripForm({...tripForm, arrival_datetime: e.target.value})} />
                 </div>
               </div>
               <div>
@@ -584,6 +745,14 @@ export function ManageTrips() {
             </form>
           </div>
         </div>
+      )}
+      {/* Seat Map Modal */}
+      {seatMapTrip && (
+        <SeatMapModal
+          tripId={seatMapTrip.tripId}
+          tripLabel={seatMapTrip.label}
+          onClose={() => setSeatMapTrip(null)}
+        />
       )}
     </div>
   );
