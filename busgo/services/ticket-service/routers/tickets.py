@@ -17,7 +17,7 @@ from shared.base_response import BaseResponse
 from shared.enums import TicketStatus, UserRole
 from shared.kafka_producer import KafkaProducerClient
 
-router = APIRouter(prefix="/tickets", tags=["tickets"])
+router = APIRouter(tags=["tickets"])
 
 @router.get("/my", response_model=BaseResponse[List[TicketResponse]])
 async def get_my_tickets(db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):

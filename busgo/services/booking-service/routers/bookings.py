@@ -32,7 +32,7 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
     user_id = payload.get("user_id")
 
     # 2. Promo Validation
-    discount = await ExternalServices.validate_promo(req.promo_code, req.total_fare)
+    discount = await ExternalServices.validate_promo(req.promo_code, req.total_fare, str(req.trip_id), str(user_id))
     
     # 3. Create Booking Record
     booking_id = uuid.uuid4()
@@ -43,6 +43,7 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
         user_id=user_id,
         trip_id=req.trip_id,
         operator_id=req.operator_id,
+        operator_name=req.operator_name,
         seat_numbers=req.seat_numbers,
         passenger_details=[p.model_dump() for p in req.passenger_details],
         boarding_point=req.boarding_point,

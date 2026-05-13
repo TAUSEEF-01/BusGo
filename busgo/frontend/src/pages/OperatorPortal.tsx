@@ -309,7 +309,7 @@ export function OperatorPortal() {
               </button>
               <div>
                 <h1 className="text-lg font-bold text-surface-900">Dashboard</h1>
-                <p className="text-xs text-surface-500">Welcome back, Greenline Paribahan</p>
+                <p className="text-xs text-surface-500">Welcome back, {user?.name || "Operator"}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">

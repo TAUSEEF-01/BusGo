@@ -68,6 +68,7 @@ export function PassengerDetails() {
       const requestData = {
         trip_id: state.trip_id || "12345678-1234-5678-1234-567812345678",
         operator_id: state.operator_id || "12345678-1234-5678-1234-567812345678",
+        operator_name: state.operator || "Unknown Operator",
         seat_numbers: passengers.map((p: any) => p.seat),
         passenger_details: passengers.map((p: any) => ({
           name: p.name,

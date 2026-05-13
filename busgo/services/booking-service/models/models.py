@@ -16,6 +16,7 @@ class Booking(Base):
     user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
     trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
     operator_id = Column(UUID(as_uuid=True), nullable=False)
+    operator_name = Column(String, nullable=True)
     
     seat_numbers = Column(JSONB, nullable=False)
     passenger_details = Column(JSONB, nullable=False)

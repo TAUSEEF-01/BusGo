@@ -18,7 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.base_response import BaseResponse
 from shared.exceptions import SeatAlreadyLocked
 
-router = APIRouter(prefix="/inventory/trips", tags=["inventory"])
+router = APIRouter(prefix="/trips", tags=["inventory"])
 
 @router.post("/{trip_id}/initialize", response_model=BaseResponse)
 async def initialize_inventory(trip_id: UUID, req: InitializeRequest, db: AsyncSession = Depends(get_db)):

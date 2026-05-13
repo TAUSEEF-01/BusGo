@@ -50,7 +50,7 @@ export function SelectSeats() {
   const fetchSeats = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get(`/api/inventory/inventory/trips/${trip_id}/seats`);
+      const res = await apiClient.get(`/api/inventory/trips/${trip_id}/seats`);
       if (res.data.success && res.data.data && res.data.data.length > 0) {
         const dbSeats = res.data.data.map((s: any) => {
           const rowChar = s.seat_number.charAt(0).toUpperCase();
@@ -221,8 +221,8 @@ export function SelectSeats() {
                 {/* Route */}
                 <div className="flex items-center gap-2 p-3 bg-surface-50 rounded-xl mb-4 text-sm">
                   <div className="text-center">
-                    <p className="font-bold text-surface-900">08:00</p>
-                    <p className="text-xs text-surface-500">Dhaka</p>
+                    <p className="font-bold text-surface-900">{state.departureTime || "08:00 AM"}</p>
+                    <p className="text-xs text-surface-500">{state.origin || "Dhaka"}</p>
                   </div>
                   <div className="flex-1 flex items-center px-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
@@ -230,8 +230,8 @@ export function SelectSeats() {
                     <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
                   </div>
                   <div className="text-center">
-                    <p className="font-bold text-surface-900">13:30</p>
-                    <p className="text-xs text-surface-500">Chittagong</p>
+                    <p className="font-bold text-surface-900">{state.arrivalTime || "13:30"}</p>
+                    <p className="text-xs text-surface-500">{state.destination || "Chittagong"}</p>
                   </div>
                 </div>
 

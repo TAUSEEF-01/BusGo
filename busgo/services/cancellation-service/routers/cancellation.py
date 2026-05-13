@@ -15,7 +15,7 @@ from services.cancellation_service import (
     get_cancellation_by_booking,
 )
 
-router = APIRouter(prefix="/cancellations", tags=["Cancellations"])
+router = APIRouter(tags=["Cancellations"])
 
 
 @router.post("/", response_model=CancellationResponse)

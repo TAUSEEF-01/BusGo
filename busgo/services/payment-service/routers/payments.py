@@ -21,7 +21,7 @@ from shared.base_response import BaseResponse
 from shared.enums import PaymentMethod
 from shared.kafka_producer import KafkaProducerClient
 
-router = APIRouter(prefix="/payments", tags=["payments"])
+router = APIRouter(tags=["payments"])
 
 @router.post("/mock/simulate-failure", response_model=BaseResponse)
 async def toggle_simulate_failure(fail: bool):

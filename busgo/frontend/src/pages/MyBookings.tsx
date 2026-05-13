@@ -61,7 +61,7 @@ export function MyBookings() {
 
             return {
               id: b.id,
-              operator: b.operator_id === "84cd0cc6-ac4a-43f9-ade7-d982f7494077" ? "Greenline Paribahan" : "Hanif Enterprise",
+              operator: b.operator_name || "Unknown Operator",
               from: b.boarding_point || "Dhaka",
               to: b.dropping_point || "Destination",
               date: b.journey_date || "N/A",

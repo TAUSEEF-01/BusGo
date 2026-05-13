@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
+import { apiClient } from "../api/client";
 import {
   Calendar,
   MapPin,
@@ -118,11 +119,42 @@ export function Home() {
     }
   };
 
+  const [popularTrips, setPopularTrips] = useState<any[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+
+  useEffect(() => {
+    const fetchPopular = async () => {
+      try {
+        const res = await apiClient.get("/api/operators/trips/?limit=6");
+        if (res.data.success) {
+          setPopularTrips(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch popular routes", err);
+      } finally {
+        setLoadingPopular(false);
+      }
+    };
+    fetchPopular();
+  }, []);
+
   const stats = useScrollFade();
   const routes = useScrollFade();
   const howItWorks = useScrollFade();
   const features = useScrollFade();
   const testimonials = useScrollFade();
+
+  const getGradient = (i: number) => {
+    const gradients = [
+      "from-red-500 to-orange-500",
+      "from-blue-500 to-cyan-500",
+      "from-emerald-500 to-teal-500",
+      "from-purple-500 to-pink-500",
+      "from-amber-500 to-orange-500",
+      "from-indigo-500 to-blue-500",
+    ];
+    return gradients[i % gradients.length];
+  };
 
   return (
     <div className="flex flex-col">
@@ -265,49 +297,47 @@ export function Home() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { from: "Dhaka", to: "Chittagong", price: "৳ 800", duration: "5h 30m", operators: 42, gradient: "from-red-500 to-orange-500" },
-              { from: "Dhaka", to: "Cox's Bazar", price: "৳ 1,200", duration: "9h", operators: 28, gradient: "from-blue-500 to-cyan-500" },
-              { from: "Dhaka", to: "Sylhet", price: "৳ 700", duration: "4h", operators: 35, gradient: "from-emerald-500 to-teal-500" },
-              { from: "Dhaka", to: "Rajshahi", price: "৳ 650", duration: "5h", operators: 22, gradient: "from-purple-500 to-pink-500" },
-              { from: "Dhaka", to: "Khulna", price: "৳ 750", duration: "6h", operators: 18, gradient: "from-amber-500 to-orange-500" },
-              { from: "Chittagong", to: "Cox's Bazar", price: "৳ 500", duration: "4h", operators: 30, gradient: "from-indigo-500 to-blue-500" },
-            ].map((route, i) => (
-              <button
-                key={i}
-                onClick={() => navigate(`/search?origin=${route.from}&destination=${route.to}&date=2026-05-01`)}
-                className="group card-premium p-0 overflow-hidden text-left"
-                id={`route-card-${i}`}
-              >
-                {/* Colored header */}
-                <div className={`h-2 bg-gradient-to-r ${route.gradient}`} />
-                <div className="p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${route.gradient} flex items-center justify-center text-white shadow-lg`}>
-                      <Bus className="h-5 w-5" />
+            {loadingPopular ? (
+              <div className="col-span-full py-12 text-center text-surface-400">Loading routes...</div>
+            ) : popularTrips.length > 0 ? (
+              popularTrips.map((route, i) => (
+                <button
+                  key={route.id}
+                  onClick={() => navigate(`/search?origin=${route.origin_city}&destination=${route.destination_city}&date=${route.departure_datetime.split('T')[0]}`)}
+                  className="group card-premium p-0 overflow-hidden text-left"
+                  id={`route-card-${i}`}
+                >
+                  {/* Colored header */}
+                  <div className={`h-2 bg-gradient-to-r ${getGradient(i)}`} />
+                  <div className="p-5">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getGradient(i)} flex items-center justify-center text-white shadow-lg`}>
+                        <Bus className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-surface-900 font-bold text-lg">
+                          {route.origin_city}
+                          <ArrowRight className="h-4 w-4 text-surface-400 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
+                          {route.destination_city}
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 text-surface-900 font-bold text-lg">
-                        {route.from}
-                        <ArrowRight className="h-4 w-4 text-surface-400 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
-                        {route.to}
+
+                    <div className="flex items-center justify-between mt-4">
+                      <div className="flex items-center gap-4 text-sm text-surface-500">
+                        <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {route.operator_name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-surface-400">from</span>
+                        <p className="text-lg font-bold text-brand-600">৳ {route.fare_amount}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between mt-4">
-                    <div className="flex items-center gap-4 text-sm text-surface-500">
-                      <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {route.duration}</span>
-                      <span className="flex items-center gap-1"><Bus className="h-3.5 w-3.5" /> {route.operators} operators</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-surface-400">from</span>
-                      <p className="text-lg font-bold text-brand-600">{route.price}</p>
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              ))
+            ) : (
+              <div className="col-span-full py-12 text-center text-surface-400 italic">No live routes currently available.</div>
+            )}
           </div>
         </div>
       </section>

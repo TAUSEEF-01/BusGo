@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import UUID
@@ -20,7 +20,7 @@ app = FastAPI(title='deals-service')
 def health_check():
     return {'status': 'ok'}
 
-@app.post('/deals/validate-promo', response_model=ValidatePromoResponse)
+@app.post('/validate-promo', response_model=ValidatePromoResponse)
 def validate_promo(req: ValidatePromoRequest, db: Session = Depends(get_db)):
     code_upper = req.code.upper()
     promo = db.query(PromoCode).filter(PromoCode.code == code_upper).first()
@@ -64,7 +64,7 @@ def validate_promo(req: ValidatePromoRequest, db: Session = Depends(get_db)):
         message='Promo applied successfully'
     )
 
-@app.post('/deals/apply-promo')
+@app.post('/apply-promo')
 def apply_promo(req: ApplyPromoRequest, db: Session = Depends(get_db)):
     code_upper = req.code.upper()
     promo = db.query(PromoCode).filter(PromoCode.code == code_upper).first()
@@ -77,7 +77,7 @@ def apply_promo(req: ApplyPromoRequest, db: Session = Depends(get_db)):
     mark_promo_used(code_upper, str(req.user_id))
     return {'status': 'success', 'message': 'Promo applied'}
 
-@app.get('/deals/flash-sales/active', response_model=List[FlashSaleResponse])
+@app.get('/flash-sales/active', response_model=List[FlashSaleResponse])
 def get_active_flash_sales(db: Session = Depends(get_db)):
     now = datetime.utcnow()
     sales = db.query(FlashSale).filter(
@@ -87,11 +87,11 @@ def get_active_flash_sales(db: Session = Depends(get_db)):
     ).all()
     return sales
 
-@app.get('/deals/promos/', response_model=List[PromoCodeResponse])
+@app.get('/promos/', response_model=List[PromoCodeResponse])
 def admin_list_promos(db: Session = Depends(get_db)):
     return db.query(PromoCode).all()
 
-@app.post('/deals/promos/', response_model=PromoCodeResponse)
+@app.post('/promos/', response_model=PromoCodeResponse)
 def admin_create_promo(promo_data: PromoCodeCreate, db: Session = Depends(get_db)):
     promo = PromoCode(**promo_data.dict())
     promo.code = promo.code.upper()
@@ -100,7 +100,7 @@ def admin_create_promo(promo_data: PromoCodeCreate, db: Session = Depends(get_db
     db.refresh(promo)
     return promo
 
-@app.put('/deals/promos/{id}', response_model=PromoCodeResponse)
+@app.put('/promos/{id}', response_model=PromoCodeResponse)
 def admin_update_promo(id: UUID, promo_data: PromoCodeUpdate, db: Session = Depends(get_db)):
     promo = db.query(PromoCode).filter(PromoCode.id == id).first()
     if not promo:
@@ -113,7 +113,7 @@ def admin_update_promo(id: UUID, promo_data: PromoCodeUpdate, db: Session = Depe
     db.refresh(promo)
     return promo
 
-@app.delete('/deals/promos/{id}')
+@app.delete('/promos/{id}')
 def admin_delete_promo(id: UUID, db: Session = Depends(get_db)):
     promo = db.query(PromoCode).filter(PromoCode.id == id).first()
     if not promo:
