@@ -26,73 +26,7 @@ const AMENITY_MAP: Record<string, { icon: typeof Wifi; label: string }> = {
   usb: { icon: Zap, label: "USB" },
 };
 
-// Generate dummy trips for demonstration
-const generateDummyTrips = (): Trip[] => {
-  const routes = [
-    { origin: "Dhaka", destination: "Chittagong" },
-    { origin: "Dhaka", destination: "Sylhet" },
-    { origin: "Dhaka", destination: "Cox's Bazar" },
-    { origin: "Dhaka", destination: "Rajshahi" },
-    { origin: "Dhaka", destination: "Khulna" },
-    { origin: "Chittagong", destination: "Cox's Bazar" },
-    { origin: "Chittagong", destination: "Sylhet" },
-    { origin: "Sylhet", destination: "Dhaka" },
-  ];
 
-  const operators = [
-    { name: "Greenline Paribahan", type: "AC", amenities: ["ac", "wifi", "usb"] },
-    { name: "Shyamoli Paribahan", type: "NON_AC", amenities: ["usb"] },
-    { name: "Hanif Enterprise", type: "AC", amenities: ["ac", "wifi", "usb"] },
-    { name: "Ena Transport", type: "AC", amenities: ["ac", "wifi"] },
-    { name: "Sohag Paribahan", type: "NON_AC", amenities: [] },
-    { name: "Desh Travels", type: "SLEEPER", amenities: ["ac", "wifi", "usb"] },
-    { name: "Nabil Paribahan", type: "AC", amenities: ["ac", "usb"] },
-    { name: "TR Travels", type: "NON_AC", amenities: ["usb"] },
-  ];
-
-  const trips: Trip[] = [];
-  const today = new Date();
-  
-  // Generate trips for next 7 days
-  for (let day = 0; day < 7; day++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() + day);
-    const dateStr = date.toISOString().split('T')[0];
-
-    routes.forEach((route) => {
-      // Generate 2-3 trips per route per day
-      const tripsPerRoute = Math.floor(Math.random() * 2) + 2;
-      
-      for (let i = 0; i < tripsPerRoute; i++) {
-        const operator = operators[Math.floor(Math.random() * operators.length)];
-        const hour = 6 + i * 4 + Math.floor(Math.random() * 3);
-        const departureTime = `${String(hour).padStart(2, '0')}:00:00`;
-        const arrivalHour = hour + 5 + Math.floor(Math.random() * 3);
-        const arrivalTime = `${String(arrivalHour).padStart(2, '0')}:00:00`;
-        
-        const basePrice = route.destination === "Cox's Bazar" ? 1200 : 
-                         route.destination === "Sylhet" ? 700 : 850;
-        const price = operator.type === "SLEEPER" ? basePrice + 400 :
-                     operator.type === "AC" ? basePrice + 100 : basePrice;
-
-        trips.push({
-          trip_id: crypto.randomUUID(),
-          operator_name: operator.name,
-          bus_type: operator.type,
-          departure_datetime: `${dateStr}T${departureTime}`,
-          arrival_datetime: `${dateStr}T${arrivalTime}`,
-          fare_amount: price,
-          available_seats: Math.floor(Math.random() * 30) + 10,
-          origin_city: route.origin,
-          destination_city: route.destination,
-          amenities: operator.amenities,
-        });
-      }
-    });
-  }
-
-  return trips;
-};
 
 export function Routes() {
   const navigate = useNavigate();
@@ -135,19 +69,10 @@ export function Routes() {
         }));
       }
       
-      // Generate dummy trips
-      const dummyTrips = generateDummyTrips();
-      
-      // Combine database trips and dummy trips
-      const allTrips = [...dbTrips, ...dummyTrips];
-      setTrips(allTrips);
-      
+      setTrips(dbTrips);
     } catch (err: any) {
       console.error("Error fetching trips:", err);
-      // Even if API fails, show dummy data
-      const dummyTrips = generateDummyTrips();
-      setTrips(dummyTrips);
-      toast.error("Showing sample data");
+      toast.error("Failed to load available routes.");
     } finally {
       setLoading(false);
     }
