@@ -5,7 +5,6 @@ import { toast } from "react-hot-toast";
 
 import { useAuthStore } from "../stores/authStore";
 
-/* ─── Seat Map Modal ────────────────────────────────── */
 interface SeatInfo {
   id: string;
   trip_id: string;
@@ -16,34 +15,61 @@ interface SeatInfo {
   booked_by_user_id: string | null;
 }
 
-function SeatMapModal({
-  tripId,
-  tripLabel,
+interface PassengerDetail {
+  name: string;
+  age: number;
+  gender: string;
+  seat: string;
+}
+
+interface BookingInfo {
+  id: string;
+  user_id: string;
+  seat_numbers: string[];
+  passenger_details: PassengerDetail[];
+  total_fare: number;
+  status: string;
+  created_at: string;
+}
+
+function TripDetailsModal({
+  trip,
+  routeLabel,
+  busLabel,
   onClose,
 }: {
-  tripId: string;
-  tripLabel: string;
+  trip: any;
+  routeLabel: string;
+  busLabel: string;
   onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"overview" | "seats" | "passengers">("overview");
   const [seats, setSeats] = useState<SeatInfo[]>([]);
+  const [bookings, setBookings] = useState<BookingInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchSeats = async () => {
+    const fetchTripData = async () => {
       try {
-        const res = await apiClient.get(`/api/inventory/trips/${tripId}/seats`);
-        if (res.data.success) {
-          setSeats(res.data.data);
+        const [seatsRes, bookingsRes] = await Promise.all([
+          apiClient.get(`/api/inventory/trips/${trip.id}/seats`),
+          apiClient.get(`/api/bookings/trip/${trip.id}`)
+        ]);
+        if (seatsRes.data.success) {
+          setSeats(seatsRes.data.data);
+        }
+        if (bookingsRes.data.success) {
+          setBookings(bookingsRes.data.data);
         }
       } catch (err) {
-        console.error("Failed to fetch seat data", err);
-        toast.error("Failed to load seat map");
+        console.error("Failed to fetch trip details", err);
+        toast.error("Failed to load trip details");
       } finally {
         setLoading(false);
       }
     };
-    fetchSeats();
-  }, [tripId]);
+    fetchTripData();
+  }, [trip.id]);
 
   // Group seats into rows
   const seatsByRow: Record<string, SeatInfo[]> = {};
@@ -67,72 +93,210 @@ function SeatMapModal({
   const lockedSeats = seats.filter((s) => s.status === "LOCKED").length;
   const availableSeats = seats.filter((s) => s.status === "AVAILABLE").length;
 
+  const passengers = bookings.flatMap(b => 
+    b.passenger_details.map(p => ({
+      ...p,
+      bookingId: b.id,
+      status: b.status,
+      userId: b.user_id
+    }))
+  );
+
   return (
     <div className="fixed inset-0 z-[60] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-elevation-3 animate-fade-in" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center bg-gradient-to-r from-brand-600 to-brand-700">
+      <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-elevation-3 animate-fade-in flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center bg-gradient-to-r from-brand-600 to-brand-700 shrink-0">
           <div>
-            <h3 className="font-bold text-lg text-white">Seat Map</h3>
-            <p className="text-brand-100 text-sm">{tripLabel}</p>
+            <h3 className="font-bold text-lg text-white">Trip Details</h3>
+            <p className="text-brand-100 text-sm">{routeLabel} | {busLabel}</p>
           </div>
           <button onClick={onClose} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-brand-600" /></div>
-        ) : seats.length === 0 ? (
-          <div className="p-8 text-center text-surface-500">No seat data available for this trip.</div>
-        ) : (
-          <div className="p-6">
-            <div className="grid grid-cols-4 gap-3 mb-6">
-              <div className="text-center p-3 rounded-xl bg-surface-50 border border-surface-100">
-                <p className="text-xl font-extrabold text-surface-900">{totalSeats}</p>
-                <p className="text-[11px] font-semibold text-surface-500 uppercase tracking-wider">Total</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-emerald-50 border border-emerald-100">
-                <p className="text-xl font-extrabold text-emerald-700">{availableSeats}</p>
-                <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Available</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
-                <p className="text-xl font-extrabold text-red-700">{bookedSeats}</p>
-                <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">Booked</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-amber-50 border border-amber-100">
-                <p className="text-xl font-extrabold text-amber-700">{lockedSeats}</p>
-                <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Locked</p>
-              </div>
-            </div>
+        <div className="flex border-b border-surface-100 bg-surface-50 shrink-0">
+          {[
+            { id: "overview", label: "Overview", icon: Clock },
+            { id: "seats", label: "Seat Map", icon: Map },
+            { id: "passengers", label: "Passenger List", icon: Users },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-all ${
+                activeTab === tab.id
+                  ? "border-brand-600 text-brand-600 bg-white"
+                  : "border-transparent text-surface-500 hover:text-surface-700 hover:bg-surface-100/50"
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-            <div className="flex items-center gap-5 mb-4 text-xs font-semibold text-surface-600">
-              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-100 border-2 border-emerald-400 inline-block"></span> Available</span>
-              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-500 border-2 border-red-600 inline-block"></span> Booked</span>
-              <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-amber-400 border-2 border-amber-500 inline-block"></span> Locked</span>
-            </div>
-
-            <div className="bg-surface-50 rounded-xl p-4 border border-surface-100 max-h-[400px] overflow-y-auto">
-              <div className="flex flex-col gap-2">
-                {sortedRows.map((row) => (
-                  <div key={row} className="flex items-center gap-2">
-                    <span className="w-6 text-xs font-bold text-surface-400 text-center">{row}</span>
-                    <div className="flex gap-2 flex-wrap">
-                      {seatsByRow[row].map((seat) => {
-                        const isBooked = seat.status === "BOOKED";
-                        const isLocked = seat.status === "LOCKED";
-                        return (
-                          <div key={seat.id} className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold transition-all duration-200 border-2 ${isBooked ? "bg-red-500 border-red-600 text-white shadow-sm" : isLocked ? "bg-amber-400 border-amber-500 text-amber-900 shadow-sm" : "bg-emerald-100 border-emerald-400 text-emerald-700 hover:bg-emerald-200"}`}>
-                            {seat.seat_number}
-                          </div>
-                        );
-                      })}
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-brand-600" /></div>
+          ) : (
+            <div className="p-6">
+              {activeTab === "overview" && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 rounded-xl border border-surface-100 bg-surface-50/50">
+                      <p className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Schedule Information</p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Departure</span>
+                          <span className="text-sm font-bold text-surface-900">{new Date(trip.departure_datetime).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Arrival (Est.)</span>
+                          <span className="text-sm font-bold text-surface-900">{new Date(trip.arrival_datetime).toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Route</span>
+                          <span className="text-sm font-bold text-surface-900">{routeLabel}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Bus Registration</span>
+                          <span className="text-sm font-bold text-surface-900">{busLabel}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-xl border border-surface-100 bg-surface-50/50">
+                      <p className="text-xs font-bold text-surface-400 uppercase tracking-wider mb-3">Pricing & Status</p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Fare Amount</span>
+                          <span className="text-sm font-bold text-brand-600">৳ {trip.fare_amount}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Available Seats</span>
+                          <span className="text-sm font-bold text-emerald-600">{trip.available_seats} / {totalSeats}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Trip Status</span>
+                          <span className="badge badge-info">{trip.status}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-surface-500">Total Bookings</span>
+                          <span className="text-sm font-bold text-surface-900">{bookings.length}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
+
+                  <div className="grid grid-cols-4 gap-3">
+                    <div className="text-center p-3 rounded-xl bg-surface-50 border border-surface-100">
+                      <p className="text-xl font-extrabold text-surface-900">{totalSeats}</p>
+                      <p className="text-[11px] font-semibold text-surface-500 uppercase tracking-wider">Total</p>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+                      <p className="text-xl font-extrabold text-emerald-700">{availableSeats}</p>
+                      <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Available</p>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-red-50 border border-red-100">
+                      <p className="text-xl font-extrabold text-red-700">{bookedSeats}</p>
+                      <p className="text-[11px] font-semibold text-red-600 uppercase tracking-wider">Booked</p>
+                    </div>
+                    <div className="text-center p-3 rounded-xl bg-amber-50 border border-amber-100">
+                      <p className="text-xl font-extrabold text-amber-700">{lockedSeats}</p>
+                      <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wider">Locked</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "seats" && (
+                <div>
+                  <div className="flex items-center gap-5 mb-4 text-xs font-semibold text-surface-600">
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-emerald-100 border-2 border-emerald-400 inline-block"></span> Available</span>
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-red-500 border-2 border-red-600 inline-block"></span> Booked</span>
+                    <span className="flex items-center gap-1.5"><span className="w-4 h-4 rounded bg-amber-400 border-2 border-amber-500 inline-block"></span> Locked</span>
+                  </div>
+
+                  <div className="bg-surface-50 rounded-xl p-6 border border-surface-100 max-w-md mx-auto">
+                    <div className="flex flex-col gap-4">
+                      {sortedRows.map((row) => (
+                        <div key={row} className="flex items-center gap-4">
+                          <span className="w-6 text-sm font-bold text-surface-400 text-center">{row}</span>
+                          <div className="flex gap-3 flex-wrap">
+                            {seatsByRow[row].map((seat) => {
+                              const isBooked = seat.status === "BOOKED";
+                              const isLocked = seat.status === "LOCKED";
+                              return (
+                                <div 
+                                  key={seat.id} 
+                                  title={isBooked ? "Booked" : isLocked ? "Locked" : "Available"}
+                                  className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold transition-all duration-200 border-2 ${
+                                    isBooked ? "bg-red-500 border-red-600 text-white shadow-sm" : 
+                                    isLocked ? "bg-amber-400 border-amber-500 text-amber-900 shadow-sm" : 
+                                    "bg-emerald-100 border-emerald-400 text-emerald-700 hover:bg-emerald-200"
+                                  }`}
+                                >
+                                  {seat.seat_number}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "passengers" && (
+                <div className="space-y-4">
+                  {passengers.length === 0 ? (
+                    <div className="text-center py-12 bg-surface-50 rounded-2xl border border-dashed border-surface-200">
+                      <Users className="w-12 h-12 text-surface-300 mx-auto mb-3" />
+                      <p className="text-surface-500 font-medium">No passengers have booked seats for this trip yet.</p>
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden rounded-xl border border-surface-100 shadow-sm">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-surface-50 border-b border-surface-100">
+                            <th className="px-4 py-3 text-[11px] font-bold text-surface-500 uppercase">Passenger</th>
+                            <th className="px-4 py-3 text-[11px] font-bold text-surface-500 uppercase text-center">Seat</th>
+                            <th className="px-4 py-3 text-[11px] font-bold text-surface-500 uppercase">Gender/Age</th>
+                            <th className="px-4 py-3 text-[11px] font-bold text-surface-500 uppercase text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-100">
+                          {passengers.map((p, idx) => (
+                            <tr key={`${p.bookingId}-${idx}`} className="hover:bg-surface-50/50 transition-colors">
+                              <td className="px-4 py-3">
+                                <p className="font-bold text-surface-900 text-sm">{p.name}</p>
+                                <p className="text-[10px] text-surface-400 font-mono">ID: {p.bookingId.split('-')[0].toUpperCase()}</p>
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <span className="inline-block px-2 py-1 rounded bg-brand-50 text-brand-700 text-xs font-bold border border-brand-100">
+                                  {p.seat}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-sm text-surface-600">{p.gender}, {p.age}y</span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <span className={`badge ${p.status === 'CONFIRMED' ? 'badge-success' : 'badge-amber'} text-[10px]`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
@@ -155,7 +319,7 @@ export function ManageTrips() {
   const [isAddRouteOpen, setIsAddRouteOpen] = useState(false);
   const [editingBusId, setEditingBusId] = useState<string | null>(null);
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
-  const [seatMapTrip, setSeatMapTrip] = useState<{ tripId: string; label: string } | null>(null);
+  const [selectedTrip, setSelectedTrip] = useState<{ trip: any; routeLabel: string; busLabel: string } | null>(null);
 
   const combineDateAndTime = (timeStr: string) => {
     if (!timeStr) return "";
@@ -565,9 +729,13 @@ export function ManageTrips() {
                       <td className="px-5 py-4 text-sm"><span className="badge badge-info">{t.status}</span></td>
                       <td className="px-5 py-4 text-sm text-right">
                         <button 
-                          onClick={() => setSeatMapTrip({ tripId: t.id, label: `${route?.origin_city} → ${route?.destination_city} | ${new Date(t.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` })}
+                          onClick={() => setSelectedTrip({ 
+                            trip: t, 
+                            routeLabel: route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown Route',
+                            busLabel: bus?.registration_no || 'Unknown Bus'
+                          })}
                           className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
-                          title="View Booked Seats"
+                          title="View Trip Details & Bookings"
                         >
                           <Eye className="w-4 h-4" />
                         </button>
@@ -746,12 +914,13 @@ export function ManageTrips() {
           </div>
         </div>
       )}
-      {/* Seat Map Modal */}
-      {seatMapTrip && (
-        <SeatMapModal
-          tripId={seatMapTrip.tripId}
-          tripLabel={seatMapTrip.label}
-          onClose={() => setSeatMapTrip(null)}
+      {/* Trip Details Modal */}
+      {selectedTrip && (
+        <TripDetailsModal
+          trip={selectedTrip.trip}
+          routeLabel={selectedTrip.routeLabel}
+          busLabel={selectedTrip.busLabel}
+          onClose={() => setSelectedTrip(null)}
         />
       )}
     </div>

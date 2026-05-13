@@ -101,6 +101,13 @@ async def get_operator_bookings(operator_id: UUID, skip: int = Query(0, ge=0), l
     bookings = result.scalars().all()
     return BaseResponse(success=True, data=[BookingResponse.model_validate(b) for b in bookings])
 
+@router.get("/trip/{trip_id}", response_model=BaseResponse[List[BookingResponse]])
+async def get_trip_bookings(trip_id: UUID, db: AsyncSession = Depends(get_db)):
+    query = select(Booking).where(Booking.trip_id == trip_id).order_by(Booking.created_at.desc())
+    result = await db.execute(query)
+    bookings = result.scalars().all()
+    return BaseResponse(success=True, data=[BookingResponse.model_validate(b) for b in bookings])
+
 @router.get("/{booking_id}", response_model=BaseResponse[BookingResponse])
 async def get_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     query = select(Booking).where(Booking.id == booking_id, Booking.user_id == payload.get("user_id"))
