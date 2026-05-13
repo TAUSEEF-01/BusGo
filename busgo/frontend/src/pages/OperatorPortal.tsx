@@ -5,10 +5,11 @@ import { useAuthStore } from "../stores/authStore";
 import {
   LayoutDashboard, Bus, Ticket, BarChart3, Settings, LogOut,
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
-  Calendar, ChevronRight, Menu, X, Bell,
+  Calendar, ChevronRight, Menu, X, Bell, MapPin, ArrowRight, Clock,
 } from "lucide-react";
 
 import { ManageTrips } from "./ManageTrips";
+import { OperatorBookings } from "./OperatorBookings";
 
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
@@ -196,7 +197,8 @@ function DashboardHome() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Ticket ID</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Passenger</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Route</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Date</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Date & Time</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Seats</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Amount</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
                 </tr>
@@ -206,13 +208,40 @@ function DashboardHome() {
                   <tr key={b.id} className="hover:bg-surface-50 transition-colors">
                     <td className="px-5 py-3.5 text-sm font-mono font-semibold text-surface-900">{b.id.split('-')[0].toUpperCase()}</td>
                     <td className="px-5 py-3.5 text-sm text-surface-700 font-medium">{b.passenger_details?.[0]?.name || "N/A"}</td>
-                    <td className="px-5 py-3.5 text-sm text-surface-600">{b.boarding_point} → {b.dropping_point}</td>
-                    <td className="px-5 py-3.5 text-sm text-surface-500">{b.journey_date}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1 text-sm text-surface-600">
+                        <MapPin className="h-3 w-3 text-brand-500 flex-shrink-0" />
+                        <span>{b.boarding_point}</span>
+                        <ArrowRight className="h-3 w-3 text-surface-400 mx-0.5" />
+                        <span>{b.dropping_point}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="text-sm text-surface-700 font-medium flex items-center gap-1">
+                        <Calendar className="h-3 w-3 text-surface-400" />
+                        {b.journey_date}
+                      </div>
+                      <div className="text-xs text-surface-400 flex items-center gap-1 mt-0.5">
+                        <Clock className="h-3 w-3" />
+                        {b.departure_time}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap gap-1">
+                        {(b.seat_numbers || []).slice(0, 2).map((s: string) => (
+                          <span key={s} className="px-1.5 py-0.5 bg-brand-50 text-brand-700 rounded text-[10px] font-bold border border-brand-200">{s}</span>
+                        ))}
+                        {(b.seat_numbers || []).length > 2 && (
+                          <span className="px-1.5 py-0.5 bg-surface-100 text-surface-500 rounded text-[10px] font-bold">+{b.seat_numbers.length - 2}</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-5 py-3.5 text-sm font-semibold text-surface-900">৳ {b.total_fare}</td>
                     <td className="px-5 py-3.5">
                       <span className={`badge text-[10px] ${
                         b.status === "CONFIRMED" || b.status === "COMPLETED" ? "badge-success" :
                         b.status === "CANCELLED" || b.status === "EXPIRED" || b.status === "REFUNDED" ? "badge-error" :
+                        b.status === "SEAT_LOCKED" ? "badge-warning" :
                         "badge-info"
                       }`}>
                         {b.status}
@@ -221,7 +250,7 @@ function DashboardHome() {
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="px-5 py-8 text-center text-surface-500">No recent bookings found.</td>
+                    <td colSpan={7} className="px-5 py-8 text-center text-surface-500">No recent bookings found.</td>
                   </tr>
                 )}
               </tbody>
@@ -347,7 +376,7 @@ export function OperatorPortal() {
           <Routes>
             <Route path="/" element={<DashboardHome />} />
             <Route path="/trips" element={<ManageTrips />} />
-            <Route path="/bookings" element={<PlaceholderPage title="All Bookings" icon={Ticket} />} />
+            <Route path="/bookings" element={<OperatorBookings />} />
             <Route path="/analytics" element={<PlaceholderPage title="Analytics" icon={BarChart3} />} />
             <Route path="/settings" element={<PlaceholderPage title="Settings" icon={Settings} />} />
           </Routes>

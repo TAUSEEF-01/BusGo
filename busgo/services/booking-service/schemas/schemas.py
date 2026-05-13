@@ -35,6 +35,7 @@ class BookingResponse(BaseModel):
     total_fare: float
     discount_amount: float
     seat_numbers: List[str]
+    passenger_details: Optional[List[Dict[str, Any]]] = None
     boarding_point: str
     dropping_point: str
     journey_date: date
