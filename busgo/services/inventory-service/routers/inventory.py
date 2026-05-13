@@ -43,6 +43,25 @@ async def get_seats(trip_id: UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(SeatInventory).where(SeatInventory.trip_id == trip_id))
     seats = result.scalars().all()
     
+    # Auto-initialize a default layout if not found (Hack for prototype logic when operators forgot)
+    if not seats:
+        new_seats = []
+        for row in range(10):
+            row_letter = chr(65 + row)
+            for col in range(4):
+                seat_number = f"{row_letter}{col+1}"
+                new_seats.append(SeatInventory(
+                    trip_id=trip_id,
+                    seat_number=seat_number,
+                    seat_type=SeatType.WINDOW if col in [0, 3] else SeatType.AISLE,
+                    status=SeatStatus.AVAILABLE
+                ))
+        db.add_all(new_seats)
+        await db.commit()
+        
+        result = await db.execute(select(SeatInventory).where(SeatInventory.trip_id == trip_id))
+        seats = result.scalars().all()
+        
     # Overlay Redis locks
     for seat in seats:
         if seat.status == SeatStatus.AVAILABLE:
@@ -71,7 +90,7 @@ async def get_available_count(trip_id: UUID, db: AsyncSession = Depends(get_db))
     return BaseResponse(success=True, data={"available_seats": available})
 
 @router.post("/{trip_id}/seats/lock", response_model=BaseResponse[LockResponse])
-async def lock_seats(trip_id: UUID, req: LockRequest, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+async def lock_seats(trip_id: UUID, req: LockRequest, db: AsyncSession = Depends(get_db)):
     # Check DB status first
     result = await db.execute(select(SeatInventory).where(
         SeatInventory.trip_id == trip_id,

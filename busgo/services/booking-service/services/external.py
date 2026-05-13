@@ -33,3 +33,18 @@ class ExternalServices:
             )
             res.raise_for_status()
             return res.json()
+
+    @staticmethod
+    async def confirm_seats(trip_id: str, seat_numbers: list, booking_id: str, user_id: str):
+        async with httpx.AsyncClient() as client:
+            res = await client.post(
+                f"{settings.INVENTORY_SERVICE_URL}/inventory/trips/{trip_id}/seats/confirm",
+                json={
+                    "seat_numbers": seat_numbers,
+                    "booking_id": booking_id,
+                    "user_id": user_id
+                },
+                timeout=5.0
+            )
+            res.raise_for_status()
+            return res.json()

@@ -10,7 +10,7 @@ from services.redis_svc import RedisInventoryService
 class InventoryKafkaConsumer:
     def __init__(self):
         self.consumer = AIOKafkaConsumer(
-            "seat.lock.expired", "booking.cancelled",
+            "seat.lock.expired", "booking.cancelled", "ticket.issued",
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="inventory-service-group",
             value_deserializer=lambda m: json.loads(m.decode('utf-8'))
@@ -45,7 +45,12 @@ class InventoryKafkaConsumer:
             seats = result.scalars().all()
 
             for seat in seats:
-                if seat.status != SeatStatus.BOOKED:
+                if topic == "ticket.issued":
+                    seat.status = SeatStatus.BOOKED
+                    user_id = message.get("user_id")
+                    if user_id:
+                        seat.booked_by_user_id = user_id
+                elif seat.status != SeatStatus.BOOKED:
                     seat.status = SeatStatus.AVAILABLE
                     seat.locked_by_booking_id = None
                     seat.lock_expires_at = None

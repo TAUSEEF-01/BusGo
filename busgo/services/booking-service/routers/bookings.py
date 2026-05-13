@@ -57,12 +57,13 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
         expires_at=expires_at
     )
     
-    # 4. Lock Seats in Inventory (non-fatal in dev - inventory service may not have proper inter-service auth)
+    # 4. Lock Seats in Inventory
     try:
         await ExternalServices.lock_seats(str(req.trip_id), req.seat_numbers, str(booking_id), str(user_id))
     except Exception as e:
         import logging
-        logging.warning(f"Failed to lock seats in inventory (non-fatal): {str(e)}")
+        logging.error(f"Failed to lock seats in inventory: {str(e)}")
+        raise HTTPException(status_code=400, detail="Failed to lock seats. They may already be booked or locked.")
 
     db.add(booking)
     history = BookingStatusHistory(booking_id=booking.id, from_status=BookingStatus.INITIATED, to_status=BookingStatus.SEAT_LOCKED, reason="Seats Locked Successfully")
@@ -123,6 +124,18 @@ async def confirm_payment_internal(booking_id: UUID, payment_id: UUID, db: Async
     history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=booking.status, reason="Payment Configuration Endpoint")
     db.add(history)
     await db.commit()
+
+    # Confirm seats in inventory service so they show as BOOKED
+    try:
+        await ExternalServices.confirm_seats(
+            str(booking.trip_id),
+            booking.seat_numbers,
+            str(booking.id),
+            str(booking.user_id)
+        )
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to confirm seats in inventory: {str(e)}")
 
     await KafkaProducerClient.publish("ticket.issued", {
         "booking_id": str(booking.id),

@@ -163,7 +163,7 @@ export function SelectSeats() {
                   ) : (
                     <div className="space-y-2">
                       {Array.from({ length: 10 }).map((_, row) => {
-                        const rowSeats = seats.filter((s) => s.row === row);
+                        const rowSeats = seats.filter((s) => s.row === row).sort((a, b) => a.col - b.col);
                         return (
                           <div key={row} className="flex items-center justify-center gap-2">
                             {/* Left 2 seats */}
