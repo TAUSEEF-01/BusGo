@@ -161,7 +161,7 @@ async def confirm_seats(trip_id: UUID, req: ConfirmRequest, db: AsyncSession = D
     
     if len(seats) != len(req.seat_numbers):
         raise HTTPException(status_code=400, detail="Invalid seat confirmation request")
-        
+    
     for seat in seats:
         seat.status = SeatStatus.BOOKED
         seat.booked_by_user_id = req.user_id
@@ -169,3 +169,27 @@ async def confirm_seats(trip_id: UUID, req: ConfirmRequest, db: AsyncSession = D
         
     await db.commit()
     return BaseResponse(success=True, message="Seats confirmed")
+
+@router.post("/{trip_id}/seats/unbook", response_model=BaseResponse)
+async def unbook_seats(trip_id: UUID, req: ReleaseRequest, db: AsyncSession = Depends(get_db)):
+    query = select(SeatInventory).where(
+        SeatInventory.trip_id == trip_id
+    )
+    if req.seat_numbers:
+        query = query.where(SeatInventory.seat_number.in_(req.seat_numbers))
+    else:
+        # If no seat numbers provided, unbook everything for that booking ID
+        query = query.where(SeatInventory.locked_by_booking_id == req.booking_id)
+        
+    result = await db.execute(query)
+    seats = result.scalars().all()
+    
+    for seat in seats:
+        seat.status = SeatStatus.AVAILABLE
+        seat.booked_by_user_id = None
+        seat.locked_by_booking_id = None
+        seat.lock_expires_at = None
+        await RedisInventoryService.unlock_seat(str(trip_id), seat.seat_number)
+        
+    await db.commit()
+    return BaseResponse(success=True, message="Seats unbooked")

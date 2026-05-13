@@ -173,6 +173,16 @@ async def cancel_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), p
     
     history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=booking.status, reason="User Cancelled")
     db.add(history)
+    
+    # Release seats in inventory service
+    try:
+        await ExternalServices.unbook_seats(str(booking.trip_id), booking.seat_numbers, str(booking.id))
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to unbook seats on cancellation: {str(e)}")
+        # We still proceed with cancellation in booking service even if inventory release fails
+        # A separate cleanup task or event consumer should eventually sync it.
+
     await db.commit()
 
     await KafkaProducerClient.publish("booking.cancelled", {"booking_id": str(booking.id), "trip_id": str(booking.trip_id)})

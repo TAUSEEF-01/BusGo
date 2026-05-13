@@ -50,10 +50,12 @@ class InventoryKafkaConsumer:
                     user_id = message.get("user_id")
                     if user_id:
                         seat.booked_by_user_id = user_id
-                elif seat.status != SeatStatus.BOOKED:
+                elif topic == "booking.cancelled" or topic == "seat.lock.expired":
                     seat.status = SeatStatus.AVAILABLE
                     seat.locked_by_booking_id = None
                     seat.lock_expires_at = None
+                    seat.booked_by_user_id = None
+                
                 await RedisInventoryService.unlock_seat(str(seat.trip_id), seat.seat_number)
 
             await db.commit()
