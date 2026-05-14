@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine as build-stage
+FROM node:20-alpine as build-stage
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -9,6 +9,7 @@ ARG VITE_API_BASE_URL
 ARG VITE_BASE_PATH=/
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 ENV VITE_BASE_PATH=$VITE_BASE_PATH
+# Run build - bypass tsc if it's causing issues, or ensure it works
 RUN npm run build
 
 # Production stage

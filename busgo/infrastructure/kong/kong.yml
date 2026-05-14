@@ -77,6 +77,7 @@ plugins:
         - http://localhost:5174
         - http://135.171.216.245
         - http://135.171.216.245:80
+        - http://busgo.farefin.com
       methods:
         - GET
         - POST

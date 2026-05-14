@@ -303,8 +303,8 @@ services:
     build:
       context: ../frontend
       args:
-        VITE_API_BASE_URL: http://135.171.216.245/DU_Vibecoders-busgo/api
-        VITE_BASE_PATH: /DU_Vibecoders-busgo
+        VITE_API_BASE_URL: http://busgo.farefin.com/api
+        VITE_BASE_PATH: /
     ports:
       - "3000:80"
     depends_on:
