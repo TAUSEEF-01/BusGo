@@ -299,6 +299,18 @@ services:
     ports:
       - "8022:8000"
 
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        - VITE_API_BASE_URL=http://135.171.216.245:8000
+    ports:
+      - "80:80"
+    depends_on:
+      - kong
+    networks:
+      - busgo-network
+
 networks:
   busgo-network:
     driver: bridge
