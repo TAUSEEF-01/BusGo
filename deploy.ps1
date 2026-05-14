@@ -45,6 +45,6 @@ ssh "${SERVER_USER}@${SERVER_IP}" "chmod +x ~/setup_server.sh && bash ~/setup_se
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "  Deployment process finished!" -ForegroundColor Cyan
-Write-Host "  Frontend:    http://$SERVER_IP" -ForegroundColor Green
-Write-Host "  API Gateway: http://$SERVER_IP`:8000" -ForegroundColor Green
+Write-Host "  App URL:     http://${SERVER_IP}/DU_Vibecoders-busgo" -ForegroundColor Green
+Write-Host "  API URL:     http://${SERVER_IP}/DU_Vibecoders-busgo/api" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
