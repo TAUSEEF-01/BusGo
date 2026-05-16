@@ -17,7 +17,7 @@ class User(Base):
     email = Column(String, nullable=True)
     full_name = Column(String, nullable=False)
     password_hash = Column(String, nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.CUSTOMER)
+    role = Column(Enum(UserRole, name="user_role"), default=UserRole.CUSTOMER)
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

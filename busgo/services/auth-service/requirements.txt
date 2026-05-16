@@ -11,3 +11,7 @@ python-jose
 passlib[bcrypt]
 email-validator
 redis
+
+psycopg2-binary>=2.9.9
+
+kafka-python

@@ -24,9 +24,9 @@ class NotificationLog(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), nullable=False)
-    channel = Column(Enum(NotificationChannel), nullable=False)
+    channel = Column(Enum(NotificationChannel, name="notification_channel"), nullable=False)
     template_name = Column(String, nullable=False)
     payload = Column(JSON, nullable=False)
-    status = Column(Enum(NotificationStatus), default=NotificationStatus.PENDING)
+    status = Column(Enum(NotificationStatus, name="notification_status"), default=NotificationStatus.PENDING)
     sent_at = Column(DateTime, nullable=True)
     error_message = Column(String, nullable=True)

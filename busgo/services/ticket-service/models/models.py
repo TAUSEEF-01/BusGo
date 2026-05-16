@@ -23,7 +23,7 @@ class Ticket(Base):
     qr_code_url = Column(String, nullable=True)
     pdf_url = Column(String, nullable=True)
     
-    status = Column(Enum(TicketStatus), default=TicketStatus.ACTIVE)
+    status = Column(Enum(TicketStatus, name="ticket_status"), default=TicketStatus.ACTIVE)
     
     issued_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     used_at = Column(DateTime(timezone=True), nullable=True)

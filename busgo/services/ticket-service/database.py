@@ -1,11 +1,18 @@
-import os
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from shared.database_config import get_database_url
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres")
-
-engine = create_async_engine(DATABASE_URL, echo=True)
+DATABASE_URL = get_database_url(async_driver=True)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=True,
+    connect_args={"ssl": "require", "prepared_statement_cache_size": 0},
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 async def get_db():
     async with async_session() as session:
         yield session
+
+
+
+

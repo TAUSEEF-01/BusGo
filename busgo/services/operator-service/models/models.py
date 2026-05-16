@@ -37,7 +37,7 @@ class Bus(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), nullable=False)
     registration_no = Column(String, unique=True, index=True, nullable=False)
-    bus_type = Column(Enum(BusType), nullable=False)
+    bus_type = Column(Enum(BusType, name="bus_type"), nullable=False)
     total_seats = Column(Integer, nullable=False)
     seat_layout = Column(JSONB, nullable=False)
     booked_seats = Column(JSONB, default=list)
@@ -71,7 +71,7 @@ class Trip(Base):
     arrival_datetime = Column(DateTime(timezone=True), nullable=False)
     fare_amount = Column(Numeric(10, 2), nullable=False)
     available_seats = Column(Integer, nullable=False)
-    status = Column(Enum(TripStatus), default=TripStatus.SCHEDULED)
+    status = Column(Enum(TripStatus, name="trip_status"), default=TripStatus.SCHEDULED)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     operator = relationship("Operator", back_populates="trips")

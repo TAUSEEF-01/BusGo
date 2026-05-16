@@ -18,6 +18,6 @@ class SupportTicket(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     subject = Column(String, nullable=False)
     message = Column(String, nullable=False)
-    status = Column(Enum(TicketStatus), default=TicketStatus.OPEN)
+    status = Column(Enum(TicketStatus, name="ticket_status"), default=TicketStatus.OPEN)
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)

@@ -16,7 +16,7 @@ class PromoCode(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code = Column(String, unique=True, index=True, nullable=False)
-    discount_type = Column(Enum(DiscountType), nullable=False)
+    discount_type = Column(Enum(DiscountType, name="discount_type"), nullable=False)
     discount_value = Column(Numeric(10, 2), nullable=False)
     min_fare = Column(Numeric(10, 2), default=0.0)
     max_discount = Column(Numeric(10, 2), nullable=True)

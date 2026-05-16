@@ -6,7 +6,7 @@ from database import engine
 from services.kafka_consumer import PaymentKafkaConsumer
 
 app = FastAPI(title="Payment Service")
-kafka_consumer = PaymentKafkaConsumer()
+kafka_consumer = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,6 +20,8 @@ app.include_router(payments_router)
 
 @app.on_event("startup")
 async def startup():
+    global kafka_consumer
+    kafka_consumer = PaymentKafkaConsumer()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await kafka_consumer.start()

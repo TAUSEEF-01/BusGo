@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import asyncpg
 import os
 import uuid
+from shared.database_config import get_database_url
 
 router = APIRouter(tags=["admin"])
 
@@ -13,8 +14,8 @@ async def query_db(db_name: str, query: str):
     # In Docker, postgres is the host. Locally, it might be localhost.
     host = os.getenv("DB_HOST", "postgres")
     try:
-        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url)
+        db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url, ssl="require")
         val = await conn.fetchval(query)
         await conn.close()
         return val
@@ -25,8 +26,8 @@ async def query_db(db_name: str, query: str):
 async def query_db_all(db_name: str, query: str):
     host = os.getenv("DB_HOST", "postgres")
     try:
-        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url)
+        db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url, ssl="require")
         records = await conn.fetch(query)
         await conn.close()
         return [dict(record) for record in records]
@@ -37,8 +38,8 @@ async def query_db_all(db_name: str, query: str):
 async def execute_db(db_name: str, query: str, *args):
     host = os.getenv("DB_HOST", "postgres")
     try:
-        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url)
+        db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url, ssl="require")
         status = await conn.execute(query, *args)
         await conn.close()
         return status

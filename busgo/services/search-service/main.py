@@ -7,7 +7,7 @@ import sys
 import os
 
 app = FastAPI(title="Search Service")
-kafka_consumer = SearchKafkaConsumer()
+kafka_consumer = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +21,8 @@ app.include_router(search_router)
 
 @app.on_event("startup")
 async def startup():
+    global kafka_consumer
+    kafka_consumer = SearchKafkaConsumer()
     try:
         await ESService.init_index()
     except Exception as e:

@@ -11,7 +11,7 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 app = FastAPI(title="Booking Service")
-kafka_consumer = BookingKafkaConsumer()
+kafka_consumer = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -25,6 +25,8 @@ app.include_router(bookings_router)
 
 @app.on_event("startup")
 async def startup():
+    global kafka_consumer
+    kafka_consumer = BookingKafkaConsumer()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     scheduler.start()

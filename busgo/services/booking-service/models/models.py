@@ -16,7 +16,6 @@ class Booking(Base):
     user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
     trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
     operator_id = Column(UUID(as_uuid=True), nullable=False)
-    operator_name = Column(String, nullable=True)
     
     seat_numbers = Column(JSONB, nullable=False)
     passenger_details = Column(JSONB, nullable=False)
@@ -30,7 +29,7 @@ class Booking(Base):
     discount_amount = Column(Numeric(10, 2), default=0.0)
     promo_code = Column(String, nullable=True)
     
-    status = Column(Enum(BookingStatus), default=BookingStatus.INITIATED)
+    status = Column(Enum(BookingStatus, name="booking_status"), default=BookingStatus.INITIATED)
     idempotency_key = Column(String, unique=True, index=True, nullable=False)
     payment_id = Column(UUID(as_uuid=True), nullable=True)
     
@@ -44,8 +43,8 @@ class BookingStatusHistory(Base):
     __tablename__ = "booking_status_history"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     booking_id = Column(UUID(as_uuid=True), ForeignKey("bookings.id"), nullable=False)
-    from_status = Column(Enum(BookingStatus), nullable=True)
-    to_status = Column(Enum(BookingStatus), nullable=False)
+    from_status = Column(Enum(BookingStatus, name="booking_status"), nullable=True)
+    to_status = Column(Enum(BookingStatus, name="booking_status"), nullable=False)
     changed_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     reason = Column(String, nullable=True)
 

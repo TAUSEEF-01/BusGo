@@ -1,16 +1,24 @@
 version: '3.8'
 
+x-supabase-async-db: &supabase-async-db
+  DATABASE_URL: postgresql+asyncpg://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+
+x-supabase-sync-db: &supabase-sync-db
+  DATABASE_URL: postgresql://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+
 x-service-defaults: &service-defaults
   restart: unless-stopped
   depends_on:
-    postgres:
-      condition: service_healthy
     redis:
       condition: service_started
     kafka:
       condition: service_started
   networks:
     - busgo-network
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4
+    - 1.1.1.1
 
 services:
   postgres:
@@ -91,7 +99,7 @@ services:
       - ../services/auth-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/auth_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -109,7 +117,7 @@ services:
       - ../services/search-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/search_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -127,7 +135,7 @@ services:
       - ../services/inventory-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/inventory_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -145,7 +153,7 @@ services:
       - ../services/booking-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/booking_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -163,7 +171,7 @@ services:
       - ../services/payment-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/payment_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -181,7 +189,7 @@ services:
       - ../services/ticket-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/ticket_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -199,7 +207,7 @@ services:
       - ../services/notification-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: sqlite:///./notifications.db
+      <<: *supabase-sync-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -217,7 +225,7 @@ services:
       - ../services/cancellation-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: sqlite:///./cancellation.db
+      <<: *supabase-sync-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -235,7 +243,7 @@ services:
       - ../services/operator-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/operator_db
+      <<: *supabase-async-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -253,7 +261,7 @@ services:
       - ../services/deals-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: sqlite:///./deals.db
+      <<: *supabase-sync-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -271,7 +279,7 @@ services:
       - ../services/admin-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: sqlite:///./admin.db
+      <<: *supabase-sync-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -289,7 +297,7 @@ services:
       - ../services/audit-service:/app
       - ../shared:/app/shared
     environment:
-      DATABASE_URL: sqlite:///./audit.db
+      <<: *supabase-sync-db
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
@@ -305,12 +313,18 @@ services:
       args:
         VITE_API_BASE_URL: http://busgo.farefin.com/api
         VITE_BASE_PATH: /
+        VITE_SUPABASE_URL: https://wtldkwqnfynxfqyqvehy.supabase.co
+        VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0bGRrd3FuZnlueGZxeXF2ZWh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5NTU5NzcsImV4cCI6MjA1MjUzMTk3N30.sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV
     ports:
       - "8086:80"
     depends_on:
       - kong
     networks:
       - busgo-network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 1.1.1.1
 
 networks:
   busgo-network:
@@ -318,5 +332,10 @@ networks:
 
 volumes:
   postgres_data:
+
+
+
+
+
 
 

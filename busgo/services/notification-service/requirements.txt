@@ -7,4 +7,7 @@ pydantic-settings
 python-dotenv
 alembic
 aiokafka
+kafka-python
 python-jose
+
+psycopg2-binary>=2.9.9

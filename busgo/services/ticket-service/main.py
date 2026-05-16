@@ -6,7 +6,7 @@ from database import engine
 from services.kafka_consumer import TicketKafkaConsumer
 
 app = FastAPI(title="Ticket Service")
-kafka_consumer = TicketKafkaConsumer()
+kafka_consumer = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -20,6 +20,8 @@ app.include_router(tickets_router)
 
 @app.on_event("startup")
 async def startup():
+    global kafka_consumer
+    kafka_consumer = TicketKafkaConsumer()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await kafka_consumer.start()

@@ -1,10 +1,10 @@
-﻿from sqlalchemy import create_engine
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-import os
+from shared.database_config import get_database_url
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres")
-engine = create_engine(DATABASE_URL)
+DATABASE_URL = get_database_url(async_driver=False)
+engine = create_engine(DATABASE_URL, connect_args={"sslmode": "require"})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -14,4 +14,8 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+
+
 

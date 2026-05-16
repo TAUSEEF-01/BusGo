@@ -31,9 +31,9 @@ class Payment(Base):
     trip_id = Column(UUID(as_uuid=True), index=True, nullable=False) # added for fraud detection
     
     amount = Column(Numeric(10, 2), nullable=False)
-    method = Column(Enum(PaymentMethod), nullable=False)
+    method = Column(Enum(PaymentMethod, name="payment_method"), nullable=False)
     gateway_transaction_id = Column(String, nullable=True, unique=True)
-    status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING)
+    status = Column(Enum(PaymentStatus, name="payment_status"), default=PaymentStatus.PENDING)
     gateway_response = Column(JSONB, nullable=True)
     
     initiated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
@@ -49,7 +49,7 @@ class Refund(Base):
     
     amount = Column(Numeric(10, 2), nullable=False)
     reason = Column(String, nullable=False)
-    status = Column(Enum(RefundStatus), default=RefundStatus.PENDING)
+    status = Column(Enum(RefundStatus, name="refund_status"), default=RefundStatus.PENDING)
     gateway_refund_id = Column(String, nullable=True)
     
     initiated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

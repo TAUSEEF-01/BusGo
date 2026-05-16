@@ -12,7 +12,7 @@ from shared.exceptions import SeatAlreadyLocked
 from shared.base_response import BaseResponse
 
 app = FastAPI(title="Inventory Service")
-kafka_consumer = InventoryKafkaConsumer()
+kafka_consumer = None
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,13 +33,16 @@ app.include_router(inventory_router)
 
 @app.on_event("startup")
 async def startup():
+    global kafka_consumer
+    kafka_consumer = InventoryKafkaConsumer()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     await kafka_consumer.start()
 
 @app.on_event("shutdown")
 async def shutdown():
-    await kafka_consumer.stop()
+    if kafka_consumer:
+        await kafka_consumer.stop()
 
 @app.get("/")
 async def root():

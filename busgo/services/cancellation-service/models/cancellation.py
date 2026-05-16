@@ -20,7 +20,7 @@ class CancellationRequest(Base):
     user_id = Column(UUID(as_uuid=True), nullable=False)
     reason = Column(String, nullable=False)
     requested_at = Column(DateTime, default=datetime.utcnow)
-    status = Column(Enum(CancellationStatus), default=CancellationStatus.PENDING)
+    status = Column(Enum(CancellationStatus, name="cancellation_status"), default=CancellationStatus.PENDING)
     rejection_reason = Column(String, nullable=True)
     refund_amount = Column(Numeric(10, 2), nullable=True)
     processed_at = Column(DateTime, nullable=True)
