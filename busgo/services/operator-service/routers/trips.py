@@ -36,13 +36,31 @@ async def create_trip(req: TripCreate, db: AsyncSession = Depends(get_db), paylo
     await db.refresh(trip)
     return BaseResponse(success=True, data=TripResponse.model_validate(trip), message="Trip scheduled")
 
-@router.get("/{id}", response_model=BaseResponse[TripResponse])
+@router.get("/{id}", response_model=BaseResponse[TripEnrichedResponse])
 async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Trip).where(Trip.id == id))
-    trip = result.scalars().first()
-    if not trip:
+    query = (
+        select(Trip, Operator, Bus, Route)
+        .select_from(Trip)
+        .join(Operator, Trip.operator_id == Operator.id)
+        .join(Bus, Trip.bus_id == Bus.id)
+        .join(Route, Trip.route_id == Route.id)
+        .where(Trip.id == id)
+    )
+    result = await db.execute(query)
+    row = result.first()
+    if not row:
         raise HTTPException(status_code=404, detail="Trip not found")
-    return BaseResponse(success=True, data=TripResponse.model_validate(trip))
+    
+    trip, operator, bus, route = row
+    trip_dict = TripResponse.model_validate(trip).model_dump()
+    trip_dict['operator_name'] = operator.name
+    trip_dict['bus_type'] = bus.bus_type.value
+    trip_dict['amenities'] = bus.amenities
+    trip_dict['origin_city'] = route.origin_city
+    trip_dict['destination_city'] = route.destination_city
+    trip_dict['trip_id'] = str(trip.id)
+    
+    return BaseResponse(success=True, data=trip_dict)
 
 @router.get("/", response_model=BaseResponse[List[TripEnrichedResponse]])
 async def list_trips(

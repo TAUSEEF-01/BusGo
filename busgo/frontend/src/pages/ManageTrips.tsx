@@ -307,6 +307,12 @@ export function ManageTrips() {
   const user = useAuthStore((s) => s.user);
   const OPERATOR_ID = user?.id || "";
 
+  // Debug: Log operator ID on mount
+  useEffect(() => {
+    console.log("Current user:", user);
+    console.log("Operator ID being used:", OPERATOR_ID);
+  }, [user, OPERATOR_ID]);
+
   const [activeTab, setActiveTab] = useState("Trips");
   const [buses, setBuses] = useState<any[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
@@ -412,16 +418,22 @@ export function ManageTrips() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      console.log("Fetching data for operator:", OPERATOR_ID);
       const [busesRes, routesRes, tripsRes] = await Promise.all([
         apiClient.get(`/api/operators/operators/${OPERATOR_ID}/buses`),
         apiClient.get(`/api/operators/operators/${OPERATOR_ID}/routes`),
         apiClient.get(`/api/operators/trips/?operator_id=${OPERATOR_ID}`)
       ]);
+      console.log("Buses response:", busesRes.data);
+      console.log("Routes response:", routesRes.data);
+      console.log("Trips response:", tripsRes.data);
+      
       if (busesRes.data.success) setBuses(busesRes.data.data);
       if (routesRes.data.success) setRoutes(routesRes.data.data);
       if (tripsRes.data.success) setTrips(tripsRes.data.data);
     } catch (error) {
       console.error("Failed to fetch operator data", error);
+      toast.error("Failed to load operator data. Please check console for details.");
     } finally {
       setLoading(false);
     }
@@ -694,6 +706,7 @@ export function ManageTrips() {
                     </td>
                   </tr>
                 ))}
+                {routes.length === 0 && <tr><td colSpan={4} className="px-5 py-8 text-center text-surface-500">No routes found. Click "Add Route" to create your first route.</td></tr>}
               </tbody>
             </table>
           </div>

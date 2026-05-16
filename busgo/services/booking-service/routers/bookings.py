@@ -38,12 +38,12 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
     booking_id = uuid.uuid4()
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=10)
     
+    # Exclude operator_name from the booking data as it's not in the model
     booking = Booking(
         id=booking_id,
         user_id=user_id,
         trip_id=req.trip_id,
         operator_id=req.operator_id,
-        operator_name=req.operator_name,
         seat_numbers=req.seat_numbers,
         passenger_details=[p.model_dump() for p in req.passenger_details],
         boarding_point=req.boarding_point,
@@ -64,7 +64,12 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
     except Exception as e:
         import logging
         logging.error(f"Failed to lock seats in inventory: {str(e)}")
-        raise HTTPException(status_code=400, detail="Failed to lock seats. They may already be booked or locked.")
+        logging.error(f"Exception type: {type(e).__name__}")
+        logging.error(f"Exception details: {repr(e)}")
+        if hasattr(e, 'response'):
+            logging.error(f"Response status: {e.response.status_code if hasattr(e.response, 'status_code') else 'N/A'}")
+            logging.error(f"Response body: {e.response.text if hasattr(e.response, 'text') else 'N/A'}")
+        raise HTTPException(status_code=400, detail=f"Failed to lock seats: {str(e)}")
 
     db.add(booking)
     history = BookingStatusHistory(booking_id=booking.id, from_status=BookingStatus.INITIATED, to_status=BookingStatus.SEAT_LOCKED, reason="Seats Locked Successfully")
@@ -118,7 +123,7 @@ async def get_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payl
     return BaseResponse(success=True, data=BookingResponse.model_validate(booking))
 
 @router.post("/{booking_id}/confirm-payment")
-async def confirm_payment_internal(booking_id: UUID, payment_id: UUID, db: AsyncSession = Depends(get_db)):
+async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(...), db: AsyncSession = Depends(get_db)):
     # Usually internal or heavily secured, maybe omit payload check for system communication.
     query = select(Booking).where(Booking.id == booking_id)
     result = await db.execute(query)

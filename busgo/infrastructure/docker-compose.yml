@@ -160,6 +160,8 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: booking-service
       SERVICE_DB: booking_db
+      INVENTORY_SERVICE_URL: http://inventory-service:8000
+      DEALS_SERVICE_URL: http://deals-service:8000
     ports:
       - "8014:8000"
 

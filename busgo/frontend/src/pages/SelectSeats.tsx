@@ -37,15 +37,28 @@ export function SelectSeats() {
   const location = useLocation();
   const state = location.state || {};
   const [seats, setSeats] = useState<Seat[]>([]);
+  const [tripDetails, setTripDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const selected = seats.filter((s) => s.status === "selected");
-  const pricePerSeat = state.price || 850;
+  const pricePerSeat = state.price || tripDetails?.fare_amount || 850;
 
   useEffect(() => {
     if (trip_id) {
       fetchSeats();
+      fetchTripDetails();
     }
   }, [trip_id]);
+
+  const fetchTripDetails = async () => {
+    try {
+      const res = await apiClient.get(`/api/operators/trips/${trip_id}`);
+      if (res.data.success) {
+        setTripDetails(res.data.data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch trip details", err);
+    }
+  };
 
   const fetchSeats = async () => {
     try {
@@ -108,13 +121,13 @@ export function SelectSeats() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-surface-800 to-surface-900 flex items-center justify-center text-white text-xs font-bold">
-              {(state.operator || "Greenline Paribahan").split(" ").map((w: string) => w[0]).join("").slice(0,2)}
+              {(state.operator || tripDetails?.operator_name || "Greenline Paribahan").split(" ").map((w: string) => w[0]).join("").slice(0,2)}
             </div>
             <div>
-              <h1 className="font-bold text-surface-900">{state.operator || "Greenline Paribahan"}</h1>
+              <h1 className="font-bold text-surface-900">{state.operator || tripDetails?.operator_name || "Greenline Paribahan"}</h1>
               <div className="flex items-center gap-3 text-sm text-surface-500">
-                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {state.origin || "Dhaka"} → {state.destination || "Chittagong"}</span>
-                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {state.departureTime || "08:00 AM"}</span>
+                <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> {state.origin || tripDetails?.origin_city || "Dhaka"} → {state.destination || tripDetails?.destination_city || "Chittagong"}</span>
+                <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM")}</span>
                 <span className="flex items-center gap-1"><Star className="h-3.5 w-3.5 text-accent-400 fill-accent-400" /> 4.8</span>
               </div>
             </div>
@@ -221,8 +234,8 @@ export function SelectSeats() {
                 {/* Route */}
                 <div className="flex items-center gap-2 p-3 bg-surface-50 rounded-xl mb-4 text-sm">
                   <div className="text-center">
-                    <p className="font-bold text-surface-900">{state.departureTime || "08:00 AM"}</p>
-                    <p className="text-xs text-surface-500">{state.origin || "Dhaka"}</p>
+                    <p className="font-bold text-surface-900">{state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM")}</p>
+                    <p className="text-xs text-surface-500">{state.origin || tripDetails?.origin_city || "Dhaka"}</p>
                   </div>
                   <div className="flex-1 flex items-center px-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
@@ -230,8 +243,8 @@ export function SelectSeats() {
                     <div className="w-1.5 h-1.5 rounded-full bg-brand-500" />
                   </div>
                   <div className="text-center">
-                    <p className="font-bold text-surface-900">{state.arrivalTime || "13:30"}</p>
-                    <p className="text-xs text-surface-500">{state.destination || "Chittagong"}</p>
+                    <p className="font-bold text-surface-900">{state.arrivalTime || (tripDetails?.arrival_datetime ? new Date(tripDetails.arrival_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "13:30")}</p>
+                    <p className="text-xs text-surface-500">{state.destination || tripDetails?.destination_city || "Chittagong"}</p>
                   </div>
                 </div>
 
@@ -279,15 +292,15 @@ export function SelectSeats() {
                     if (selected.length > 0) {
                       navigate("/booking/passengers", {
                         state: {
-                          trip_id: trip_id || "12345678-1234-5678-1234-567812345678",
-                          operator_id: state.operator_id || "12345678-1234-5678-1234-567812345678",
+                          trip_id: trip_id,
+                          operator_id: state.operator_id || tripDetails?.operator_id,
                           seats: selected.map((s) => s.id),
                           totalFare: selected.length * pricePerSeat + 20,
-                          origin: state.origin || "Dhaka",
-                          destination: state.destination || "Chittagong",
-                          date: state.date || "2026-05-01",
-                          departureTime: state.departureTime || "08:00 AM",
-                          operator: state.operator || "Greenline Paribahan"
+                          origin: state.origin || tripDetails?.origin_city || "Dhaka",
+                          destination: state.destination || tripDetails?.destination_city || "Chittagong",
+                          date: state.date || (tripDetails?.departure_datetime ? tripDetails.departure_datetime.split('T')[0] : "2026-05-01"),
+                          departureTime: state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM"),
+                          operator: state.operator || tripDetails?.operator_name || "Greenline Paribahan"
                         },
                       });
                     }
@@ -303,7 +316,10 @@ export function SelectSeats() {
               {/* Info Notice */}
               <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-200 text-sm">
                 <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-                <p className="text-amber-700">Selected seats are held for 10 minutes. Complete your booking before the timer expires.</p>
+                <div className="text-amber-700">
+                  <p className="font-semibold mb-1">Seat Reservation Policy</p>
+                  <p>Selected seats are held for 10 minutes. You must complete payment within this time to confirm your booking. Unpaid bookings will be automatically cancelled and seats released.</p>
+                </div>
               </div>
             </div>
           </div>

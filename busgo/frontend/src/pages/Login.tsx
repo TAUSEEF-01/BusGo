@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../stores/authStore";
 import { apiClient } from "../api/client";
 import { Mail, Lock, Eye, EyeOff, Bus, ArrowRight, Shield, Zap, Clock, Phone as PhoneIcon } from "lucide-react";
 
 export function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const login = useAuthStore((s) => s.login);
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -13,6 +14,9 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const from = location.state?.from?.pathname || "/";
+  const fromState = location.state?.from?.state || {};
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,12 +41,12 @@ export function Login() {
           );
           
           const role = user.role?.toUpperCase();
-          if (role === "ADMIN") {
+          if (role === "ADMIN" && from === "/") {
             navigate("/admin");
-          } else if (role === "OPERATOR") {
+          } else if (role === "OPERATOR" && from === "/") {
             navigate("/operator");
           } else {
-            navigate("/");
+            navigate(from, { state: fromState, replace: true });
           }
       } else {
         setError(response.data.message || "Login failed");

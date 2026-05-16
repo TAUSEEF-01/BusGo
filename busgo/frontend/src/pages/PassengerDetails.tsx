@@ -7,18 +7,51 @@ import { toast } from "react-hot-toast";
 export function PassengerDetails() {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = location.state || {};
-  
+
+  // Use a combined state from location and sessionStorage
+  const [state, setState] = useState(() => {
+    const locState = location.state;
+    if (locState && locState.trip_id) {
+      // Save to sessionStorage for refresh recovery
+      sessionStorage.setItem("pending_booking", JSON.stringify(locState));
+      return locState;
+    }
+
+    // Try to recover from sessionStorage
+    const saved = sessionStorage.getItem("pending_booking");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    if (location.state && location.state.trip_id) {
+      setState(location.state);
+      sessionStorage.setItem("pending_booking", JSON.stringify(location.state));
+    }
+  }, [location.state]);
+
   const [contactInfo, setContactInfo] = useState({ email: "", phone: "" });
   const [passengers, setPassengers] = useState(
-    state.seats ? state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" })) 
+    state.seats ? state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" }))
     : [{ seat: "A3", name: "", phone: "", gender: "male" }]
   );
+
+  useEffect(() => {
+    if (state.seats && passengers.length !== state.seats.length) {
+      setPassengers(state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" })));
+    }
+  }, [state.seats]);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const updatePassenger = (index: number, field: string, value: string) => {
-    setPassengers((prev: any[]) => prev.map((p: any, i: number) => (i === index ? { ...p, [field]: value } : p)));
+  const updatePassenger = (index: number, field: string, value: string) => {    setPassengers((prev: any[]) => prev.map((p: any, i: number) => (i === index ? { ...p, [field]: value } : p)));
     setErrors((e: Record<string, string>) => ({ ...e, [`p${index}_${field}`]: "" }));
   };
 
@@ -36,6 +69,13 @@ export function PassengerDetails() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    
+    // Check if we have required trip data
+    if (!state.trip_id || !state.operator_id) {
+      toast.error("Session expired. Please search for trips again.");
+      navigate("/");
+      return;
+    }
     
     setIsSubmitting(true);
     try {
@@ -66,8 +106,8 @@ export function PassengerDetails() {
       }
 
       const requestData = {
-        trip_id: state.trip_id || "12345678-1234-5678-1234-567812345678",
-        operator_id: state.operator_id || "12345678-1234-5678-1234-567812345678",
+        trip_id: state.trip_id,
+        operator_id: state.operator_id,
         operator_name: state.operator || "Unknown Operator",
         seat_numbers: passengers.map((p: any) => p.seat),
         passenger_details: passengers.map((p: any) => ({
@@ -84,10 +124,13 @@ export function PassengerDetails() {
         idempotency_key: crypto.randomUUID()
       };
 
+      console.log("Creating booking with data:", requestData);
       const response = await apiClient.post("/api/bookings/", requestData);
+      console.log("Booking response:", response.data);
       
       if (response.data.success) {
         toast.success("Seats locked! Proceed to payment.");
+        sessionStorage.removeItem("pending_booking");
         navigate(`/booking/payment/${response.data.data.booking_id}`, {
           state: { totalFare: requestData.total_fare }
         });
@@ -95,7 +138,8 @@ export function PassengerDetails() {
         toast.error(response.data.message || "Failed to create booking");
       }
     } catch (err: any) {
-      console.error(err);
+      console.error("Booking error:", err);
+      console.error("Error response:", err.response?.data);
       let errMsg = "An error occurred during booking";
       const detail = err.response?.data?.detail;
       if (typeof detail === "string") {
@@ -287,6 +331,13 @@ export function PassengerDetails() {
               <div className="flex items-start gap-2 p-3 bg-blue-50 rounded-xl border border-blue-200 text-sm">
                 <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <p className="text-blue-700">Your information is encrypted and secure. We never share your data.</p>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-amber-50 rounded-xl border border-amber-200 text-sm mt-3">
+                <Clock className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <p className="text-amber-700">
+                  <strong>Important:</strong> Your seats will be held for 10 minutes. Complete payment to confirm your booking, or seats will be automatically released.
+                </p>
               </div>
             </div>
           </div>

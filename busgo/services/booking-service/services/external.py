@@ -34,7 +34,7 @@ class ExternalServices:
                     "booking_id": booking_id,
                     "user_id": user_id
                 },
-                timeout=5.0
+                timeout=30.0  # Increased from 5.0 to 30.0 seconds
             )
             res.raise_for_status()
             return res.json()

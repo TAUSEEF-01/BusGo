@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowRight, CreditCard, Phone, Lock, Shield, CheckCircle, Clock, MapPin, Smartphone,
@@ -28,30 +28,81 @@ export function Payment() {
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [cardName, setCardName] = useState("");
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
 
   const total = state.totalFare || 1720;
 
+  // Timer countdown
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      toast.error("Booking expired! Seats have been released.");
+      navigate("/");
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [timeLeft, navigate]);
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!booking_id) return;
+    if (!booking_id) {
+      toast.error("Booking ID is missing");
+      return;
+    }
+    
+    // Validate payment method specific fields
+    if ((method === "bkash" || method === "nagad") && (!phone || !pin)) {
+      toast.error("Please enter your phone number and PIN");
+      return;
+    }
+    
+    if (method === "card" && (!cardNumber || !expiry || !cvv || !cardName)) {
+      toast.error("Please fill in all card details");
+      return;
+    }
     
     setLoading(true);
     try {
-      // payment_id is generated locally as a mock transaction ID
+      // Simulate payment processing delay (in real app, this would call payment gateway)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock payment validation - in production, this would verify with payment gateway
+      const paymentSuccessful = true; // Simulate successful payment
+      
+      if (!paymentSuccessful) {
+        toast.error("Payment was declined. Please try again or use a different payment method.");
+        setLoading(false);
+        return;
+      }
+      
+      // Generate payment transaction ID
       const payment_id = crypto.randomUUID();
+      
+      // Confirm payment with booking service
       const response = await apiClient.post(`/api/bookings/${booking_id}/confirm-payment`, null, {
         params: { payment_id }
       });
       
       if (response.data.success) {
-        toast.success("Payment successful!");
+        toast.success("Payment successful! Your seats are now confirmed.");
+        // Navigate to confirmation page
         navigate(`/booking/confirmation/${booking_id}`);
       } else {
-        toast.error("Payment failed. Please try again.");
+        toast.error(response.data.message || "Payment confirmation failed. Please contact support.");
       }
     } catch (err: any) {
-      console.error(err);
-      let errMsg = "An error occurred during payment";
+      console.error("Payment error:", err);
+      let errMsg = "Payment processing failed. Your seats have not been booked.";
       const detail = err.response?.data?.detail;
       if (typeof detail === "string") {
         errMsg = detail;
@@ -89,6 +140,45 @@ export function Payment() {
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Payment Methods */}
           <div className="flex-1 space-y-6">
+            {/* Timer Warning */}
+            <div className={`flex items-center gap-3 p-4 rounded-xl border-2 ${
+              timeLeft < 120 
+                ? "bg-red-50 border-red-300" 
+                : timeLeft < 300 
+                  ? "bg-amber-50 border-amber-300" 
+                  : "bg-blue-50 border-blue-300"
+            }`}>
+              <Clock className={`h-5 w-5 ${
+                timeLeft < 120 
+                  ? "text-red-600" 
+                  : timeLeft < 300 
+                    ? "text-amber-600" 
+                    : "text-blue-600"
+              }`} />
+              <div className="flex-1">
+                <p className={`font-bold ${
+                  timeLeft < 120 
+                    ? "text-red-900" 
+                    : timeLeft < 300 
+                      ? "text-amber-900" 
+                      : "text-blue-900"
+                }`}>
+                  Complete payment in {formatTime(timeLeft)}
+                </p>
+                <p className={`text-sm ${
+                  timeLeft < 120 
+                    ? "text-red-700" 
+                    : timeLeft < 300 
+                      ? "text-amber-700" 
+                      : "text-blue-700"
+                }`}>
+                  {timeLeft < 120 
+                    ? "Hurry! Your booking will expire soon." 
+                    : "Your seats are temporarily held for you."}
+                </p>
+              </div>
+            </div>
+
             <div className="card-premium p-6">
               <h2 className="text-lg font-bold text-surface-900 mb-1">Payment Method</h2>
               <p className="text-sm text-surface-500 mb-6">Choose your preferred payment method</p>

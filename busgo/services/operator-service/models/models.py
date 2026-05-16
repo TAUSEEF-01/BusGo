@@ -43,6 +43,7 @@ class Bus(Base):
     booked_seats = Column(JSONB, default=list)
     amenities = Column(JSONB, nullable=False)
     is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     operator = relationship("Operator", back_populates="buses")
     trips = relationship("Trip", back_populates="bus")
