@@ -20,7 +20,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_MULTIPLE_DATABASES: auth_db,search_db,inventory_db,booking_db,payment_db,ticket_db,notification_db,cancellation_db,operator_db,deals_db,admin_db,audit_db
     ports:
-      - "5432:5432"
+      - "8089:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init-multiple-databases.sh
@@ -35,7 +35,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "16379:6379"
+      - "8090:6379"
     networks:
       - busgo-network
 
@@ -74,9 +74,9 @@ services:
       KONG_ADMIN_ERROR_LOG: /dev/stderr
       KONG_ADMIN_LISTEN: 0.0.0.0:8001, 0.0.0.0:8444 ssl
     ports:
-      - "8000:8000"
+      - "8087:8000"
       - "8443:8443"
-      - "8001:8001"
+      - "8088:8001"
       - "8444:8444"
     volumes:
       - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml
@@ -306,7 +306,7 @@ services:
         VITE_API_BASE_URL: http://busgo.farefin.com/api
         VITE_BASE_PATH: /
     ports:
-      - "3000:80"
+      - "8086:80"
     depends_on:
       - kong
     networks:
