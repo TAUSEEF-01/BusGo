@@ -13,7 +13,8 @@ async def query_db(db_name: str, query: str):
     # In Docker, postgres is the host. Locally, it might be localhost.
     host = os.getenv("DB_HOST", "postgres")
     try:
-        conn = await asyncpg.connect(f"postgresql://user:password@{host}:5432/{db_name}")
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url)
         val = await conn.fetchval(query)
         await conn.close()
         return val
@@ -24,7 +25,8 @@ async def query_db(db_name: str, query: str):
 async def query_db_all(db_name: str, query: str):
     host = os.getenv("DB_HOST", "postgres")
     try:
-        conn = await asyncpg.connect(f"postgresql://user:password@{host}:5432/{db_name}")
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url)
         records = await conn.fetch(query)
         await conn.close()
         return [dict(record) for record in records]
@@ -35,7 +37,8 @@ async def query_db_all(db_name: str, query: str):
 async def execute_db(db_name: str, query: str, *args):
     host = os.getenv("DB_HOST", "postgres")
     try:
-        conn = await asyncpg.connect(f"postgresql://user:password@{host}:5432/{db_name}")
+        db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
+        conn = await asyncpg.connect(db_url)
         status = await conn.execute(query, *args)
         await conn.close()
         return status

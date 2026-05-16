@@ -1,7 +1,7 @@
 import axios from "axios";
 import { useAuthStore } from "../stores/authStore";
 
-const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || "http://localhost:8000";
+const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || "https://busgo-nhbi.onrender.com";
 
 export const apiClient = axios.create({
   baseURL,

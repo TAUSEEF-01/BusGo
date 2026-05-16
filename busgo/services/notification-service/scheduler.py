@@ -22,7 +22,7 @@ def check_departure_reminders():
     logger.info("Running scheduled departure reminder check...")
     # Mock Booking Service Call
     try:
-        # In prod: res = requests.get("http://booking-service:8000/trips/upcoming?hours=2")
+        # In prod: res = requests.get("https://busgo-nhbi.onrender.com/api/bookings/trips/upcoming?hours=2")
         mock_bookings = [
             {
                 "user_id": "00000000-0000-0000-0000-000000000000",

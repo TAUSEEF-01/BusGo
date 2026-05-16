@@ -25,7 +25,8 @@ import asyncpg
 
 async def get_user_id(email: str = "abc@example.com", username: str = "abc"):
     # Connect to auth_db
-    conn = await asyncpg.connect('postgresql://user:password@postgres:5432/auth_db')
+    db_url = os.getenv("DATABASE_URL", "postgresql://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres").replace("+asyncpg", "")
+    conn = await asyncpg.connect(db_url)
     row = await conn.fetchrow('SELECT id FROM users WHERE email = $1 LIMIT 1', email)
     await conn.close()
     if row:
