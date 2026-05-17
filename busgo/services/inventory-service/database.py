@@ -6,7 +6,6 @@ engine = create_async_engine(
     DATABASE_URL,
     echo=True,
     connect_args={"ssl": "require", "statement_cache_size": 0},
-    statement_cache_size=0,
 )
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
