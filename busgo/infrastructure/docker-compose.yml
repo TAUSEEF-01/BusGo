@@ -1,10 +1,10 @@
 version: '3.8'
 
 x-supabase-async-db: &supabase-async-db
-  DATABASE_URL: postgresql+asyncpg://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+  DATABASE_URL: postgresql+asyncpg://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres
 
 x-supabase-sync-db: &supabase-sync-db
-  DATABASE_URL: postgresql://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+  DATABASE_URL: postgresql://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres
 
 x-service-defaults: &service-defaults
   restart: unless-stopped

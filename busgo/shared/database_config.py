@@ -13,8 +13,8 @@ _ENCODED_PASSWORD = quote_plus(SUPABASE_DB_PASSWORD)
 
 def build_database_url(*, async_driver: bool = True) -> str:
     scheme = "postgresql+asyncpg" if async_driver else "postgresql"
-    # Use 5432 (Session mode) for both since asyncpg uses prepared statements
-    port = "5432"
+    # Use 6543 (Transaction mode) to support high number of connections
+    port = "6543"
     return (
         f"{scheme}://{SUPABASE_DB_USER}:{_ENCODED_PASSWORD}"
         f"@{SUPABASE_DB_HOST}:{port}/{SUPABASE_DB_NAME}"
