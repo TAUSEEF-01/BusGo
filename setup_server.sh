@@ -92,8 +92,12 @@ fi
 sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reload failed or not installed, continuing anyway."
 echo "  System nginx configured and reloaded."
 
-# ----- Step 5: Build and Deploy -----
-echo "[5/5] Building and deploying with Docker Compose..."
+# Configure HTTPS with Certbot
+echo "[5/6] Securing with HTTPS..."
+sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos --register-unsafely-without-email || true
+
+# ----- Step 6: Build and Deploy -----
+echo "[6/6] Building and deploying with Docker Compose..."
 cd "$PROJECT_DIR/busgo/infrastructure"
 
 # Build and start everything
@@ -105,5 +109,5 @@ echo "=================================================="
 echo "  DEPLOYMENT COMPLETE!"
 echo "  Frontend is running on port 8083 (proxied via Nginx)"
 echo "  API Gateway (Kong) is running on port 8085 (proxied via Nginx)"
-echo "  URL: http://${DOMAIN}"
+echo "  URL: https://${DOMAIN}"
 echo "=================================================="

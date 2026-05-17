@@ -41,6 +41,6 @@ ssh "${SERVER_USER}@${SERVER_IP}" "chmod +x ~/setup_server.sh && bash ~/setup_se
 Write-Host ""
 Write-Host "==================================================" -ForegroundColor Cyan
 Write-Host "  Deployment process finished!" -ForegroundColor Cyan
-Write-Host "  Frontend: http://${DOMAIN}" -ForegroundColor Green
-Write-Host "  API: http://${DOMAIN}/api/" -ForegroundColor Green
+Write-Host "  Frontend: https://${DOMAIN}" -ForegroundColor Green
+Write-Host "  API: https://${DOMAIN}/api/" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor Cyan
