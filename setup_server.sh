@@ -51,8 +51,49 @@ else
     cd "$PROJECT_DIR"
 fi
 
-# ----- Step 4: Build and Deploy -----
-echo "[4/5] Building and deploying with Docker Compose..."
+# ----- Step 4: Configure System Nginx for Domain -----
+echo "[4/5] Configuring system nginx for $DOMAIN..."
+
+# Create nginx config for the domain
+sudo tee /etc/nginx/sites-available/busgo > /dev/null << NGINX_CONF
+server {
+    listen 80;
+    server_name $DOMAIN;
+
+    location / {
+        proxy_pass http://127.0.0.1:8083;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8085/api/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+NGINX_CONF
+
+# Enable the site if not already enabled
+if [ ! -L /etc/nginx/sites-enabled/busgo ]; then
+    sudo ln -s /etc/nginx/sites-available/busgo /etc/nginx/sites-enabled/
+fi
+
+# Remove default config if it's blocking
+if [ -f /etc/nginx/sites-enabled/default ]; then
+    sudo rm /etc/nginx/sites-enabled/default
+fi
+
+# Test and reload nginx
+sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reload failed or not installed, continuing anyway."
+echo "  System nginx configured and reloaded."
+
+# ----- Step 5: Build and Deploy -----
+echo "[5/5] Building and deploying with Docker Compose..."
 cd "$PROJECT_DIR/busgo/infrastructure"
 
 # Build and start everything
@@ -62,7 +103,7 @@ sudo docker compose up --build -d
 echo ""
 echo "=================================================="
 echo "  DEPLOYMENT COMPLETE!"
-echo "  Frontend is running on port 8084"
-echo "  API Gateway (Kong) is running on port 8085"
-echo "  URL: http://${DOMAIN}:8084"
+echo "  Frontend is running on port 8083 (proxied via Nginx)"
+echo "  API Gateway (Kong) is running on port 8085 (proxied via Nginx)"
+echo "  URL: http://${DOMAIN}"
 echo "=================================================="
