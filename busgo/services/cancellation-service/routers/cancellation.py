@@ -19,10 +19,10 @@ router = APIRouter(tags=["Cancellations"])
 
 
 @router.post("/", response_model=CancellationResponse)
-def create_cancellation(request: CancellationCreate, db: Session = Depends(get_db)):
+async def create_cancellation(request: CancellationCreate, db: Session = Depends(get_db)):
     # Mock user extraction
     user_id = UUID("00000000-0000-0000-0000-000000000000")  # TODO: get from auth
-    return process_cancellation(db, request, user_id)
+    return await process_cancellation(db, request, user_id)
 
 
 @router.get("/{id}", response_model=CancellationDetail)
@@ -42,7 +42,7 @@ def read_cancellation_by_booking(booking_id: UUID, db: Session = Depends(get_db)
 
 
 @router.post("/operator-cancel")
-def operator_cancel(request: OperatorCancellationCreate, db: Session = Depends(get_db)):
+async def operator_cancel(request: OperatorCancellationCreate, db: Session = Depends(get_db)):
     # Mock admin verification
-    affected = process_operator_cancellation(db, request)
+    affected = await process_operator_cancellation(db, request)
     return {"affected_bookings": affected}

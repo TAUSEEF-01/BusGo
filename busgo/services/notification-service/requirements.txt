@@ -1,4 +1,4 @@
-﻿fastapi
+fastapi
 uvicorn
 sqlalchemy
 asyncpg
@@ -9,5 +9,7 @@ alembic
 aiokafka
 kafka-python
 python-jose
+apscheduler
+jinja2
 
 psycopg2-binary>=2.9.9

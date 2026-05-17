@@ -10,7 +10,7 @@ import os
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-from shared.kafka_producer import publish_message
+from shared.kafka_producer import KafkaProducerClient
 
 
 # Mock for fetching booking info
@@ -24,7 +24,7 @@ def fetch_booking_details(booking_id):
     }
 
 
-def process_cancellation(db: Session, request: CancellationCreate, user_id):
+async def process_cancellation(db: Session, request: CancellationCreate, user_id):
     booking = fetch_booking_details(request.booking_id)
 
     if booking["status"] != "CONFIRMED":
@@ -64,7 +64,7 @@ def process_cancellation(db: Session, request: CancellationCreate, user_id):
     db.refresh(cancellation)
 
     # Publish to Kafka
-    publish_message(
+    await KafkaProducerClient.publish(
         "booking.cancelled",
         {
             "booking_id": str(request.booking_id),
@@ -74,7 +74,7 @@ def process_cancellation(db: Session, request: CancellationCreate, user_id):
         },
     )
 
-    publish_message(
+    await KafkaProducerClient.publish(
         "audit.log",
         {
             "action": "CANCELLATION_REQUESTED",
@@ -90,7 +90,7 @@ def process_cancellation(db: Session, request: CancellationCreate, user_id):
     }
 
 
-def process_operator_cancellation(db: Session, request: OperatorCancellationCreate):
+async def process_operator_cancellation(db: Session, request: OperatorCancellationCreate):
     # Fetch all confirmed bookings for trip
     bookings = [
         {
@@ -113,7 +113,7 @@ def process_operator_cancellation(db: Session, request: OperatorCancellationCrea
         affected += 1
 
         # publish to kafka
-        publish_message(
+        await KafkaProducerClient.publish(
             "booking.cancelled",
             {
                 "booking_id": b["id"],

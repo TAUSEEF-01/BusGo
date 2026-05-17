@@ -12,7 +12,8 @@ import sys
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 )
-from shared.kafka_producer import publish_message
+import asyncio
+from shared.kafka_producer import KafkaProducerClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def check_departure_reminders():
         for bk in mock_bookings:
             # Publish to notification.send
             logger.info(f"Publishing reminder for user {bk['user_id']}")
-            publish_message("notification.send", bk)
+            asyncio.run(KafkaProducerClient.publish("notification.send", bk))
 
     except Exception as e:
         logger.error(f"Error checking departure reminders: {e}")
