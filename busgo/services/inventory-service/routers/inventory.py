@@ -57,10 +57,14 @@ async def get_seats(trip_id: UUID, db: AsyncSession = Depends(get_db)):
                     status=SeatStatus.AVAILABLE
                 ))
         db.add_all(new_seats)
-        await db.commit()
-        
-        result = await db.execute(select(SeatInventory).where(SeatInventory.trip_id == trip_id))
-        seats = result.scalars().all()
+        try:
+            await db.commit()
+            result = await db.execute(select(SeatInventory).where(SeatInventory.trip_id == trip_id))
+            seats = result.scalars().all()
+        except Exception as e:
+            await db.rollback()
+            # If the trip doesn't exist, we just return an empty list
+            seats = []
         
     # Overlay Redis locks
     for seat in seats:

@@ -9,7 +9,7 @@ alembic
 aiokafka
 python-jose
 redis
-elasticsearch[async]
+elasticsearch[async]==8.11.0
 aiokafka
 httpx
 tenacity
