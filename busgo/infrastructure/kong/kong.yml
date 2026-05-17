@@ -78,6 +78,7 @@ plugins:
         - http://135.171.216.245
         - http://135.171.216.245:80
         - http://busgo.farefin.com
+        - https://busgo.farefin.com
       methods:
         - GET
         - POST
