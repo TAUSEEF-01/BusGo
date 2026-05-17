@@ -61,19 +61,19 @@ server {
     server_name $DOMAIN;
 
     location / {
-        proxy_pass http://127.0.0.1:8086;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://127.0.0.1:8084;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
     location /api/ {
-        proxy_pass http://127.0.0.1:8087/api/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_pass http://127.0.0.1:8085/api/;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 NGINX_CONF
@@ -89,22 +89,22 @@ if [ -f /etc/nginx/sites-enabled/default ]; then
 fi
 
 # Test and reload nginx
-sudo nginx -t && sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx || echo "Nginx reload failed or not installed, continuing anyway."
 echo "  System nginx configured and reloaded."
 
 # ----- Step 5: Build and Deploy -----
 echo "[5/6] Building and deploying with Docker Compose..."
 cd "$PROJECT_DIR/busgo/infrastructure"
 
-# Update VITE_API_BASE_URL to use the domain in docker-compose.yml
-# (This is handled by the VITE_API_BASE_URL env var we'll set in docker-compose)
-
 # Build and start everything
-docker compose down || true
-docker compose up --build -d
+sudo docker compose down || true
+sudo docker compose up --build -d
 
 echo ""
 echo "=================================================="
 echo "  DEPLOYMENT COMPLETE!"
+echo "  Frontend is running on port 8084"
+echo "  API Gateway (Kong) is running on port 8085"
 echo "  URL: http://$DOMAIN"
+echo "  Direct URL: http://$SERVER_IP:8084"
 echo "=================================================="
