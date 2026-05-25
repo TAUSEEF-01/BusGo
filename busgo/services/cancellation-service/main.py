@@ -1,10 +1,11 @@
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import cancellation
 from database import engine
 from models.cancellation import Base
+import os
 
-app = FastAPI(title='cancellation-service')
+app = FastAPI(title='Cancellation Service', root_path=os.environ.get('ROOT_PATH', ''))
 
 app.add_middleware(
     CORSMiddleware,

@@ -8,49 +8,34 @@ import sys
 async def test_connection():
     try:
         from sqlalchemy.ext.asyncio import create_async_engine
+        from sqlalchemy import text
         
-        # Test connection
-        DATABASE_URL = "postgresql+asyncpg://postgres:BusGoLet'sGo@db.wtldkwqnfynxfqyqvehy.supabase.co:5432/postgres"
+        # Test connection using Supabase connection pooler (supports IPv4)
+        DATABASE_URL = "postgresql+asyncpg://postgres.wtldkwqnfynxfqyqvehy:BusGoLet%27sGo@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
         
         print(f"Testing connection to: {DATABASE_URL.replace('BusGoLet', '***')}")
         
-        engine = create_async_engine(DATABASE_URL, echo=False)
+        import uuid
+        engine = create_async_engine(
+            DATABASE_URL, 
+            echo=False, 
+            connect_args={
+                "ssl": "require", 
+                "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4().hex}__",
+                "statement_cache_size": 0
+            }
+        )
         
         async with engine.connect() as conn:
-            result = await conn.execute("SELECT version();")
-            version = result.scalar()
-            print(f"✅ Connection successful!")
-            print(f"PostgreSQL version: {version}")
-            
-            # Test if tables exist
-            result = await conn.execute("""
-                SELECT COUNT(*) 
-                FROM information_schema.tables 
-                WHERE table_schema = 'public' 
-                AND table_type = 'BASE TABLE'
-            """)
-            table_count = result.scalar()
-            print(f"📊 Tables in public schema: {table_count}")
-            
-            if table_count == 0:
-                print("⚠️  No tables found! You need to run supabase_complete_schema.sql")
-            else:
-                # List tables
-                result = await conn.execute("""
-                    SELECT table_name 
-                    FROM information_schema.tables 
-                    WHERE table_schema = 'public' 
-                    AND table_type = 'BASE TABLE'
-                    ORDER BY table_name
-                """)
-                tables = [row[0] for row in result.fetchall()]
-                print(f"📋 Tables: {', '.join(tables)}")
+            result = await conn.execute(text("SELECT 1"))
+            val = result.scalar()
+            print(f"SUCCESS: Connection successful! Result: {val}")
         
         await engine.dispose()
         return True
         
     except Exception as e:
-        print(f"❌ Connection failed: {e}")
+        print(f"ERROR: Connection failed: {e}")
         print(f"Error type: {type(e).__name__}")
         return False
 

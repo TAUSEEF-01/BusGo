@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import or_
@@ -112,6 +113,23 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
         "data": {"access_token": access_token, "refresh_token": refresh_token, "user": UserResponse.model_validate(user)},
         "message": "Login successful"
     }
+
+@router.post("/token")
+async def swagger_token(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)):
+    """OAuth2-compatible token endpoint for Swagger UI authorization.
+    Accepts form-encoded username (email/phone) + password."""
+    result = await db.execute(select(User).where(or_(User.phone == form_data.username, User.email == form_data.username)))
+    user = result.scalars().first()
+
+    if not user or not verify_password(form_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not user.is_verified:
+        raise HTTPException(status_code=403, detail="Phone not verified")
+
+    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+
+    return {"access_token": access_token, "token_type": "bearer"}
 
 @router.post("/refresh")
 async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):

@@ -1,8 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.admin import router as admin_router
+import os
 
-app = FastAPI(title="admin-service")
+app = FastAPI(title="Admin Service", root_path=os.environ.get("ROOT_PATH", ""))
 
 app.add_middleware(
     CORSMiddleware,

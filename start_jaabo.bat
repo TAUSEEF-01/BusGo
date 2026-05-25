@@ -43,9 +43,27 @@ call npm install
 
 echo.
 echo ==================================================
-echo Backend is running on: http://localhost:8000
-echo Kong API Gateway:      http://localhost:8000
-echo Database:              localhost:5432
+echo Backend is running on: http://localhost:8085
+echo Kong API Gateway:      http://localhost:8085
+echo.
+echo Swagger UI (direct access):
+echo   Auth:          http://localhost:8101/docs
+echo   Search:        http://localhost:8102/docs
+echo   Inventory:     http://localhost:8103/docs
+echo   Booking:       http://localhost:8104/docs
+echo   Payment:       http://localhost:8105/docs
+echo   Ticket:        http://localhost:8106/docs
+echo   Notification:  http://localhost:8107/docs
+echo   Cancellation:  http://localhost:8108/docs
+echo   Operator:      http://localhost:8109/docs
+echo   Deals:         http://localhost:8110/docs
+echo   Admin:         http://localhost:8111/docs
+echo   Audit:         http://localhost:8112/docs
+echo.
+echo Swagger UI (via Kong Gateway):
+echo   Auth:          http://localhost:8085/api/auth/docs
+echo   Booking:       http://localhost:8085/api/bookings/docs
+echo   (same pattern for all services)
 echo.
 echo The frontend will now start and automatically open
 echo your default web browser to http://localhost:5173

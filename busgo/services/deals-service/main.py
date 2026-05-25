@@ -11,10 +11,11 @@ from schemas import (
     ApplyPromoRequest
 )
 from redis_client import has_user_used_promo, mark_promo_used
+import os
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title='deals-service')
+app = FastAPI(title='Deals Service', root_path=os.environ.get('ROOT_PATH', ''))
 
 @app.get('/health')
 def health_check():

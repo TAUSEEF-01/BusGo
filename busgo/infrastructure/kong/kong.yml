@@ -8,66 +8,91 @@ services:
       - name: auth-route
         paths:
           - /api/auth
+        strip_path: true
   - name: search-service
     url: http://search-service:8000
     routes:
       - name: search-route
         paths:
           - /api/search
+        strip_path: true
   - name: inventory-service
     url: http://inventory-service:8000
     routes:
       - name: inventory-route
         paths:
           - /api/inventory
+        strip_path: true
   - name: booking-service
     url: http://booking-service:8000
     routes:
       - name: booking-route
         paths:
           - /api/bookings
+          - /api/booking
+        strip_path: true
   - name: payment-service
     url: http://payment-service:8000
     routes:
       - name: payment-route
         paths:
           - /api/payments
+          - /api/payment
+        strip_path: true
   - name: ticket-service
     url: http://ticket-service:8000
     routes:
       - name: ticket-route
         paths:
           - /api/tickets
+          - /api/ticket
+        strip_path: true
   - name: cancellation-service
     url: http://cancellation-service:8000
     routes:
       - name: cancellation-route
         paths:
           - /api/cancellations
+          - /api/cancellation
+        strip_path: true
   - name: operator-service
     url: http://operator-service:8000
     routes:
       - name: operator-route
         paths:
           - /api/operators
+          - /api/operator
+        strip_path: true
   - name: deals-service
     url: http://deals-service:8000
     routes:
       - name: deals-route
         paths:
           - /api/deals
+          - /api/deal
+        strip_path: true
   - name: admin-service
     url: http://admin-service:8000
     routes:
       - name: admin-route
         paths:
           - /api/admin
+        strip_path: true
   - name: audit-service
     url: http://audit-service:8000
     routes:
       - name: audit-route
         paths:
           - /api/audit
+        strip_path: true
+  - name: notification-service
+    url: http://notification-service:8000
+    routes:
+      - name: notification-route
+        paths:
+          - /api/notifications
+          - /api/notification
+        strip_path: true
 
 plugins:
   - name: cors

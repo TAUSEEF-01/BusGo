@@ -34,6 +34,7 @@ export function Routes() {
   const [filteredTrips, setFilteredTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterOperator, setFilterOperator] = useState("");
   const [filterOrigin, setFilterOrigin] = useState("");
   const [filterDestination, setFilterDestination] = useState("");
   const [filterBusType, setFilterBusType] = useState("");
@@ -45,7 +46,7 @@ export function Routes() {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, filterOrigin, filterDestination, filterBusType, filterDate, trips]);
+  }, [searchTerm, filterOperator, filterOrigin, filterDestination, filterBusType, filterDate, trips]);
 
   const fetchAllTrips = async () => {
     setLoading(true);
@@ -100,6 +101,11 @@ export function Routes() {
     // Destination filter
     if (filterDestination) {
       filtered = filtered.filter((trip) => trip.destination_city === filterDestination);
+    }
+
+    // Operator filter
+    if (filterOperator) {
+      filtered = filtered.filter((trip) => trip.operator_name === filterOperator);
     }
 
     // Bus type filter
@@ -157,6 +163,7 @@ export function Routes() {
 
   const clearFilters = () => {
     setSearchTerm("");
+    setFilterOperator("");
     setFilterOrigin("");
     setFilterDestination("");
     setFilterBusType("");
@@ -164,6 +171,7 @@ export function Routes() {
   };
 
   // Get unique values for filters
+  const operators = Array.from(new Set(trips.map((t) => t.operator_name))).sort();
   const origins = Array.from(new Set(trips.map((t) => t.origin_city))).sort();
   const destinations = Array.from(new Set(trips.map((t) => t.destination_city))).sort();
   const busTypes = Array.from(new Set(trips.map((t) => t.bus_type))).sort();
@@ -181,9 +189,9 @@ export function Routes() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Search and Filters */}
         <div className="card-premium p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
             {/* Search */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-3">
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">Search</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
@@ -198,8 +206,26 @@ export function Routes() {
               </div>
             </div>
 
+            {/* Operator Filter */}
+            <div className="lg:col-span-2">
+              <label className="block text-sm font-semibold text-surface-700 mb-1.5">Operator</label>
+              <select
+                value={filterOperator}
+                onChange={(e) => setFilterOperator(e.target.value)}
+                className="input-premium"
+                id="filter-operator"
+              >
+                <option value="">All Operators</option>
+                {operators.map((op) => (
+                  <option key={op} value={op}>
+                    {op}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Origin Filter */}
-            <div>
+            <div className="lg:col-span-2">
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">From</label>
               <select
                 value={filterOrigin}
@@ -217,7 +243,7 @@ export function Routes() {
             </div>
 
             {/* Destination Filter */}
-            <div>
+            <div className="lg:col-span-2">
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">To</label>
               <select
                 value={filterDestination}
@@ -235,7 +261,7 @@ export function Routes() {
             </div>
 
             {/* Date Filter */}
-            <div>
+            <div className="lg:col-span-2">
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">Date</label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400 pointer-events-none" />
@@ -250,7 +276,7 @@ export function Routes() {
             </div>
 
             {/* Bus Type Filter */}
-            <div>
+            <div className="lg:col-span-1">
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">Bus Type</label>
               <select
                 value={filterBusType}
@@ -269,13 +295,21 @@ export function Routes() {
           </div>
 
           {/* Active Filters */}
-          {(searchTerm || filterOrigin || filterDestination || filterBusType || filterDate) && (
+          {(searchTerm || filterOperator || filterOrigin || filterDestination || filterBusType || filterDate) && (
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-surface-100">
               <span className="text-sm text-surface-600">Active filters:</span>
               {searchTerm && (
                 <span className="badge badge-info flex items-center gap-1">
                   Search: {searchTerm}
                   <button onClick={() => setSearchTerm("")} className="hover:text-red-500">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {filterOperator && (
+                <span className="badge badge-info flex items-center gap-1">
+                  Operator: {filterOperator}
+                  <button onClick={() => setFilterOperator("")} className="hover:text-red-500">
                     <X className="h-3 w-3" />
                   </button>
                 </span>

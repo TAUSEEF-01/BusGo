@@ -15,8 +15,15 @@ async def test_service_connection(service_name, async_driver=True):
     
     try:
         if async_driver:
-            # Add prepared_statement_cache_size=0 for asyncpg
-            engine = create_async_engine(url, connect_args={"ssl": "require", "prepared_statement_cache_size": 0})
+            import uuid
+            engine = create_async_engine(
+                url, 
+                connect_args={
+                    "ssl": "require", 
+                    "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4().hex}__",
+                    "statement_cache_size": 0
+                }
+            )
             async with engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
             await engine.dispose()

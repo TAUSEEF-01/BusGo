@@ -11,7 +11,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from shared.exceptions import SeatAlreadyLocked
 from shared.base_response import BaseResponse
 
-app = FastAPI(title="Inventory Service")
+app = FastAPI(title="Inventory Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
 app.add_middleware(

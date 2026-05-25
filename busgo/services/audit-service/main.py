@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 from uuid import UUID
@@ -8,10 +8,11 @@ from models import AuditLog
 from schemas import AuditLogResponse
 from consumer import run_consumer_bg
 import uvicorn
+import os
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title='Audit Service')
+app = FastAPI(title='Audit Service', root_path=os.environ.get('ROOT_PATH', ''))
 
 def verify_admin_role():
     return True

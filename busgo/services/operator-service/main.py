@@ -5,8 +5,9 @@ from routers.buses_routes import router as buses_routes_router
 from routers.trips import router as trips_router
 from models.base import Base
 from database import engine
+import os
 
-app = FastAPI(title="Operator Service")
+app = FastAPI(title="Operator Service", root_path=os.environ.get("ROOT_PATH", ""))
 
 app.add_middleware(
     CORSMiddleware,

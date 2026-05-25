@@ -15,10 +15,6 @@ x-service-defaults: &service-defaults
       condition: service_started
   networks:
     - busgo-network
-  dns:
-    - 8.8.8.8
-    - 8.8.4.4
-    - 1.1.1.1
 
 services:
   postgres:
@@ -104,6 +100,8 @@ services:
     <<: *service-defaults
     build:
       context: ../services/auth-service
+    ports:
+      - "8101:8000"
     volumes:
       - ../services/auth-service:/app
       - ../shared:/app/shared
@@ -115,11 +113,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: auth-service
       SERVICE_DB: auth_db
+      ROOT_PATH: /api/auth
 
   search-service:
     <<: *service-defaults
     build:
       context: ../services/search-service
+    ports:
+      - "8102:8000"
     volumes:
       - ../services/search-service:/app
       - ../shared:/app/shared
@@ -131,11 +132,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: search-service
       SERVICE_DB: search_db
+      ROOT_PATH: /api/search
 
   inventory-service:
     <<: *service-defaults
     build:
       context: ../services/inventory-service
+    ports:
+      - "8103:8000"
     volumes:
       - ../services/inventory-service:/app
       - ../shared:/app/shared
@@ -147,11 +151,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: inventory-service
       SERVICE_DB: inventory_db
+      ROOT_PATH: /api/inventory
 
   booking-service:
     <<: *service-defaults
     build:
       context: ../services/booking-service
+    ports:
+      - "8104:8000"
     volumes:
       - ../services/booking-service:/app
       - ../shared:/app/shared
@@ -165,11 +172,14 @@ services:
       SERVICE_DB: booking_db
       INVENTORY_SERVICE_URL: http://inventory-service:8000
       DEALS_SERVICE_URL: http://deals-service:8000
+      ROOT_PATH: /api/bookings
 
   payment-service:
     <<: *service-defaults
     build:
       context: ../services/payment-service
+    ports:
+      - "8105:8000"
     volumes:
       - ../services/payment-service:/app
       - ../shared:/app/shared
@@ -181,11 +191,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: payment-service
       SERVICE_DB: payment_db
+      ROOT_PATH: /api/payments
 
   ticket-service:
     <<: *service-defaults
     build:
       context: ../services/ticket-service
+    ports:
+      - "8106:8000"
     volumes:
       - ../services/ticket-service:/app
       - ../shared:/app/shared
@@ -197,11 +210,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: ticket-service
       SERVICE_DB: ticket_db
+      ROOT_PATH: /api/tickets
 
   notification-service:
     <<: *service-defaults
     build:
       context: ../services/notification-service
+    ports:
+      - "8107:8000"
     volumes:
       - ../services/notification-service:/app
       - ../shared:/app/shared
@@ -213,11 +229,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: notification-service
       SERVICE_DB: notification_db
+      ROOT_PATH: /api/notifications
 
   cancellation-service:
     <<: *service-defaults
     build:
       context: ../services/cancellation-service
+    ports:
+      - "8108:8000"
     volumes:
       - ../services/cancellation-service:/app
       - ../shared:/app/shared
@@ -229,11 +248,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: cancellation-service
       SERVICE_DB: cancellation_db
+      ROOT_PATH: /api/cancellations
 
   operator-service:
     <<: *service-defaults
     build:
       context: ../services/operator-service
+    ports:
+      - "8109:8000"
     volumes:
       - ../services/operator-service:/app
       - ../shared:/app/shared
@@ -245,11 +267,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: operator-service
       SERVICE_DB: operator_db
+      ROOT_PATH: /api/operators
 
   deals-service:
     <<: *service-defaults
     build:
       context: ../services/deals-service
+    ports:
+      - "8110:8000"
     volumes:
       - ../services/deals-service:/app
       - ../shared:/app/shared
@@ -261,11 +286,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: deals-service
       SERVICE_DB: deals_db
+      ROOT_PATH: /api/deals
 
   admin-service:
     <<: *service-defaults
     build:
       context: ../services/admin-service
+    ports:
+      - "8111:8000"
     volumes:
       - ../services/admin-service:/app
       - ../shared:/app/shared
@@ -277,11 +305,14 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: admin-service
       SERVICE_DB: admin_db
+      ROOT_PATH: /api/admin
 
   audit-service:
     <<: *service-defaults
     build:
       context: ../services/audit-service
+    ports:
+      - "8112:8000"
     volumes:
       - ../services/audit-service:/app
       - ../shared:/app/shared
@@ -293,6 +324,7 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: audit-service
       SERVICE_DB: audit_db
+      ROOT_PATH: /api/audit
 
   frontend:
     build:
@@ -308,10 +340,6 @@ services:
       - kong
     networks:
       - busgo-network
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-      - 1.1.1.1
 
 networks:
   busgo-network:

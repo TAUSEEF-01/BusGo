@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from consumer import run_consumer_bg
 from scheduler import start_scheduler
+import os
 
-app = FastAPI(title="notification-service")
+app = FastAPI(title="Notification Service", root_path=os.environ.get("ROOT_PATH", ""))
 
 app.add_middleware(
     CORSMiddleware,

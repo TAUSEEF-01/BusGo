@@ -6,7 +6,7 @@ from services.kafka_consumer import SearchKafkaConsumer
 import sys
 import os
 
-app = FastAPI(title="Search Service")
+app = FastAPI(title="Search Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
 app.add_middleware(

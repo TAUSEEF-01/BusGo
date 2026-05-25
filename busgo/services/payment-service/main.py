@@ -4,8 +4,9 @@ from routers.payments import router as payments_router
 from models.base import Base
 from database import engine
 from services.kafka_consumer import PaymentKafkaConsumer
+import os
 
-app = FastAPI(title="Payment Service")
+app = FastAPI(title="Payment Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
 app.add_middleware(

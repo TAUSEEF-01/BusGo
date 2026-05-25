@@ -6,7 +6,7 @@ import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.enums import UserRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
 def get_current_user_payload(request: Request, token: str = Depends(oauth2_scheme)):
     if not token:

@@ -45,6 +45,7 @@ export function SearchResults() {
 
   const [sortBy, setSortBy] = useState("price-asc");
   const [busType, setBusType] = useState<string[]>([]);
+  const [selectedOperators, setSelectedOperators] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,8 +108,11 @@ export function SearchResults() {
     }
   };
 
+  const operators = Array.from(new Set(trips.map((t) => t.operator_name))).sort();
+
   const filteredTrips = trips
     .filter((t) => busType.length === 0 || busType.includes(t.bus_type))
+    .filter((t) => selectedOperators.length === 0 || selectedOperators.includes(t.operator_name))
     .sort((a, b) => {
       if (sortBy === "price-asc") return a.fare_amount - b.fare_amount;
       if (sortBy === "price-desc") return b.fare_amount - a.fare_amount;
@@ -118,6 +122,10 @@ export function SearchResults() {
 
   const toggleType = (type: string) => {
     setBusType((prev) => prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]);
+  };
+
+  const toggleOperator = (op: string) => {
+    setSelectedOperators((prev) => prev.includes(op) ? prev.filter((o) => o !== op) : [...prev, op]);
   };
 
   const formatDate = (d: string) => {
@@ -184,6 +192,29 @@ export function SearchResults() {
                   ))}
                 </div>
               </div>
+
+              {/* Operator */}
+              {operators.length > 0 && (
+                <div className="card-premium p-5 mb-4 animate-fade-in">
+                  <h4 className="text-sm font-bold text-surface-700 mb-3">Operator</h4>
+                  <div className="space-y-2">
+                    {operators.map((op) => (
+                      <label key={op} className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={selectedOperators.includes(op)}
+                          onChange={() => toggleOperator(op)}
+                          className="w-4 h-4 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
+                        />
+                        <span className="text-sm text-surface-700 group-hover:text-surface-900">{op}</span>
+                        <span className="ml-auto text-xs text-surface-400">
+                          ({trips.filter((t) => t.operator_name === op).length})
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Price Range */}
               <div className="card-premium p-5">

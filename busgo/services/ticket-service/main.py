@@ -4,8 +4,9 @@ from routers.tickets import router as tickets_router
 from models.base import Base
 from database import engine
 from services.kafka_consumer import TicketKafkaConsumer
+import os
 
-app = FastAPI(title="Ticket Service")
+app = FastAPI(title="Ticket Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
 app.add_middleware(

@@ -10,7 +10,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-app = FastAPI(title="Booking Service")
+app = FastAPI(title="Booking Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
 app.add_middleware(
