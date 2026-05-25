@@ -712,55 +712,142 @@ export function ManageTrips() {
           </div>
         )}
 
-        {activeTab === "Trips" && (
-          <div>
-            <div className="p-5 border-b border-surface-100 flex justify-between items-center">
-              <h3 className="font-bold text-surface-900 flex items-center gap-2"><Clock className="w-5 h-5 text-brand-500" /> Scheduled Trips</h3>
-              <button onClick={() => setIsAddTripOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Schedule Trip</button>
+        {activeTab === "Trips" && (() => {
+          const now = new Date();
+          const activeTrips = trips.filter(t => t.departure_datetime && new Date(t.departure_datetime) > now);
+          const pastTrips = trips.filter(t => !t.departure_datetime || new Date(t.departure_datetime) <= now);
+          
+          return (
+            <div className="space-y-8">
+              {/* Active Scheduled Trips */}
+              <div>
+                <div className="p-5 border-b border-surface-100 flex justify-between items-center bg-surface-50/50 rounded-t-2xl">
+                  <h3 className="font-bold text-surface-900 flex items-center gap-2">
+                    <Clock className="w-5 h-5 text-brand-500" /> Scheduled Trips (Upcoming)
+                  </h3>
+                  <button onClick={() => setIsAddTripOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm">
+                    <Plus className="w-4 h-4"/> Schedule Trip
+                  </button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-surface-50 border-b border-surface-100">
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Date & Time</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Route</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Bus</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-100">
+                      {activeTrips.map(t => {
+                        const route = routes.find(r => r.id === t.route_id);
+                        const bus = buses.find(b => b.id === t.bus_id);
+                        return (
+                          <tr key={t.id} className="hover:bg-surface-50 transition-colors">
+                            <td className="px-5 py-4 text-sm font-medium text-surface-900">{new Date(t.departure_datetime).toLocaleString()}</td>
+                            <td className="px-5 py-4 text-sm text-surface-600">{route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown'}</td>
+                            <td className="px-5 py-4 text-sm text-surface-600">{bus?.registration_no || 'Unknown'}</td>
+                            <td className="px-5 py-4 text-sm font-bold text-surface-900">৳ {t.fare_amount}</td>
+                            <td className="px-5 py-4 text-sm"><span className="badge badge-info">{t.status}</span></td>
+                            <td className="px-5 py-4 text-sm text-right">
+                              <button 
+                                onClick={() => setSelectedTrip({ 
+                                  trip: t, 
+                                  routeLabel: route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown Route',
+                                  busLabel: bus?.registration_no || 'Unknown Bus'
+                                })}
+                                className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                                title="View Trip Details & Bookings"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {activeTrips.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-5 py-8 text-center text-surface-500 italic">
+                            No upcoming scheduled trips.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Past Trips History */}
+              <div className="border-t border-surface-100 pt-6">
+                <div className="p-5 border-b border-surface-100 flex justify-between items-center bg-surface-50/50 rounded-t-2xl">
+                  <h3 className="font-bold text-surface-900 flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-emerald-600" /> Past Trips History (Already Done)
+                  </h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="bg-surface-50 border-b border-surface-100">
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Date & Time</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Route</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Bus</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
+                        <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-surface-100">
+                      {pastTrips.map(t => {
+                        const route = routes.find(r => r.id === t.route_id);
+                        const bus = buses.find(b => b.id === t.bus_id);
+                        
+                        // Dynamically mark scheduled past trips as COMPLETED
+                        const displayStatus = t.status === "SCHEDULED" ? "COMPLETED" : t.status;
+                        const badgeClass = displayStatus === "COMPLETED" ? "badge-success" : 
+                                           displayStatus === "CANCELLED" ? "badge-error" : "badge-neutral";
+                        
+                        return (
+                          <tr key={t.id} className="hover:bg-surface-50 transition-colors bg-surface-50/20">
+                            <td className="px-5 py-4 text-sm font-medium text-surface-500">{new Date(t.departure_datetime).toLocaleString()}</td>
+                            <td className="px-5 py-4 text-sm text-surface-500">{route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown'}</td>
+                            <td className="px-5 py-4 text-sm text-surface-500">{bus?.registration_no || 'Unknown'}</td>
+                            <td className="px-5 py-4 text-sm font-bold text-surface-500">৳ {t.fare_amount}</td>
+                            <td className="px-5 py-4 text-sm">
+                              <span className={`badge ${badgeClass}`}>{displayStatus}</span>
+                            </td>
+                            <td className="px-5 py-4 text-sm text-right">
+                              <button 
+                                onClick={() => setSelectedTrip({ 
+                                  trip: t, 
+                                  routeLabel: route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown Route',
+                                  busLabel: bus?.registration_no || 'Unknown Bus'
+                                })}
+                                className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
+                                title="View Trip Details & Bookings"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {pastTrips.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-5 py-8 text-center text-surface-500 italic">
+                            No past trip history.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-surface-50">
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Date & Time</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Route</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Bus</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Fare</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Status</th>
-                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-100">
-                {trips.map(t => {
-                  const route = routes.find(r => r.id === t.route_id);
-                  const bus = buses.find(b => b.id === t.bus_id);
-                  return (
-                    <tr key={t.id} className="hover:bg-surface-50">
-                      <td className="px-5 py-4 text-sm font-medium text-surface-900">{new Date(t.departure_datetime).toLocaleString()}</td>
-                      <td className="px-5 py-4 text-sm text-surface-600">{route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown'}</td>
-                      <td className="px-5 py-4 text-sm text-surface-600">{bus?.registration_no || 'Unknown'}</td>
-                      <td className="px-5 py-4 text-sm font-bold text-surface-900">৳ {t.fare_amount}</td>
-                      <td className="px-5 py-4 text-sm"><span className="badge badge-info">{t.status}</span></td>
-                      <td className="px-5 py-4 text-sm text-right">
-                        <button 
-                          onClick={() => setSelectedTrip({ 
-                            trip: t, 
-                            routeLabel: route ? `${route.origin_city} → ${route.destination_city}` : 'Unknown Route',
-                            busLabel: bus?.registration_no || 'Unknown Bus'
-                          })}
-                          className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors"
-                          title="View Trip Details & Bookings"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {trips.length === 0 && <tr><td colSpan={5} className="px-5 py-8 text-center text-surface-500">No trips scheduled.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Add Route Modal */}

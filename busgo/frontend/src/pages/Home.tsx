@@ -125,9 +125,13 @@ export function Home() {
   useEffect(() => {
     const fetchPopular = async () => {
       try {
-        const res = await apiClient.get("/api/operators/trips/?limit=6");
+        const res = await apiClient.get("/api/operators/trips/");
         if (res.data.success) {
-          setPopularTrips(res.data.data);
+          const now = new Date();
+          const activeTrips = (res.data.data || [])
+            .filter((trip: any) => trip.status === 'SCHEDULED' && trip.departure_datetime && new Date(trip.departure_datetime) > now)
+            .slice(0, 6);
+          setPopularTrips(activeTrips);
         }
       } catch (err) {
         console.error("Failed to fetch popular routes", err);

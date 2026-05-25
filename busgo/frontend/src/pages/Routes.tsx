@@ -56,8 +56,11 @@ export function Routes() {
       let dbTrips: Trip[] = [];
       if (response.data.success) {
         const allTrips = response.data.data || [];
-        // Filter only scheduled trips and safely map missing fields
-        dbTrips = allTrips.filter((trip: any) => trip.status === 'SCHEDULED').map((trip: any) => ({
+        const now = new Date();
+        // Filter only scheduled trips that haven't departed yet and safely map missing fields
+        dbTrips = allTrips
+          .filter((trip: any) => trip.status === 'SCHEDULED' && trip.departure_datetime && new Date(trip.departure_datetime) > now)
+          .map((trip: any) => ({
           ...trip,
           trip_id: trip.trip_id || trip.id,
           operator_name: trip.operator_name || "Unknown Operator",

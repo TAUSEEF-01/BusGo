@@ -69,7 +69,11 @@ export function SearchResults() {
       });
       
       if (response.data.success) {
-        setTrips(response.data.data || []);
+        const now = new Date();
+        const activeTrips = (response.data.data || []).filter(
+          (trip: any) => trip.status === 'SCHEDULED' && trip.departure_datetime && new Date(trip.departure_datetime) > now
+        );
+        setTrips(activeTrips);
       } else {
         setTrips([]);
       }
