@@ -35,12 +35,81 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   cancelled: "badge-error",
 };
 
+const getOperatorLogo = (name: string) => {
+  const normalized = name.toLowerCase();
+  if (normalized.includes("greenline") || normalized.includes("green line")) {
+    return {
+      text: "GP",
+      bgClass: "bg-surface-900 text-white font-bold text-sm",
+    };
+  }
+  if (normalized.includes("shohagh")) {
+    return {
+      text: "S",
+      bgClass: "bg-red-600 text-white font-black font-serif text-sm",
+    };
+  }
+  if (normalized.includes("hanif")) {
+    return {
+      text: "HF",
+      bgClass: "bg-amber-950 text-amber-400 font-extrabold border border-amber-500/20 text-xs",
+    };
+  }
+  // Default fallback
+  const initials = name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+  return {
+    text: initials || "B",
+    bgClass: "bg-gradient-to-br from-brand-600 to-brand-800 text-white text-xs",
+  };
+};
+
+const formatTimeString = (timeStr: string) => {
+  if (!timeStr || timeStr === "N/A") return "N/A";
+  try {
+    if (timeStr.includes("AM") || timeStr.includes("PM")) {
+      return timeStr;
+    }
+    const parts = timeStr.split(":");
+    let hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const strMinutes = minutes < 10 ? "0" + minutes : minutes;
+    const strHours = hours < 10 ? "0" + hours : hours;
+    return `${strHours}:${strMinutes} ${ampm}`;
+  } catch (e) {
+    return timeStr;
+  }
+};
+
+const formatDateString = (dateStr: string) => {
+  if (!dateStr || dateStr === "N/A") return "N/A";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 export function MyBookings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
   const [searchQuery, setSearchQuery] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeSeatBooking, setActiveSeatBooking] = useState<Booking | null>(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -148,88 +217,120 @@ export function MyBookings() {
 
         {/* Bookings */}
         {filtered.length > 0 ? (
-          <div className="space-y-4">
-            {filtered.map((booking, i) => (
-              <div
-                key={booking.id}
-                className="card-premium p-0 overflow-hidden animate-fade-in-up"
-                style={{ animationDelay: `${i * 80}ms` }}
-                id={`booking-${booking.id}`}
-              >
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                    <div className="flex-1">
-                      {/* Operator & Status */}
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-surface-800 to-surface-900 flex items-center justify-center text-white text-xs font-bold shadow-sm">
-                          {booking.operator.split(" ").map((w) => w[0]).join("").slice(0,2)}
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-surface-900">{booking.operator}</h3>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`badge ${STATUS_STYLES[booking.status]} text-[10px]`}>
-                              {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
-                            </span>
-                            <span className="text-xs text-surface-400">{booking.ticketId}</span>
-                          </div>
-                        </div>
-                      </div>
+          <div className="bg-white rounded-xl border border-surface-200 shadow-elevation-1 overflow-hidden">
+            {/* Table Header */}
+            <div className="hidden md:grid grid-cols-12 gap-4 bg-surface-50 border-b border-surface-200 py-3.5 px-6 text-xs font-bold text-surface-500 uppercase tracking-wider">
+              <div className="col-span-3">Operator / Ticket</div>
+              <div className="col-span-3">Departure/Arrival</div>
+              <div className="col-span-2">Seats</div>
+              <div className="col-span-1 text-right">Total Fare</div>
+              <div className="col-span-3 text-right">Actions</div>
+            </div>
 
-                      {/* Route */}
-                      <div className="flex items-center gap-4 sm:gap-8 mt-4">
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-surface-900">{booking.departure}</p>
-                          <p className="text-xs text-surface-500">{booking.from}</p>
-                        </div>
-                        <div className="flex-1 flex flex-col items-center">
-                          <div className="w-full flex items-center gap-1">
-                            <div className="w-2 h-2 rounded-full bg-brand-500" />
-                            <div className="flex-1 h-px bg-surface-300" />
-                            <div className="w-2 h-2 rounded-full bg-brand-500" />
-                          </div>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-lg font-bold text-surface-900">{booking.arrival}</p>
-                          <p className="text-xs text-surface-500">{booking.to}</p>
+            {/* Table Body */}
+            <div className="divide-y divide-surface-200">
+              {filtered.map((booking, i) => {
+                const logo = getOperatorLogo(booking.operator);
+                const formattedDep = formatTimeString(booking.departure);
+                const formattedArr = formatTimeString(booking.arrival);
+                const formattedDate = formatDateString(booking.date);
+
+                return (
+                  <div
+                    key={booking.id}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center py-4 px-6 hover:bg-surface-50/50 transition-colors duration-150 animate-fade-in-up"
+                    style={{ animationDelay: `${i * 60}ms` }}
+                    id={`booking-row-${booking.id}`}
+                  >
+                    {/* Operator / Ticket column */}
+                    <div className="col-span-12 md:col-span-3 flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${logo.bgClass}`}>
+                        {logo.text}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-surface-900 text-sm">
+                          {booking.operator}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className={`badge ${STATUS_STYLES[booking.status]} text-[10px]`}>
+                            {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
+                          </span>
+                          <span className="text-xs text-surface-400 font-semibold">{booking.ticketId}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Right Side */}
-                    <div className="flex sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 sm:border-l border-surface-100 pt-4 sm:pt-0 sm:pl-6 sm:min-w-[140px]">
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-xs text-surface-500 mb-0.5">
-                          <Calendar className="h-3 w-3" /> {booking.date}
-                        </div>
-                        <p className="text-xs text-surface-500">Seats: {booking.seats.join(", ")}</p>
-                        <p className="text-lg font-extrabold text-brand-600 mt-1">{booking.total}</p>
+                    {/* Departure/Arrival column */}
+                    <div className="col-span-12 md:col-span-3 flex items-start gap-4 py-1">
+                      <div className="flex flex-col">
+                        <p className="text-sm font-bold text-surface-950">{formattedDep}</p>
+                        <p className="text-xs text-surface-500 font-medium">{booking.from}</p>
+                        <span className="text-[10px] text-brand-700 font-bold mt-1.5 bg-brand-50 px-1.5 py-0.5 rounded self-start">
+                          {formattedDate}
+                        </span>
                       </div>
-                      <div className="flex gap-2 mt-2">
+                      <div className="text-surface-300 font-light text-base select-none shrink-0 pt-0.5">→</div>
+                      <div className="flex flex-col">
+                        <p className="text-sm font-bold text-surface-950">{formattedArr}</p>
+                        <p className="text-xs text-surface-500 font-medium">{booking.to}</p>
+                        <span className="text-[10px] py-0.5 mt-1.5 opacity-0 select-none">placeholder</span>
+                      </div>
+                    </div>
+
+                    {/* Seats column */}
+                    <div 
+                      onClick={() => setActiveSeatBooking(booking)}
+                      className="col-span-12 md:col-span-2 flex items-center gap-2 cursor-pointer hover:bg-surface-100/70 p-1.5 rounded-lg transition-colors group"
+                      title="Click to view visual seat map"
+                    >
+                      <Ticket className="h-4 w-4 text-brand-600 shrink-0 group-hover:scale-110 transition-transform" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-surface-800 border-b border-dashed border-surface-400 group-hover:text-brand-600 group-hover:border-brand-600 transition-colors">
+                          {booking.seats.join(", ")}
+                        </span>
+                        <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">
+                          {booking.seats.length} {booking.seats.length === 1 ? "seat" : "seats"} • View layout
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Total Fare column */}
+                    <div className="col-span-12 md:col-span-1 flex md:flex-col justify-between md:justify-end gap-2 md:gap-0.5 text-right">
+                      <span className="md:hidden text-xs text-surface-500 font-bold uppercase tracking-wider">Total Fare</span>
+                      <div className="flex flex-col items-end">
+                        <p className="text-base font-black text-brand-700">{booking.total}</p>
+                        <p className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">paid</p>
+                      </div>
+                    </div>
+
+                    {/* Actions column */}
+                    <div className="col-span-12 md:col-span-3 flex items-center justify-between md:justify-end gap-2 border-t md:border-t-0 border-surface-100 pt-3 md:pt-0">
+                      <div className="flex gap-2 w-full md:w-auto justify-end">
                         {booking.status === "upcoming" && (
-                          <button 
+                          <button
                             onClick={() => navigate(`/booking/cancel/${booking.id}`)}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100 transition-colors"
+                            className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                           >
-                            <X className="h-3 w-3" /> Cancel
+                            <X className="h-3.5 w-3.5" /> Cancel
                           </button>
                         )}
                         <button
                           onClick={() => navigate(`/booking/confirmation/${booking.id}`)}
-                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-600 text-xs font-semibold hover:bg-brand-100 transition-colors"
+                          className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 shrink-0 cursor-pointer"
                         >
-                          <Eye className="h-3 w-3" /> View
+                          <Eye className="h-3.5 w-3.5" /> View
                         </button>
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                );
+              })}
+            </div>
           </div>
         ) : (
           /* Empty State */
-          <div className="text-center py-20">
-            <div className="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-4">
+          <div className="text-center py-20 bg-white rounded-xl border border-surface-200 shadow-elevation-1">
+            <div className="w-16 h-16 rounded-2xl bg-surface-100 flex items-center justify-center mx-auto mb-4 animate-bounce">
               <FileText className="h-8 w-8 text-surface-400" />
             </div>
             <h3 className="text-lg font-bold text-surface-900 mb-1">{activeConfig.emptyTitle}</h3>
@@ -240,6 +341,123 @@ export function MyBookings() {
           </div>
         )}
       </div>
+
+      {/* Visual Seat Map Modal */}
+      {activeSeatBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-surface-950/40 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-sm bg-white rounded-2xl border border-surface-200 shadow-elevation-4 overflow-hidden animate-scale-in">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-surface-100 px-6 py-4 bg-surface-50">
+              <div>
+                <h3 className="font-extrabold text-surface-900 text-base">Seat Layout Map</h3>
+                <p className="text-xs text-surface-500 font-medium">Ticket: {activeSeatBooking.ticketId} • {activeSeatBooking.operator}</p>
+              </div>
+              <button 
+                onClick={() => setActiveSeatBooking(null)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-surface-400 hover:text-surface-700 hover:bg-surface-100 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* Legend */}
+              <div className="flex items-center justify-center gap-4 mb-6 p-2 bg-surface-50 rounded-xl">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-4 rounded bg-surface-100 border border-surface-200" />
+                  <span className="text-[10px] font-bold text-surface-500 uppercase">Other Seats</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-4 h-4 rounded bg-gradient-to-br from-emerald-500 to-emerald-600 border border-emerald-700 shadow-sm shadow-emerald-500/10" />
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase">Your Seats ({activeSeatBooking.seats.join(", ")})</span>
+                </div>
+              </div>
+
+              {/* Bus Grid Layout */}
+              <div className="max-w-[240px] mx-auto">
+                {/* Front Notice & Steering Wheel / Driver Area */}
+                <div className="flex items-center justify-between mb-3 px-2">
+                  <span className="text-[10px] text-surface-400 font-bold uppercase tracking-wider">FRONT</span>
+                  <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center border border-surface-200">
+                    <Bus className="h-4 w-4 text-surface-400" />
+                  </div>
+                </div>
+
+                {/* Seat Matrix */}
+                <div className="border border-surface-200 rounded-xl p-3 bg-surface-50/50 space-y-1.5 shadow-inner">
+                  {Array.from({ length: 10 }).map((_, row) => {
+                    const rowLetter = String.fromCharCode(65 + row);
+                    return (
+                      <div key={row} className="flex items-center justify-center gap-1.5">
+                        {/* Column 1 & 2 */}
+                        <div className="flex gap-1.5">
+                          {[1, 2].map((col) => {
+                            const seatId = `${rowLetter}${col}`;
+                            const isBookedByUser = activeSeatBooking.seats.includes(seatId);
+                            return (
+                              <div
+                                key={seatId}
+                                className={`w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold select-none transition-all duration-300 ${
+                                  isBookedByUser
+                                    ? "bg-gradient-to-br from-emerald-500 to-emerald-600 border border-emerald-700 text-white shadow-sm shadow-emerald-500/20 scale-105"
+                                    : "bg-surface-100 border border-surface-200 text-surface-400"
+                                }`}
+                                title={seatId}
+                              >
+                                {seatId}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Aisle */}
+                        <div className="w-6" />
+
+                        {/* Column 3 & 4 */}
+                        <div className="flex gap-1.5">
+                          {[3, 4].map((col) => {
+                            const seatId = `${rowLetter}${col}`;
+                            const isBookedByUser = activeSeatBooking.seats.includes(seatId);
+                            return (
+                              <div
+                                key={seatId}
+                                className={`w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold select-none transition-all duration-300 ${
+                                  isBookedByUser
+                                    ? "bg-gradient-to-br from-emerald-500 to-emerald-600 border border-emerald-700 text-white shadow-sm shadow-emerald-500/20 scale-105"
+                                    : "bg-surface-100 border border-surface-200 text-surface-400"
+                                }`}
+                                title={seatId}
+                              >
+                                {seatId}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Rear Notice */}
+                <div className="text-center mt-2.5">
+                  <span className="text-[10px] text-surface-400 font-bold uppercase tracking-wider">REAR</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-surface-100 px-6 py-4 bg-surface-50 flex justify-end">
+              <button
+                onClick={() => setActiveSeatBooking(null)}
+                className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-5 rounded-lg text-xs transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 cursor-pointer"
+              >
+                Close Map
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

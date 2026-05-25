@@ -32,6 +32,7 @@ class BookingResponse(BaseModel):
     user_id: UUID
     trip_id: UUID
     operator_id: UUID
+    operator_name: Optional[str] = None
     status: BookingStatus
     total_fare: float
     discount_amount: float
