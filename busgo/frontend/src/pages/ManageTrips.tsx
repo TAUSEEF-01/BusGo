@@ -630,6 +630,23 @@ export function ManageTrips() {
     }
   };
 
+  const handleDeleteTrip = async (id: string, availableSeats: number, totalSeats: number) => {
+    if (availableSeats < totalSeats) {
+      toast.error("Cannot delete trip because tickets have already been sold.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this scheduled trip?")) return;
+    try {
+      const res = await apiClient.delete(`/api/operators/trips/${id}`);
+      if (res.data.success) {
+        toast.success("Trip deleted successfully");
+        fetchData();
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to delete trip");
+    }
+  };
+
   const handleAddBus = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -1176,7 +1193,7 @@ export function ManageTrips() {
                               <td className="px-5 py-4 text-sm text-surface-600">{bus?.registration_no || 'Unknown'}</td>
                               <td className="px-5 py-4 text-sm font-bold text-surface-900">৳ {t.fare_amount}</td>
                               <td className="px-5 py-4 text-sm"><span className="badge badge-info">{t.status}</span></td>
-                              <td className="px-5 py-4 text-sm text-right">
+                              <td className="px-5 py-4 text-sm text-right flex items-center justify-end gap-1">
                                 <button 
                                   onClick={() => setSelectedTrip({ 
                                     trip: t, 
@@ -1188,6 +1205,15 @@ export function ManageTrips() {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </button>
+                                {bus && Number(t.available_seats) === Number(bus.total_seats) && (
+                                  <button
+                                    onClick={() => handleDeleteTrip(t.id, t.available_seats, bus.total_seats)}
+                                    className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete Scheduled Trip"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );
@@ -1242,7 +1268,7 @@ export function ManageTrips() {
                               <td className="px-5 py-4 text-sm">
                                 <span className={`badge ${badgeClass}`}>{displayStatus}</span>
                               </td>
-                              <td className="px-5 py-4 text-sm text-right">
+                              <td className="px-5 py-4 text-sm text-right flex items-center justify-end gap-1">
                                 <button 
                                   onClick={() => setSelectedTrip({ 
                                     trip: t, 
@@ -1254,6 +1280,15 @@ export function ManageTrips() {
                                 >
                                   <Eye className="w-4 h-4" />
                                 </button>
+                                {bus && Number(t.available_seats) === Number(bus.total_seats) && (
+                                  <button
+                                    onClick={() => handleDeleteTrip(t.id, t.available_seats, bus.total_seats)}
+                                    className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete Trip"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );

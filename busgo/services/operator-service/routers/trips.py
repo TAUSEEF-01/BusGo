@@ -152,3 +152,30 @@ async def cancel_trip(id: UUID, db: AsyncSession = Depends(get_db), payload: dic
         print(f"Kafka publish failed: {e}")
 
     return BaseResponse(success=True, message=f"Trip {id} cancelled, refund initiated for related bookings.")
+
+@router.delete("/{id}", response_model=BaseResponse)
+async def delete_trip(id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    result = await db.execute(
+        select(Trip, Bus)
+        .join(Bus, Trip.bus_id == Bus.id)
+        .where(Trip.id == id)
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Trip not found")
+        
+    trip, bus = row
+    
+    if trip.available_seats < bus.total_seats:
+        raise HTTPException(status_code=400, detail="Cannot delete trip because tickets have already been sold.")
+        
+    # Clean up corresponding seat inventory in seat_inventory table
+    from sqlalchemy import text
+    try:
+        await db.execute(text("DELETE FROM seat_inventory WHERE trip_id = :trip_id"), {"trip_id": id})
+    except Exception as e:
+        print(f"Failed to clean up seat inventory: {e}")
+        
+    await db.delete(trip)
+    await db.commit()
+    return BaseResponse(success=True, message="Trip deleted successfully")
