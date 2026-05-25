@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight } from "lucide-react";
+import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
@@ -303,6 +303,131 @@ function TripDetailsModal({
 }
 
 
+function MultiDateCalendar({
+  selectedDates,
+  onChange,
+}: {
+  selectedDates: string[];
+  onChange: (dates: string[]) => void;
+}) {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  const monthNames = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
+  const formatDateString = (y: number, m: number, d: number) => {
+    const mm = String(m + 1).padStart(2, "0");
+    const dd = String(d).padStart(2, "0");
+    return `${y}-${mm}-${dd}`;
+  };
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayIndex = new Date(year, month, 1).getDay();
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
+
+  const toggleDate = (dateStr: string) => {
+    if (selectedDates.includes(dateStr)) {
+      onChange(selectedDates.filter((d) => d !== dateStr));
+    } else {
+      onChange([...selectedDates, dateStr].sort());
+    }
+  };
+
+  const dayCells = [];
+  for (let i = 0; i < firstDayIndex; i++) {
+    dayCells.push(<div key={`empty-${i}`} className="w-9 h-9" />);
+  }
+  
+  const todayStr = new Date().toISOString().split("T")[0];
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = formatDateString(year, month, d);
+    const isSelected = selectedDates.includes(dateStr);
+    const isToday = dateStr === todayStr;
+    
+    dayCells.push(
+      <button
+        key={`day-${d}`}
+        type="button"
+        onClick={() => toggleDate(dateStr)}
+        className={`w-9 h-9 text-xs font-bold rounded-lg flex items-center justify-center transition-all duration-150 ${
+          isSelected
+            ? "bg-brand-600 text-white shadow-sm ring-2 ring-brand-400"
+            : isToday
+            ? "bg-brand-50 text-brand-600 border border-brand-200 hover:bg-brand-100"
+            : "text-surface-700 hover:bg-surface-100"
+        }`}
+      >
+        {d}
+      </button>
+    );
+  }
+
+  const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  return (
+    <div className="w-full bg-white border border-surface-200 rounded-2xl p-4 shadow-sm select-none">
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="text-sm font-bold text-surface-900">
+          {monthNames[month]} {year}
+        </h4>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            className="p-1.5 rounded-lg text-surface-500 hover:bg-surface-100 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-2">
+        {weekDays.map((d) => (
+          <div key={d} className="py-1">
+            {d}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {dayCells}
+      </div>
+
+      {selectedDates.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-surface-100 flex items-center justify-between text-xs text-surface-500">
+          <span>Selected: <strong>{selectedDates.length}</strong> days</span>
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            className="text-red-500 font-semibold hover:underline"
+          >
+            Clear All
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 export function ManageTrips() {
   const user = useAuthStore((s) => s.user);
   const OPERATOR_ID = user?.id || "";
@@ -356,38 +481,7 @@ export function ManageTrips() {
   };
 
   const [busSelectedDates, setBusSelectedDates] = useState<string[]>([]);
-  const [busDateInput, setBusDateInput] = useState("");
-
   const [tripSelectedDates, setTripSelectedDates] = useState<string[]>([]);
-  const [tripDateInput, setTripDateInput] = useState("");
-
-  const handleAddBusDate = () => {
-    if (!busDateInput) return;
-    if (busSelectedDates.includes(busDateInput)) {
-      toast.error("Date already added");
-      return;
-    }
-    setBusSelectedDates([...busSelectedDates, busDateInput].sort());
-    setBusDateInput("");
-  };
-
-  const handleRemoveBusDate = (d: string) => {
-    setBusSelectedDates(busSelectedDates.filter(date => date !== d));
-  };
-
-  const handleAddTripDate = () => {
-    if (!tripDateInput) return;
-    if (tripSelectedDates.includes(tripDateInput)) {
-      toast.error("Date already added");
-      return;
-    }
-    setTripSelectedDates([...tripSelectedDates, tripDateInput].sort());
-    setTripDateInput("");
-  };
-
-  const handleRemoveTripDate = (d: string) => {
-    setTripSelectedDates(tripSelectedDates.filter(date => date !== d));
-  };
 
   const openAddBus = () => {
     setBusForm({
@@ -402,7 +496,6 @@ export function ManageTrips() {
       fare_amount: 1000,
     });
     setBusSelectedDates([]);
-    setBusDateInput("");
     setEditingBusId(null);
     setIsAddBusOpen(true);
   };
@@ -417,7 +510,6 @@ export function ManageTrips() {
       assign_route: false,
     });
     setBusSelectedDates([]);
-    setBusDateInput("");
     setEditingBusId(bus.id);
     setIsAddBusOpen(true);
   };
@@ -808,7 +900,6 @@ export function ManageTrips() {
                       fare_amount: 1000,
                     });
                     setTripSelectedDates([]);
-                    setTripDateInput("");
                     setIsAddTripOpen(true);
                   }} className="btn-primary flex items-center gap-2 !py-2 !text-sm">
                     <Plus className="w-4 h-4"/> Schedule Trip
@@ -1042,23 +1133,11 @@ export function ManageTrips() {
                       <input type="time" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
                     </div>
                     <div>
-                      <label className="block text-sm font-semibold text-surface-700 mb-1">Select Dates</label>
-                      <div className="flex gap-2">
-                        <input type="date" className="input-premium flex-1" value={busDateInput} onChange={e => setBusDateInput(e.target.value)} />
-                        <button type="button" onClick={handleAddBusDate} className="btn-secondary !py-2 !px-4 text-sm font-semibold">Add</button>
-                      </div>
-                      {busSelectedDates.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mt-2 bg-white p-2 rounded-lg border border-surface-200 max-h-32 overflow-y-auto">
-                          {busSelectedDates.map(d => (
-                            <span key={d} className="badge badge-info flex items-center gap-1 text-[11px] font-bold">
-                              {new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                              <button type="button" onClick={() => handleRemoveBusDate(d)} className="hover:text-red-500 font-extrabold ml-1">
-                                <X className="h-3 w-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      <label className="block text-sm font-semibold text-surface-700 mb-1.5">Select Dates</label>
+                      <MultiDateCalendar
+                        selectedDates={busSelectedDates}
+                        onChange={setBusSelectedDates}
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
@@ -1108,23 +1187,11 @@ export function ManageTrips() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-surface-700 mb-1">Select Dates</label>
-                <div className="flex gap-2">
-                  <input type="date" className="input-premium flex-1" value={tripDateInput} onChange={e => setTripDateInput(e.target.value)} />
-                  <button type="button" onClick={handleAddTripDate} className="btn-secondary !py-2 !px-4 text-sm font-semibold">Add</button>
-                </div>
-                {tripSelectedDates.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-2 bg-surface-50 p-2 rounded-lg border border-surface-200 max-h-32 overflow-y-auto">
-                    {tripSelectedDates.map(d => (
-                      <span key={d} className="badge badge-info flex items-center gap-1 text-[11px] font-bold">
-                        {new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        <button type="button" onClick={() => handleRemoveTripDate(d)} className="hover:text-red-500 font-extrabold ml-1">
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">Select Dates</label>
+                <MultiDateCalendar
+                  selectedDates={tripSelectedDates}
+                  onChange={setTripSelectedDates}
+                />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
