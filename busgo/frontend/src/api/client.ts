@@ -13,13 +13,21 @@ export const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   async (config) => {
-    // Try to get token from Supabase first
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (session?.access_token && config.headers) {
-      config.headers.Authorization = `Bearer ${session.access_token}`;
-    } else {
-      // Fallback to Zustand store
+    try {
+      // Try to get token from Supabase first
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.access_token && config.headers) {
+        config.headers.Authorization = `Bearer ${session.access_token}`;
+      } else {
+        // Fallback to Zustand store
+        const { accessToken } = useAuthStore.getState();
+        if (accessToken && config.headers) {
+          config.headers.Authorization = `Bearer ${accessToken}`;
+        }
+      }
+    } catch (e) {
+      console.warn("Supabase session get failed, using fallback Zustand store", e);
       const { accessToken } = useAuthStore.getState();
       if (accessToken && config.headers) {
         config.headers.Authorization = `Bearer ${accessToken}`;

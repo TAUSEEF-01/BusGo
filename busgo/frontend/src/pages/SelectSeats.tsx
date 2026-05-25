@@ -51,7 +51,7 @@ export function SelectSeats() {
 
   const fetchTripDetails = async () => {
     try {
-      const res = await apiClient.get(`/api/operators/trips/${trip_id}`);
+      const res = await apiClient.get(`/api/operators/trips/${trip_id}?_t=${Date.now()}`);
       if (res.data.success) {
         setTripDetails(res.data.data);
       }
@@ -63,7 +63,7 @@ export function SelectSeats() {
   const fetchSeats = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get(`/api/inventory/trips/${trip_id}/seats`);
+      const res = await apiClient.get(`/api/inventory/trips/${trip_id}/seats?_t=${Date.now()}`);
       if (res.data.success && res.data.data && res.data.data.length > 0) {
         const dbSeats = res.data.data.map((s: any) => {
           const rowChar = s.seat_number.charAt(0).toUpperCase();
