@@ -483,6 +483,16 @@ export function ManageTrips() {
   const [busSelectedDates, setBusSelectedDates] = useState<string[]>([]);
   const [tripSelectedDates, setTripSelectedDates] = useState<string[]>([]);
 
+  // Filters
+  const [tripFilterRoute, setTripFilterRoute] = useState("");
+  const [tripFilterBus, setTripFilterBus] = useState("");
+  const [tripFilterDate, setTripFilterDate] = useState("");
+
+  const [busFilterSearch, setBusFilterSearch] = useState("");
+  const [busFilterType, setBusFilterType] = useState("");
+
+  const [routeFilterSearch, setRouteFilterSearch] = useState("");
+
   const openAddBus = () => {
     setBusForm({
       registration_no: "",
@@ -827,6 +837,47 @@ export function ManageTrips() {
               <h3 className="font-bold text-surface-900 flex items-center gap-2"><Bus className="w-5 h-5 text-brand-500" /> Fleet List</h3>
               <button onClick={openAddBus} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Bus</button>
             </div>
+            
+            {/* Buses Filter Bar */}
+            <div className="bg-surface-50 p-4 border-b border-surface-100 grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+              <div>
+                <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Search Reg Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g. DHAKA-METRO"
+                  value={busFilterSearch}
+                  onChange={(e) => setBusFilterSearch(e.target.value)}
+                  className="input-premium py-2 px-3 w-full text-xs"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Bus Type</label>
+                <select
+                  value={busFilterType}
+                  onChange={(e) => setBusFilterType(e.target.value)}
+                  className="input-premium py-2 px-3 w-full text-xs"
+                >
+                  <option value="">All Types</option>
+                  <option value="AC">AC</option>
+                  <option value="NON_AC">Non-AC</option>
+                  <option value="SLEEPER">Sleeper</option>
+                </select>
+              </div>
+              <div className="flex justify-end">
+                {(busFilterSearch || busFilterType) && (
+                  <button
+                    onClick={() => {
+                      setBusFilterSearch("");
+                      setBusFilterType("");
+                    }}
+                    className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline px-3 py-2"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+            </div>
+
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-50">
@@ -840,32 +891,50 @@ export function ManageTrips() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
-                {buses.map(b => {
-                  const busTrips = trips.filter(t => t.bus_id === b.id);
-                  const latestTrip = busTrips[busTrips.length - 1];
-                  const activeRoute = latestTrip ? routes.find(r => r.id === latestTrip.route_id) : null;
+                {(() => {
+                  const filteredBuses = buses.filter(b => {
+                    if (busFilterSearch && !b.registration_no.toLowerCase().includes(busFilterSearch.toLowerCase())) return false;
+                    if (busFilterType && b.bus_type !== busFilterType) return false;
+                    return true;
+                  });
+
                   return (
-                  <tr key={b.id} className="hover:bg-surface-50">
-                    <td className="px-5 py-4 text-sm font-bold text-surface-900">{b.registration_no}</td>
-                    <td className="px-5 py-4 text-sm text-surface-600">{b.bus_type}</td>
-                    <td className="px-5 py-4 text-sm text-surface-600">{b.total_seats}</td>
-                    <td className="px-5 py-4 text-sm text-surface-600">{activeRoute ? `${activeRoute.origin_city} → ${activeRoute.destination_city}` : <span className="text-surface-400 italic">Unassigned</span>}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-surface-900">{latestTrip ? `৳ ${latestTrip.fare_amount}` : '-'}</td>
-                    <td className="px-5 py-4 text-sm">
-                      {b.is_active === false ? <span className="badge badge-error">Unavailable</span> : <span className="badge badge-success">Active</span>}
-                    </td>
-                    <td className="px-5 py-4 text-sm text-right">
-                      <button onClick={() => openEditBus(b)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteBus(b.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                  )
-                })}
-                {buses.length === 0 && <tr><td colSpan={6} className="px-5 py-8 text-center text-surface-500">No buses found in fleet.</td></tr>}
+                    <>
+                      {filteredBuses.map(b => {
+                        const busTrips = trips.filter(t => t.bus_id === b.id);
+                        const latestTrip = busTrips[busTrips.length - 1];
+                        const activeRoute = latestTrip ? routes.find(r => r.id === latestTrip.route_id) : null;
+                        return (
+                          <tr key={b.id} className="hover:bg-surface-50">
+                            <td className="px-5 py-4 text-sm font-bold text-surface-900">{b.registration_no}</td>
+                            <td className="px-5 py-4 text-sm text-surface-600">{b.bus_type}</td>
+                            <td className="px-5 py-4 text-sm text-surface-600">{b.total_seats}</td>
+                            <td className="px-5 py-4 text-sm text-surface-600">{activeRoute ? `${activeRoute.origin_city} → ${activeRoute.destination_city}` : <span className="text-surface-400 italic">Unassigned</span>}</td>
+                            <td className="px-5 py-4 text-sm font-bold text-surface-900">{latestTrip ? `৳ ${latestTrip.fare_amount}` : '-'}</td>
+                            <td className="px-5 py-4 text-sm">
+                              {b.is_active === false ? <span className="badge badge-error">Unavailable</span> : <span className="badge badge-success">Active</span>}
+                            </td>
+                            <td className="px-5 py-4 text-sm text-right">
+                              <button onClick={() => openEditBus(b)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => handleDeleteBus(b.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredBuses.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="px-5 py-8 text-center text-surface-500 italic">
+                            No buses found matching the active filters.
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })()}
               </tbody>
             </table>
           </div>
@@ -877,6 +946,31 @@ export function ManageTrips() {
               <h3 className="font-bold text-surface-900 flex items-center gap-2"><Map className="w-5 h-5 text-brand-500" /> Permitted Routes</h3>
               <button onClick={openAddRoute} className="btn-primary flex items-center gap-2 !py-2 !text-sm"><Plus className="w-4 h-4"/> Add Route</button>
             </div>
+
+            {/* Routes Filter Bar */}
+            <div className="bg-surface-50 p-4 border-b border-surface-100 grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
+              <div>
+                <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Search Origin / Destination</label>
+                <input
+                  type="text"
+                  placeholder="Search by city (e.g. Dhaka)..."
+                  value={routeFilterSearch}
+                  onChange={(e) => setRouteFilterSearch(e.target.value)}
+                  className="input-premium py-2 px-3 w-full text-xs"
+                />
+              </div>
+              <div className="flex justify-end">
+                {routeFilterSearch && (
+                  <button
+                    onClick={() => setRouteFilterSearch("")}
+                    className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline px-3 py-2"
+                  >
+                    Clear Filter
+                  </button>
+                )}
+              </div>
+            </div>
+
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-50">
@@ -887,22 +981,44 @@ export function ManageTrips() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-100">
-                {routes.map(r => (
-                  <tr key={r.id} className="hover:bg-surface-50">
-                    <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.origin_city}</td>
-                    <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
-                    <td className="px-5 py-4 text-sm text-surface-600">{r.distance_km} km</td>
-                    <td className="px-5 py-4 text-sm text-right">
-                      <button onClick={() => openEditRoute(r)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDeleteRoute(r.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {routes.length === 0 && <tr><td colSpan={4} className="px-5 py-8 text-center text-surface-500">No routes found. Click "Add Route" to create your first route.</td></tr>}
+                {(() => {
+                  const filteredRoutes = routes.filter(r => {
+                    if (routeFilterSearch) {
+                      const searchStr = routeFilterSearch.toLowerCase();
+                      const originMatch = r.origin_city.toLowerCase().includes(searchStr);
+                      const destMatch = r.destination_city.toLowerCase().includes(searchStr);
+                      return originMatch || destMatch;
+                    }
+                    return true;
+                  });
+
+                  return (
+                    <>
+                      {filteredRoutes.map(r => (
+                        <tr key={r.id} className="hover:bg-surface-50">
+                          <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.origin_city}</td>
+                          <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
+                          <td className="px-5 py-4 text-sm text-surface-600">{r.distance_km} km</td>
+                          <td className="px-5 py-4 text-sm text-right">
+                            <button onClick={() => openEditRoute(r)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleDeleteRoute(r.id)} className="p-2 text-surface-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-2">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredRoutes.length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-8 text-center text-surface-500 italic">
+                            No routes found matching the active filter.
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })()}
               </tbody>
             </table>
           </div>
@@ -910,11 +1026,82 @@ export function ManageTrips() {
 
         {activeTab === "Trips" && (() => {
           const now = new Date();
-          const activeTrips = trips.filter(t => t.departure_datetime && new Date(t.departure_datetime) > now);
-          const pastTrips = trips.filter(t => !t.departure_datetime || new Date(t.departure_datetime) <= now);
+          const filteredTrips = trips.filter(t => {
+            if (tripFilterRoute && t.route_id !== tripFilterRoute) return false;
+            if (tripFilterBus && t.bus_id !== tripFilterBus) return false;
+            if (tripFilterDate) {
+              const tripDate = t.departure_datetime.split('T')[0];
+              if (tripDate !== tripFilterDate) return false;
+            }
+            return true;
+          });
+
+          const activeTrips = filteredTrips
+            .filter(t => t.departure_datetime && new Date(t.departure_datetime) > now)
+            .sort((a, b) => new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime());
+          
+          const pastTrips = filteredTrips
+            .filter(t => !t.departure_datetime || new Date(t.departure_datetime) <= now)
+            .sort((a, b) => {
+              const timeA = a.departure_datetime ? new Date(a.departure_datetime).getTime() : 0;
+              const timeB = b.departure_datetime ? new Date(b.departure_datetime).getTime() : 0;
+              return timeB - timeA;
+            });
           
           return (
             <div className="space-y-8">
+              {/* Filters Bar */}
+              <div className="bg-surface-50 p-5 border-b border-surface-100 grid grid-cols-1 sm:grid-cols-4 gap-4 items-end rounded-t-2xl">
+                <div>
+                  <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Filter Route</label>
+                  <select
+                    value={tripFilterRoute}
+                    onChange={(e) => setTripFilterRoute(e.target.value)}
+                    className="input-premium py-2 px-3 w-full text-xs"
+                  >
+                    <option value="">All Routes</option>
+                    {routes.map(r => (
+                      <option key={r.id} value={r.id}>{r.origin_city} → {r.destination_city}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Filter Bus</label>
+                  <select
+                    value={tripFilterBus}
+                    onChange={(e) => setTripFilterBus(e.target.value)}
+                    className="input-premium py-2 px-3 w-full text-xs"
+                  >
+                    <option value="">All Buses</option>
+                    {buses.map(b => (
+                      <option key={b.id} value={b.id}>{b.registration_no} ({b.bus_type})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-surface-500 uppercase tracking-wider mb-1.5">Filter Date</label>
+                  <input
+                    type="date"
+                    value={tripFilterDate}
+                    onChange={(e) => setTripFilterDate(e.target.value)}
+                    className="input-premium py-2 px-3 w-full text-xs"
+                  />
+                </div>
+                <div className="flex justify-end">
+                  {(tripFilterRoute || tripFilterBus || tripFilterDate) && (
+                    <button
+                      onClick={() => {
+                        setTripFilterRoute("");
+                        setTripFilterBus("");
+                        setTripFilterDate("");
+                      }}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline px-3 py-2"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
               {/* Active Scheduled Trips */}
               <div>
                 <div className="p-5 border-b border-surface-100 flex justify-between items-center bg-surface-50/50 rounded-t-2xl">
