@@ -65,6 +65,7 @@ export function SearchResults() {
           origin,
           destination,
           date: date + 'T00:00:00',
+          _t: Date.now(),
         },
       });
       

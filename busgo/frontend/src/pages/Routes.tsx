@@ -51,7 +51,7 @@ export function Routes() {
   const fetchAllTrips = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get("/api/operators/trips/");
+      const response = await apiClient.get(`/api/operators/trips/?_t=${Date.now()}`);
       
       let dbTrips: Trip[] = [];
       if (response.data.success) {

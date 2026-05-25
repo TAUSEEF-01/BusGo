@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List, Optional
@@ -60,6 +61,23 @@ async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
     trip_dict['destination_city'] = route.destination_city
     trip_dict['trip_id'] = str(trip.id)
     
+    # Dynamically fetch available seats count from database
+    counts_res = await db.execute(
+        text("""
+            SELECT 
+                COUNT(*) FILTER (WHERE status = 'AVAILABLE') as avail_count,
+                COUNT(*) as total_inv_count
+            FROM seat_inventory
+            WHERE trip_id = :trip_id
+        """),
+        {"trip_id": trip.id}
+    )
+    counts_row = counts_res.first()
+    if counts_row and counts_row.total_inv_count > 0:
+        trip_dict['available_seats'] = counts_row.avail_count
+    else:
+        trip_dict['available_seats'] = bus.total_seats
+        
     return BaseResponse(success=True, data=trip_dict)
 
 @router.get("/", response_model=BaseResponse[List[TripEnrichedResponse]])
@@ -91,6 +109,19 @@ async def list_trips(
     result = await db.execute(query)
     rows = result.all()
     
+    # Dynamically fetch available seats count from database
+    counts_res = await db.execute(
+        text("""
+            SELECT 
+                trip_id,
+                COUNT(*) FILTER (WHERE status = 'AVAILABLE') as avail_count,
+                COUNT(*) as total_inv_count
+            FROM seat_inventory
+            GROUP BY trip_id
+        """)
+    )
+    counts_map = {row.trip_id: (row.avail_count, row.total_inv_count) for row in counts_res.all()}
+
     # Build enriched response
     enriched_trips = []
     for trip, operator, bus, route in rows:
@@ -101,6 +132,18 @@ async def list_trips(
         trip_dict['origin_city'] = route.origin_city
         trip_dict['destination_city'] = route.destination_city
         trip_dict['trip_id'] = str(trip.id)
+        
+        # Calculate available seats dynamically from seat_inventory table
+        avail_info = counts_map.get(trip.id)
+        if avail_info:
+            avail_count, total_inv_count = avail_info
+            if total_inv_count > 0:
+                trip_dict['available_seats'] = avail_count
+            else:
+                trip_dict['available_seats'] = bus.total_seats
+        else:
+            trip_dict['available_seats'] = bus.total_seats
+            
         enriched_trips.append(trip_dict)
     
     return BaseResponse(success=True, data=enriched_trips)
