@@ -335,6 +335,60 @@ export function ManageTrips() {
     return date.toISOString();
   };
 
+  const combineDateAndTimeToISO = (dateStr: string, timeStr: string) => {
+    if (!dateStr || !timeStr) return "";
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    return date.toISOString();
+  };
+
+  const calculateArrivalISO = (dateStr: string, depTimeStr: string, arrTimeStr: string) => {
+    const depISO = combineDateAndTimeToISO(dateStr, depTimeStr);
+    if (!depISO) return "";
+    const depDate = new Date(depISO);
+    const [arrHours, arrMinutes] = arrTimeStr.split(':').map(Number);
+    const arrDate = new Date(depDate.getFullYear(), depDate.getMonth(), depDate.getDate(), arrHours, arrMinutes, 0, 0);
+    if (arrDate < depDate) {
+      arrDate.setDate(arrDate.getDate() + 1);
+    }
+    return arrDate.toISOString();
+  };
+
+  const [busSelectedDates, setBusSelectedDates] = useState<string[]>([]);
+  const [busDateInput, setBusDateInput] = useState("");
+
+  const [tripSelectedDates, setTripSelectedDates] = useState<string[]>([]);
+  const [tripDateInput, setTripDateInput] = useState("");
+
+  const handleAddBusDate = () => {
+    if (!busDateInput) return;
+    if (busSelectedDates.includes(busDateInput)) {
+      toast.error("Date already added");
+      return;
+    }
+    setBusSelectedDates([...busSelectedDates, busDateInput].sort());
+    setBusDateInput("");
+  };
+
+  const handleRemoveBusDate = (d: string) => {
+    setBusSelectedDates(busSelectedDates.filter(date => date !== d));
+  };
+
+  const handleAddTripDate = () => {
+    if (!tripDateInput) return;
+    if (tripSelectedDates.includes(tripDateInput)) {
+      toast.error("Date already added");
+      return;
+    }
+    setTripSelectedDates([...tripSelectedDates, tripDateInput].sort());
+    setTripDateInput("");
+  };
+
+  const handleRemoveTripDate = (d: string) => {
+    setTripSelectedDates(tripSelectedDates.filter(date => date !== d));
+  };
+
   const openAddBus = () => {
     setBusForm({
       registration_no: "",
@@ -347,6 +401,8 @@ export function ManageTrips() {
       arrival_datetime: "",
       fare_amount: 1000,
     });
+    setBusSelectedDates([]);
+    setBusDateInput("");
     setEditingBusId(null);
     setIsAddBusOpen(true);
   };
@@ -360,6 +416,8 @@ export function ManageTrips() {
       is_active: bus.is_active !== undefined ? bus.is_active : true,
       assign_route: false,
     });
+    setBusSelectedDates([]);
+    setBusDateInput("");
     setEditingBusId(bus.id);
     setIsAddBusOpen(true);
   };
@@ -498,30 +556,39 @@ export function ManageTrips() {
 
       if (currentBusId) {
         if (busForm.assign_route && busForm.route_id && busForm.departure_datetime) {
-          const route = routes.find(r => r.id === busForm.route_id);
-          const departureISO = combineDateAndTime(busForm.departure_datetime);
-          const departure = new Date(departureISO);
-          const arrival = new Date(departure);
-          if (route) {
-            const hours = Math.floor(route.estimated_duration_hours);
-            const minutes = Math.round((route.estimated_duration_hours - hours) * 60);
-            arrival.setHours(arrival.getHours() + hours);
-            arrival.setMinutes(arrival.getMinutes() + minutes);
-          } else {
-            arrival.setHours(arrival.getHours() + 4); // Default 4 hours if no route data
+          if (busSelectedDates.length === 0) {
+            toast.error("Please add at least one date for scheduling");
+            return;
           }
 
-          const tripPayload = {
-            operator_id: OPERATOR_ID,
-            bus_id: currentBusId,
-            route_id: busForm.route_id,
-            departure_datetime: departureISO,
-            arrival_datetime: arrival.toISOString(),
-            fare_amount: busForm.fare_amount,
-            available_seats: busForm.total_seats
-          };
-          await apiClient.post(`/api/operators/trips/`, tripPayload);
-          toast.success("Bus mapped to route successfully");
+          const route = routes.find(r => r.id === busForm.route_id);
+          const promises = busSelectedDates.map(async (dateStr) => {
+            const departureISO = combineDateAndTimeToISO(dateStr, busForm.departure_datetime);
+            const departure = new Date(departureISO);
+            const arrival = new Date(departure);
+            if (route) {
+              const hours = Math.floor(route.estimated_duration_hours);
+              const minutes = Math.round((route.estimated_duration_hours - hours) * 60);
+              arrival.setHours(arrival.getHours() + hours);
+              arrival.setMinutes(arrival.getMinutes() + minutes);
+            } else {
+              arrival.setHours(arrival.getHours() + 4); // Default 4 hours if no route data
+            }
+
+            const tripPayload = {
+              operator_id: OPERATOR_ID,
+              bus_id: currentBusId,
+              route_id: busForm.route_id,
+              departure_datetime: departureISO,
+              arrival_datetime: arrival.toISOString(),
+              fare_amount: busForm.fare_amount,
+              available_seats: busForm.total_seats
+            };
+            return apiClient.post(`/api/operators/trips/`, tripPayload);
+          });
+
+          await Promise.all(promises);
+          toast.success("Bus mapped and trips scheduled successfully");
         }
 
         setIsAddBusOpen(false);
@@ -551,25 +618,32 @@ export function ManageTrips() {
       // Find bus for total seats
       const bus = buses.find(b => b.id === tripForm.bus_id);
       if (!bus) return toast.error("Please select a bus");
-
-      const payload = {
-        operator_id: OPERATOR_ID,
-        bus_id: tripForm.bus_id,
-        route_id: tripForm.route_id,
-        departure_datetime: combineDateAndTime(tripForm.departure_datetime),
-        arrival_datetime: combineDateAndTime(tripForm.arrival_datetime),
-        fare_amount: tripForm.fare_amount,
-        available_seats: bus.total_seats
-      };
-
-      const res = await apiClient.post(`/api/operators/trips/`, payload);
-      if (res.data.success) {
-        toast.success("Trip scheduled successfully");
-        setIsAddTripOpen(false);
-        fetchData();
+      if (tripSelectedDates.length === 0) {
+        return toast.error("Please select at least one date");
       }
+
+      const promises = tripSelectedDates.map(async (dateStr) => {
+        const departureISO = combineDateAndTimeToISO(dateStr, tripForm.departure_datetime);
+        const arrivalISO = calculateArrivalISO(dateStr, tripForm.departure_datetime, tripForm.arrival_datetime);
+
+        const payload = {
+          operator_id: OPERATOR_ID,
+          bus_id: tripForm.bus_id,
+          route_id: tripForm.route_id,
+          departure_datetime: departureISO,
+          arrival_datetime: arrivalISO,
+          fare_amount: tripForm.fare_amount,
+          available_seats: bus.total_seats
+        };
+        return apiClient.post(`/api/operators/trips/`, payload);
+      });
+
+      await Promise.all(promises);
+      toast.success("All trips scheduled successfully");
+      setIsAddTripOpen(false);
+      fetchData();
     } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to schedule trip");
+      toast.error(err.response?.data?.detail || "Failed to schedule trips");
     }
   };
 
@@ -725,7 +799,18 @@ export function ManageTrips() {
                   <h3 className="font-bold text-surface-900 flex items-center gap-2">
                     <Clock className="w-5 h-5 text-brand-500" /> Scheduled Trips (Upcoming)
                   </h3>
-                  <button onClick={() => setIsAddTripOpen(true)} className="btn-primary flex items-center gap-2 !py-2 !text-sm">
+                  <button onClick={() => {
+                    setTripForm({
+                      bus_id: "",
+                      route_id: "",
+                      departure_datetime: "",
+                      arrival_datetime: "",
+                      fare_amount: 1000,
+                    });
+                    setTripSelectedDates([]);
+                    setTripDateInput("");
+                    setIsAddTripOpen(true);
+                  }} className="btn-primary flex items-center gap-2 !py-2 !text-sm">
                     <Plus className="w-4 h-4"/> Schedule Trip
                   </button>
                 </div>
@@ -952,11 +1037,28 @@ export function ManageTrips() {
                         {routes.map(r => <option key={r.id} value={r.id}>{r.origin_city} to {r.destination_city}</option>)}
                       </select>
                     </div>
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-surface-700 mb-1">Departure Time</label>
-                        <input type="time" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
+                    <div>
+                      <label className="block text-sm font-semibold text-surface-700 mb-1">Departure Time</label>
+                      <input type="time" required={busForm.assign_route} className="input-premium w-full" value={busForm.departure_datetime} onChange={e => setBusForm({...busForm, departure_datetime: e.target.value})} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-surface-700 mb-1">Select Dates</label>
+                      <div className="flex gap-2">
+                        <input type="date" className="input-premium flex-1" value={busDateInput} onChange={e => setBusDateInput(e.target.value)} />
+                        <button type="button" onClick={handleAddBusDate} className="btn-secondary !py-2 !px-4 text-sm font-semibold">Add</button>
                       </div>
+                      {busSelectedDates.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2 bg-white p-2 rounded-lg border border-surface-200 max-h-32 overflow-y-auto">
+                          {busSelectedDates.map(d => (
+                            <span key={d} className="badge badge-info flex items-center gap-1 text-[11px] font-bold">
+                              {new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              <button type="button" onClick={() => handleRemoveBusDate(d)} className="hover:text-red-500 font-extrabold ml-1">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
@@ -1004,6 +1106,25 @@ export function ManageTrips() {
                   <label className="block text-sm font-semibold text-surface-700 mb-1">Arrival Time</label>
                   <input type="time" required className="input-premium w-full" value={tripForm.arrival_datetime} onChange={e => setTripForm({...tripForm, arrival_datetime: e.target.value})} />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1">Select Dates</label>
+                <div className="flex gap-2">
+                  <input type="date" className="input-premium flex-1" value={tripDateInput} onChange={e => setTripDateInput(e.target.value)} />
+                  <button type="button" onClick={handleAddTripDate} className="btn-secondary !py-2 !px-4 text-sm font-semibold">Add</button>
+                </div>
+                {tripSelectedDates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2 bg-surface-50 p-2 rounded-lg border border-surface-200 max-h-32 overflow-y-auto">
+                    {tripSelectedDates.map(d => (
+                      <span key={d} className="badge badge-info flex items-center gap-1 text-[11px] font-bold">
+                        {new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        <button type="button" onClick={() => handleRemoveTripDate(d)} className="hover:text-red-500 font-extrabold ml-1">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
