@@ -653,6 +653,21 @@ export function ManageTrips() {
             return;
           }
 
+          // Check if this bus is already scheduled for a different route on any of the selected dates
+          for (const dateStr of busSelectedDates) {
+            const conflict = trips.find(t => {
+              if (t.bus_id !== currentBusId) return false;
+              const tripDate = t.departure_datetime.split('T')[0];
+              return tripDate === dateStr && t.route_id !== busForm.route_id && t.status !== 'CANCELLED';
+            });
+            if (conflict) {
+              const conflictRoute = routes.find(r => r.id === conflict.route_id);
+              const routeLabel = conflictRoute ? `${conflictRoute.origin_city} → ${conflictRoute.destination_city}` : "another route";
+              toast.error(`Bus ${busForm.registration_no} is already scheduled for a different route (${routeLabel}) on ${dateStr}!`);
+              return;
+            }
+          }
+
           const route = routes.find(r => r.id === busForm.route_id);
           const promises = busSelectedDates.map(async (dateStr) => {
             const departureISO = combineDateAndTimeToISO(dateStr, busForm.departure_datetime);
@@ -712,6 +727,21 @@ export function ManageTrips() {
       if (!bus) return toast.error("Please select a bus");
       if (tripSelectedDates.length === 0) {
         return toast.error("Please select at least one date");
+      }
+
+      // Check if the selected bus is already scheduled for a different route on any of the selected dates
+      for (const dateStr of tripSelectedDates) {
+        const conflict = trips.find(t => {
+          if (t.bus_id !== tripForm.bus_id) return false;
+          const tripDate = t.departure_datetime.split('T')[0];
+          return tripDate === dateStr && t.route_id !== tripForm.route_id && t.status !== 'CANCELLED';
+        });
+        if (conflict) {
+          const conflictRoute = routes.find(r => r.id === conflict.route_id);
+          const routeLabel = conflictRoute ? `${conflictRoute.origin_city} → ${conflictRoute.destination_city}` : "another route";
+          toast.error(`The selected bus is already scheduled for a different route (${routeLabel}) on ${dateStr}!`);
+          return;
+        }
       }
 
       const promises = tripSelectedDates.map(async (dateStr) => {
