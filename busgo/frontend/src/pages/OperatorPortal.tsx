@@ -7,6 +7,7 @@ import {
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
   Calendar, ChevronRight, Menu, X, Bell, MapPin, ArrowRight, Clock,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 import { ManageTrips } from "./ManageTrips";
 import { OperatorBookings } from "./OperatorBookings";
@@ -89,7 +90,7 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
         </nav>
 
         {/* User */}
-        <div className="p-4 border-t border-surface-800">
+        {/* <div className="p-4 border-t border-surface-800">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold">
               {user?.name?.charAt(0).toUpperCase() || "O"}
@@ -102,7 +103,7 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
           <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-red-400 hover:text-white hover:bg-red-500/20 transition-colors">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
-        </div>
+        </div> */}
       </aside>
     </>
   );
@@ -262,6 +263,198 @@ function DashboardHome() {
   );
 }
 
+/* ─── Operator Settings ────────────────────────────── */
+function OperatorSettings() {
+  const { user } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState(user?.name || "");
+  const [phone, setPhone] = useState(user?.phone || "");
+  const [email, setEmail] = useState(user?.email || "");
+  const [address, setAddress] = useState("");
+  const [license, setLicense] = useState("");
+
+  useEffect(() => {
+    const fetchOperator = async () => {
+      try {
+        if (user?.id) {
+          const res = await apiClient.get(`/api/operators/operators/${user.id}`);
+          if (res.data.success) {
+            const data = res.data.data;
+            setName(data.name || user?.name || "");
+            setPhone(data.contact_phone || user?.phone || "");
+            setEmail(data.contact_email || user?.email || "");
+            setAddress(data.address || "");
+            setLicense(data.license_no || "");
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch operator details, using fallbacks:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOperator();
+  }, [user]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      toast.error("Operator name cannot be empty.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiClient.put(`/api/operators/operators/${user?.id}`, {
+        name,
+        contact_phone: phone,
+        contact_email: email,
+        address,
+        license_no: license,
+      });
+      if (res.data.success) {
+        toast.success("Operator settings updated successfully!");
+      }
+    } catch (err: any) {
+      console.error("Failed to update operator details", err);
+      toast.error(err.response?.data?.message || "Failed to update operator details.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 animate-fade-in">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-surface-500 text-sm">Loading settings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
+      <div>
+        <h2 className="text-2xl font-extrabold text-surface-900 tracking-tight">Settings</h2>
+        <p className="text-sm text-surface-500 mt-1">
+          Manage your business information and public operator profile.
+        </p>
+      </div>
+
+      <div className="card-premium p-6 sm:p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Public Profile Section */}
+          <div>
+            <h3 className="text-base font-bold text-surface-950 border-b border-surface-100 pb-2 mb-4">
+              Public Profile
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">
+                  Operator Name (Visible to Customers)
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Greenline Paribahan"
+                  className="input-premium w-full"
+                  required
+                />
+                <span className="text-[10px] text-surface-400 mt-1 block">
+                  This name will be displayed in all search results, routes, and tickets.
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">
+                  License Number
+                </label>
+                <input
+                  type="text"
+                  value={license}
+                  onChange={(e) => setLicense(e.target.value)}
+                  placeholder="e.g. GL-1234"
+                  className="input-premium w-full"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Details Section */}
+          <div>
+            <h3 className="text-base font-bold text-surface-950 border-b border-surface-100 pb-2 mb-4">
+              Contact & Business Details
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">
+                  Contact Phone
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 01711111111"
+                  className="input-premium w-full"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">
+                  Contact Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. info@greenline.com"
+                  className="input-premium w-full"
+                  required
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-surface-700 mb-1.5">
+                  Business Address
+                </label>
+                <textarea
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. Dhaka, Bangladesh"
+                  className="input-premium w-full min-h-[80px]"
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4 border-t border-surface-100">
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary !px-8 flex items-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Placeholder Pages ────────────────────────────── */
 function PlaceholderPage({ title, icon: Icon }: { title: string; icon: typeof Bus }) {
   return (
@@ -378,7 +571,7 @@ export function OperatorPortal() {
             <Route path="/trips" element={<ManageTrips />} />
             <Route path="/bookings" element={<OperatorBookings />} />
             <Route path="/analytics" element={<PlaceholderPage title="Analytics" icon={BarChart3} />} />
-            <Route path="/settings" element={<PlaceholderPage title="Settings" icon={Settings} />} />
+            <Route path="/settings" element={<OperatorSettings />} />
           </Routes>
         </main>
       </div>

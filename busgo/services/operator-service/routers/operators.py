@@ -7,7 +7,7 @@ from uuid import UUID
 from database import get_db
 from models.models import Operator
 from schemas.schemas import OperatorCreate, OperatorUpdate, OperatorResponse
-from api.deps import require_role
+from api.deps import require_role, get_current_user_payload
 
 import sys
 import os
@@ -40,7 +40,19 @@ async def list_operators(skip: int = Query(0, ge=0), limit: int = Query(20, gt=0
     return BaseResponse(success=True, data=[OperatorResponse.model_validate(op) for op in operators])
 
 @router.put("/{id}", response_model=BaseResponse[OperatorResponse])
-async def update_operator(id: UUID, req: OperatorUpdate, db: AsyncSession = Depends(get_db), payload: dict = Depends(require_role(UserRole.ADMIN))):
+async def update_operator(id: UUID, req: OperatorUpdate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    # Allow ADMIN, or OPERATOR if updating their own record
+    user_role = payload.get("role", "").upper()
+    user_id = payload.get("user_id")
+    print(f"DEBUG update_operator: id={id} (type={type(id)}), user_role={user_role}, user_id={user_id} (type={type(user_id)}), matches={str(id).lower() == str(user_id).lower()}")
+    
+    if user_role == "ADMIN":
+        pass
+    elif user_role == "OPERATOR" and str(id).lower() == str(user_id).lower():
+        pass
+    else:
+        raise HTTPException(status_code=403, detail="Operation not permitted")
+
     result = await db.execute(select(Operator).where(Operator.id == id))
     operator = result.scalars().first()
     if not operator:
