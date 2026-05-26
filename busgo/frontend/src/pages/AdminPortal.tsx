@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard } from "lucide-react";
+import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard, ChevronLeft, ArrowRight, Clock, MapPin, Calendar, Ticket } from "lucide-react";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
@@ -21,9 +21,15 @@ export function AdminPortal() {
   const [operators, setOperators] = useState<any[]>([]);
   const [routes, setRoutes] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [userRoleTab, setUserRoleTab] = useState<"CUSTOMER" | "ADMIN" | "OPERATOR">("CUSTOMER");
   const [userHistory, setUserHistory] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionSummary, setTransactionSummary] = useState<any[]>([]);
+  const [trips, setTrips] = useState<any[]>([]);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [selectedOperator, setSelectedOperator] = useState<any | null>(null);
+  const [detailTab, setDetailTab] = useState<"history" | "payments">("history");
+  const [opDetailTab, setOpDetailTab] = useState<"trips" | "routes">("trips");
 
   const userStore = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
@@ -78,6 +84,26 @@ export function AdminPortal() {
           ]);
           if (transRes.data.success) setTransactions(transRes.data.data);
           if (sumRes.data.success) setTransactionSummary(sumRes.data.data);
+        } else if (activeTab === "Users") {
+          const [usersRes, historyRes, transRes] = await Promise.all([
+            apiClient.get('/api/admin/users'),
+            apiClient.get('/api/admin/user-history'),
+            apiClient.get('/api/admin/transactions')
+          ]);
+          if (usersRes.data.success) setUsers(usersRes.data.data);
+          if (historyRes.data.success) setUserHistory(historyRes.data.data);
+          if (transRes.data.success) setTransactions(transRes.data.data);
+        } else if (activeTab === "Operators") {
+          const [operatorsRes, tripsRes, routesRes, historyRes] = await Promise.all([
+            apiClient.get('/api/admin/operators'),
+            apiClient.get('/api/admin/trips'),
+            apiClient.get('/api/admin/routes'),
+            apiClient.get('/api/admin/user-history')
+          ]);
+          if (operatorsRes.data.success) setOperators(operatorsRes.data.data);
+          if (tripsRes.data.success) setTrips(tripsRes.data.data);
+          if (routesRes.data.success) setRoutes(routesRes.data.data);
+          if (historyRes.data.success) setUserHistory(historyRes.data.data);
         } else {
           const response = await apiClient.get(`/api/admin/${activeTab.toLowerCase()}`);
           if (response.data.success) {
@@ -104,6 +130,420 @@ export function AdminPortal() {
     { id: "Transactions", icon: CreditCard, label: "Transactions" },
   ];
 
+  const renderUserDetails = () => {
+    const u = selectedUser;
+    if (!u) return null;
+    const userBookings = userHistory.filter((uh) => uh.user_id === u.id);
+    const userPayments = transactions.filter((t) => t.user_id === u.id);
+
+    const totalBookings = userBookings.length;
+    const totalSpent = userBookings
+      .filter((b) => b.status === "CONFIRMED" || b.status === "COMPLETED")
+      .reduce((sum, b) => sum + (b.total_fare || 0), 0);
+    
+    const completedBookings = userBookings.filter(
+      (b) => b.status === "COMPLETED" || (b.status === "CONFIRMED" && new Date(b.journey_date) <= new Date())
+    ).length;
+
+    const cancelledBookings = userBookings.filter(
+      (b) => b.status === "CANCELLED" || b.status === "REFUNDED" || b.status === "EXPIRED"
+    ).length;
+
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-surface-200 shadow-elevation-1">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSelectedUser(null)}
+              className="p-2 hover:bg-surface-100 rounded-xl transition-colors border border-surface-200 text-surface-600 hover:text-surface-900"
+              title="Back to Users"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-surface-900">{u.full_name}</h2>
+                <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full border ${
+                  u.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                  u.role === 'OPERATOR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                  'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {u.role}
+                </span>
+              </div>
+              <p className="text-sm text-surface-500 mt-1">{u.email || "No Email"} • {u.phone}</p>
+            </div>
+          </div>
+          <div className="text-sm text-surface-500 font-semibold border-t sm:border-t-0 sm:border-l border-surface-200 pt-4 sm:pt-0 sm:pl-6">
+            Joined: <span className="text-surface-900 font-bold">{new Date(u.created_at).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+          </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+              <Ticket className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Total Bookings</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{totalBookings}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Spent Fares</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">৳ {totalSpent.toLocaleString()}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Completed Journeys</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{completedBookings}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Cancelled / Expired</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{cancelledBookings}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs list & content wrapper */}
+        <div className="card-premium overflow-hidden">
+          <div className="flex border-b border-surface-200 bg-surface-50 p-2 gap-2">
+            <button
+              onClick={() => setDetailTab("history")}
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                detailTab === "history"
+                  ? "bg-white text-brand-600 shadow-sm border border-surface-200 font-extrabold"
+                  : "text-surface-500 hover:text-surface-800 hover:bg-white/50"
+              }`}
+            >
+              <Clock className="w-4 h-4" /> Travel & History
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                detailTab === "history" ? "bg-brand-50 text-brand-700 font-extrabold" : "bg-surface-200 text-surface-600"
+              }`}>
+                {userBookings.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setDetailTab("payments")}
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                detailTab === "payments"
+                  ? "bg-white text-brand-600 shadow-sm border border-surface-200 font-extrabold"
+                  : "text-surface-500 hover:text-surface-800 hover:bg-white/50"
+              }`}
+            >
+              <CreditCard className="w-4 h-4" /> Transaction History
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                detailTab === "payments" ? "bg-brand-50 text-brand-700 font-extrabold" : "bg-surface-200 text-surface-600"
+              }`}>
+                {userPayments.length}
+              </span>
+            </button>
+          </div>
+
+          {detailTab === "history" && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-50 border-b border-surface-200">
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Booking ID</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Journey Date</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Trip ID</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Total Fare</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-200">
+                  {userBookings.map((uh, i) => (
+                    <tr key={i} className="hover:bg-surface-50 transition-colors">
+                      <td className="py-3 px-4 text-sm font-mono text-surface-700">{uh.id.substring(0, 8)}...</td>
+                      <td className="py-3 px-4 text-sm text-surface-950 font-medium">
+                        {new Date(uh.journey_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </td>
+                      <td className="py-3 px-4 text-sm font-mono text-surface-500">{uh.trip_id.substring(0, 8)}...</td>
+                      <td className="py-3 px-4 text-sm font-bold text-surface-900">৳ {uh.total_fare}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          uh.status === 'CONFIRMED' || uh.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
+                          uh.status === 'CANCELLED' || uh.status === 'REFUNDED' || uh.status === 'EXPIRED' ? 'bg-red-100 text-red-700' : 
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {uh.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {userBookings.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 text-center text-surface-500">No booking history found for this user.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {detailTab === "payments" && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-50 border-b border-surface-200">
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Transaction ID</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Date & Time</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Method</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Amount</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-200">
+                  {userPayments.map((t, i) => (
+                    <tr key={i} className="hover:bg-surface-50 transition-colors">
+                      <td className="py-3 px-4 text-sm font-mono text-surface-700">{t.id.substring(0, 8)}...</td>
+                      <td className="py-3 px-4 text-sm text-surface-500">{new Date(t.initiated_at).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-sm font-semibold text-surface-800">{t.method}</td>
+                      <td className="py-3 px-4 text-sm font-bold text-surface-900">৳ {t.amount}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
+                          t.status === 'FAILED' ? 'bg-red-100 text-red-700' : 
+                          'bg-amber-100 text-amber-700'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {userPayments.length === 0 && (
+                    <tr><td colSpan={5} className="py-8 text-center text-surface-500">No transactions recorded for this user.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderOperatorDetails = () => {
+    const op = selectedOperator;
+    if (!op) return null;
+    
+    const opTrips = trips.filter((t) => t.operator_id === op.id);
+    const opRoutes = routes.filter((r) => r.operator_id === op.id);
+
+    const opBookings = userHistory.filter((uh) => {
+      const trip = trips.find(t => t.id === uh.trip_id);
+      return trip && trip.operator_id === op.id;
+    });
+
+    const totalTrips = opTrips.length;
+    const totalRoutes = opRoutes.length;
+    const totalRevenue = opBookings
+      .filter((b) => b.status === "CONFIRMED" || b.status === "COMPLETED")
+      .reduce((sum, b) => sum + (b.total_fare || 0), 0);
+
+    const seatsRemaining = opTrips
+      .filter((t) => t.status === "SCHEDULED" || new Date(t.departure_datetime) > new Date())
+      .reduce((sum, t) => sum + (t.available_seats || 0), 0);
+
+    return (
+      <div className="space-y-6">
+        {/* Header with back button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-surface-200 shadow-elevation-1">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSelectedOperator(null)}
+              className="p-2 hover:bg-surface-100 rounded-xl transition-colors border border-surface-200 text-surface-600 hover:text-surface-900"
+              title="Back to Operators"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <div className="flex items-center gap-3">
+                <h2 className="text-xl font-bold text-surface-900">{op.name}</h2>
+                <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full ${op.is_active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                  {op.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <p className="text-sm text-surface-500 mt-1">{op.contact_email} • {op.contact_phone}</p>
+            </div>
+          </div>
+          <div className="text-sm text-surface-500 font-semibold border-t sm:border-t-0 sm:border-l border-surface-200 pt-4 sm:pt-0 sm:pl-6">
+            Address: <span className="text-surface-900 font-bold">{op.address || "N/A"}</span><br/>
+            License No: <span className="text-surface-900 font-bold">{op.license_no}</span>
+          </div>
+        </div>
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
+              <Bus className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Trips Operated</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{totalTrips}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+              <Map className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Active Routes</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{totalRoutes}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Seats Remaining</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">{seatsRemaining}</h3>
+            </div>
+          </div>
+
+          <div className="card-premium p-5 flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-surface-500 uppercase tracking-wider">Operated Revenue</p>
+              <h3 className="text-2xl font-extrabold text-surface-900 mt-1">৳ {totalRevenue.toLocaleString()}</h3>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs list & content wrapper */}
+        <div className="card-premium overflow-hidden">
+          <div className="flex border-b border-surface-200 bg-surface-50 p-2 gap-2">
+            <button
+              onClick={() => setOpDetailTab("trips")}
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                opDetailTab === "trips"
+                  ? "bg-white text-brand-600 shadow-sm border border-surface-200 font-extrabold"
+                  : "text-surface-500 hover:text-surface-800 hover:bg-white/50"
+              }`}
+            >
+              <Clock className="w-4 h-4" /> Operated Trips
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                opDetailTab === "trips" ? "bg-brand-50 text-brand-700 font-extrabold" : "bg-surface-200 text-surface-600"
+              }`}>
+                {opTrips.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setOpDetailTab("routes")}
+              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                opDetailTab === "routes"
+                  ? "bg-white text-brand-600 shadow-sm border border-surface-200 font-extrabold"
+                  : "text-surface-500 hover:text-surface-800 hover:bg-white/50"
+              }`}
+            >
+              <MapPin className="w-4 h-4" /> Managed Routes
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                opDetailTab === "routes" ? "bg-brand-50 text-brand-700 font-extrabold" : "bg-surface-200 text-surface-600"
+              }`}>
+                {opRoutes.length}
+              </span>
+            </button>
+          </div>
+
+          {opDetailTab === "trips" && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-50 border-b border-surface-200">
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Trip ID</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Route</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Departure</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Fare</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Available Seats</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-200">
+                  {opTrips.map((t, i) => {
+                    const route = opRoutes.find(r => r.id === t.route_id);
+                    const routeLabel = route ? `${route.origin_city} → ${route.destination_city}` : "Unknown Route";
+                    return (
+                      <tr key={i} className="hover:bg-surface-50 transition-colors">
+                        <td className="py-3 px-4 text-sm font-mono text-surface-700">{t.id.substring(0, 8)}...</td>
+                        <td className="py-3 px-4 text-sm text-surface-950 font-bold">{routeLabel}</td>
+                        <td className="py-3 px-4 text-sm text-surface-500">{new Date(t.departure_datetime).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-sm font-bold text-surface-900">৳ {t.fare_amount}</td>
+                        <td className="py-3 px-4 text-sm font-medium text-surface-800">{t.available_seats} remaining</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            t.status === 'COMPLETED' || (t.status === 'SCHEDULED' && new Date(t.departure_datetime) <= new Date()) ? 'bg-emerald-100 text-emerald-700' : 
+                            t.status === 'CANCELLED' ? 'bg-red-100 text-red-700' : 
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {t.status === 'SCHEDULED' && new Date(t.departure_datetime) <= new Date() ? 'COMPLETED' : t.status}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {opTrips.length === 0 && (
+                    <tr><td colSpan={6} className="py-8 text-center text-surface-500">No trips recorded for this operator.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {opDetailTab === "routes" && (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-50 border-b border-surface-200">
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Origin</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Destination</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Distance</th>
+                    <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Est. Duration</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-200">
+                  {opRoutes.map((r, i) => (
+                    <tr key={i} className="hover:bg-surface-50 transition-colors">
+                      <td className="py-3 px-4 text-sm font-bold text-surface-900">{r.origin_city}</td>
+                      <td className="py-3 px-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
+                      <td className="py-3 px-4 text-sm text-surface-500">{r.distance_km} km</td>
+                      <td className="py-3 px-4 text-sm text-surface-500">{r.estimated_duration_hours} hrs</td>
+                    </tr>
+                  ))}
+                  {opRoutes.length === 0 && (
+                    <tr><td colSpan={4} className="py-8 text-center text-surface-500">No routes registered for this operator.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-surface-50 flex" id="admin-portal">
       {/* Sidebar - Desktop */}
@@ -120,7 +560,12 @@ export function AdminPortal() {
             {navItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => { setActiveTab(item.id); setIsSidebarOpen(false); }}
+                onClick={() => { 
+                  setActiveTab(item.id); 
+                  setIsSidebarOpen(false); 
+                  setSelectedUser(null);
+                  setSelectedOperator(null);
+                }}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
                   activeTab === item.id 
                     ? "bg-brand-600 text-white" 
@@ -134,7 +579,12 @@ export function AdminPortal() {
           
           <div className="p-4 border-t border-surface-800">
             <button
-              onClick={() => { setActiveTab("Settings"); setIsSidebarOpen(false); }}
+              onClick={() => { 
+                setActiveTab("Settings"); 
+                setIsSidebarOpen(false); 
+                setSelectedUser(null);
+                setSelectedOperator(null);
+              }}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
                 activeTab === "Settings" 
                   ? "bg-brand-600 text-white" 
@@ -267,21 +717,27 @@ export function AdminPortal() {
 
           {activeTab !== "Dashboard" && (
             <div className="animate-fade-in">
-              {activeTab !== "Finance" && activeTab !== "Settings" && (
-                <div className="mb-6 flex justify-between items-center">
-                  <div>
-                    <h1 className="text-2xl font-bold text-surface-900">{activeTab} Management</h1>
-                    <p className="text-sm text-surface-500 mt-1">Manage and view {activeTab.toLowerCase()} in the system.</p>
-                  </div>
-                </div>
-              )}
-
-              {tabLoading ? (
-                <div className="flex justify-center items-center py-20">
-                  <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
-                </div>
+              {activeTab === "Users" && selectedUser ? (
+                renderUserDetails()
+              ) : activeTab === "Operators" && selectedOperator ? (
+                renderOperatorDetails()
               ) : (
-                <div className="card-premium overflow-hidden">
+                <>
+                  {activeTab !== "Finance" && activeTab !== "Settings" && (
+                    <div className="mb-6 flex justify-between items-center">
+                      <div>
+                        <h1 className="text-2xl font-bold text-surface-900">{activeTab} Management</h1>
+                        <p className="text-sm text-surface-500 mt-1">Manage and view {activeTab.toLowerCase()} in the system.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {tabLoading ? (
+                    <div className="flex justify-center items-center py-20">
+                      <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+                    </div>
+                  ) : (
+                    <div className="card-premium overflow-hidden">
                   {activeTab === "Operators" && (
                     <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
@@ -291,6 +747,7 @@ export function AdminPortal() {
                             <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Contact</th>
                             <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">License</th>
                             <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Status</th>
+                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider text-right">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-surface-200">
@@ -304,10 +761,18 @@ export function AdminPortal() {
                                   {op.is_active ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
+                              <td className="py-3 px-4 text-right">
+                                <button 
+                                  onClick={() => setSelectedOperator(op)}
+                                  className="text-xs font-bold px-3 py-1.5 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 transition-colors"
+                                >
+                                  View Activity
+                                </button>
+                              </td>
                             </tr>
                           ))}
                           {operators.length === 0 && (
-                            <tr><td colSpan={4} className="py-8 text-center text-surface-500">No operators found.</td></tr>
+                            <tr><td colSpan={5} className="py-8 text-center text-surface-500">No operators found.</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -343,47 +808,99 @@ export function AdminPortal() {
                   )}
 
                   {activeTab === "Users" && (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-surface-50 border-b border-surface-200">
-                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Name</th>
-                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Contact</th>
-                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Role</th>
-                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Joined</th>
-                            <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-surface-200">
-                          {users.map((u, i) => (
-                            <tr key={i} className="hover:bg-surface-50 transition-colors">
-                              <td className="py-3 px-4 text-sm font-medium text-surface-900">{u.full_name}</td>
-                              <td className="py-3 px-4 text-sm text-surface-500">{u.phone}<br/><span className="text-xs text-surface-400">{u.email}</span></td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-surface-100 text-surface-700'}`}>
-                                  {u.role}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-sm text-surface-500">
-                                {new Date(u.created_at).toLocaleDateString()}
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                {u.id !== userStore?.id && (
-                                  <button 
-                                    onClick={() => changeUserRole(u.id, u.role === 'ADMIN' ? 'CUSTOMER' : 'ADMIN')}
-                                    className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${u.role === 'ADMIN' ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-brand-50 text-brand-600 hover:bg-brand-100'}`}
-                                  >
-                                    {u.role === 'ADMIN' ? 'Remove Admin' : 'Make Admin'}
-                                  </button>
-                                )}
-                              </td>
+                    <div className="flex flex-col">
+                      {/* Premium Tabs Header */}
+                      <div className="flex border-b border-surface-200 bg-surface-50 p-2 gap-2">
+                        {[
+                          { id: "CUSTOMER", label: "Customers", activeBadge: "bg-brand-50 text-brand-700" },
+                          { id: "OPERATOR", label: "Operators", activeBadge: "bg-blue-50 text-blue-700" },
+                          { id: "ADMIN", label: "Admins", activeBadge: "bg-purple-50 text-purple-700" },
+                        ].map((t) => {
+                          const count = users.filter((u) => u.role === t.id).length;
+                          const isActive = userRoleTab === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => setUserRoleTab(t.id as any)}
+                              className={`px-4 py-2 text-sm font-bold rounded-lg transition-all flex items-center gap-2 ${
+                                isActive
+                                  ? "bg-white text-brand-600 shadow-sm border border-surface-200 font-extrabold"
+                                  : "text-surface-500 hover:text-surface-800 hover:bg-white/50"
+                              }`}
+                            >
+                              {t.label}
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+                                isActive
+                                  ? t.activeBadge + " font-extrabold"
+                                  : "bg-surface-200 text-surface-600"
+                              }`}>
+                                {count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-surface-50 border-b border-surface-200">
+                              <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Name</th>
+                              <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Contact</th>
+                              <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Role</th>
+                              <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Joined</th>
+                              <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider text-right">Actions</th>
                             </tr>
-                          ))}
-                          {users.length === 0 && (
-                            <tr><td colSpan={5} className="py-8 text-center text-surface-500">No users found.</td></tr>
-                          )}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-surface-200">
+                            {users.filter((u) => u.role === userRoleTab).map((u, i) => (
+                              <tr key={i} className="hover:bg-surface-50 transition-colors">
+                                <td className="py-3 px-4 text-sm font-medium text-surface-900">{u.full_name}</td>
+                                <td className="py-3 px-4 text-sm text-surface-500">{u.phone}<br/><span className="text-xs text-surface-400">{u.email}</span></td>
+                                <td className="py-3 px-4">
+                                  <span className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${
+                                    u.role === 'ADMIN' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                    u.role === 'OPERATOR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  }`}>
+                                    {u.role}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-sm text-surface-500">
+                                  {new Date(u.created_at).toLocaleDateString()}
+                                </td>
+                                <td className="py-3 px-4 text-right flex justify-end gap-2">
+                                  <button 
+                                    onClick={() => setSelectedUser(u)}
+                                    className="text-xs font-bold px-3 py-1.5 rounded-lg bg-surface-100 text-surface-700 hover:bg-surface-200 transition-colors"
+                                  >
+                                    View Activity
+                                  </button>
+                                  {u.id !== userStore?.id && (
+                                    <button 
+                                      onClick={() => changeUserRole(u.id, u.role === 'ADMIN' ? 'CUSTOMER' : 'ADMIN')}
+                                      className={`text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                                        u.role === 'ADMIN' 
+                                          ? 'bg-red-50 text-red-600 hover:bg-red-100' 
+                                          : 'bg-brand-50 text-brand-600 hover:bg-brand-100'
+                                      }`}
+                                    >
+                                      {u.role === 'ADMIN' ? 'Remove Admin' : 'Make Admin'}
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                            {users.filter((u) => u.role === userRoleTab).length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="py-8 text-center text-surface-500">
+                                  No {userRoleTab.toLowerCase()}s found.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   )}
 
@@ -503,10 +1020,12 @@ export function AdminPortal() {
                   )}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
-      </main>
+      )}
+    </div>
+  </main>
       
       {/* Mobile Overlay */}
       {isSidebarOpen && (

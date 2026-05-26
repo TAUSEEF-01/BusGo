@@ -15,7 +15,7 @@ async def query_db(db_name: str, query: str):
     host = os.getenv("DB_HOST", "postgres")
     try:
         db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url, ssl="require")
+        conn = await asyncpg.connect(db_url, ssl="require", statement_cache_size=0)
         val = await conn.fetchval(query)
         await conn.close()
         return val
@@ -27,7 +27,7 @@ async def query_db_all(db_name: str, query: str):
     host = os.getenv("DB_HOST", "postgres")
     try:
         db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url, ssl="require")
+        conn = await asyncpg.connect(db_url, ssl="require", statement_cache_size=0)
         records = await conn.fetch(query)
         await conn.close()
         return [dict(record) for record in records]
@@ -39,7 +39,7 @@ async def execute_db(db_name: str, query: str, *args):
     host = os.getenv("DB_HOST", "postgres")
     try:
         db_url = get_database_url(async_driver=False).replace("+asyncpg", "")
-        conn = await asyncpg.connect(db_url, ssl="require")
+        conn = await asyncpg.connect(db_url, ssl="require", statement_cache_size=0)
         status = await conn.execute(query, *args)
         await conn.close()
         return status
@@ -101,6 +101,18 @@ async def get_users():
         if 'created_at' in u and u['created_at']:
             u['created_at'] = u['created_at'].isoformat()
     return {"success": True, "data": users}
+
+@router.patch("/users/{user_id}/role")
+async def update_user_role(user_id: str, req: RoleUpdate):
+    if req.role not in ["ADMIN", "CUSTOMER", "OPERATOR"]:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    
+    query = "UPDATE users SET role = $1::user_role WHERE id = $2"
+    status = await execute_db("auth_db", query, req.role, uuid.UUID(user_id))
+    if not status:
+        raise HTTPException(status_code=500, detail="Failed to update role in database")
+        
+    return {"success": True, "message": f"User role updated to {req.role}"}
 
 @router.get("/user-history")
 async def get_user_history():
@@ -171,3 +183,23 @@ async def get_transactions_summary():
         })
         
     return {"success": True, "data": formatted_summary}
+
+@router.get("/trips")
+async def get_trips():
+    trips = await query_db_all("operator_db", "SELECT id, operator_id, bus_id, route_id, departure_datetime, arrival_datetime, fare_amount, available_seats, status FROM trips")
+    for t in trips:
+        if isinstance(t.get('id'), uuid.UUID):
+            t['id'] = str(t['id'])
+        if isinstance(t.get('operator_id'), uuid.UUID):
+            t['operator_id'] = str(t['operator_id'])
+        if isinstance(t.get('bus_id'), uuid.UUID):
+            t['bus_id'] = str(t['bus_id'])
+        if isinstance(t.get('route_id'), uuid.UUID):
+            t['route_id'] = str(t['route_id'])
+        if 'departure_datetime' in t and t['departure_datetime']:
+            t['departure_datetime'] = t['departure_datetime'].isoformat()
+        if 'arrival_datetime' in t and t['arrival_datetime']:
+            t['arrival_datetime'] = t['arrival_datetime'].isoformat()
+        if 'fare_amount' in t and t['fare_amount'] is not None:
+            t['fare_amount'] = float(t['fare_amount'])
+    return {"success": True, "data": trips}
