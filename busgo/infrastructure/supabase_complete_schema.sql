@@ -577,7 +577,7 @@ VALUES (
     '+1234567890',
     'admin@busgo.com',
     'Admin User',
-    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5NU7qXqXqXqXq', -- This is a bcrypt hash for 'admin123'
+    '$2b$12$LOxIazOKe0UZlpBFguSG4.op85MIYoziJfc4zLPm4z2z44d9plXNa', -- This is a bcrypt hash for 'admin123'
     'ADMIN',
     true,
     true

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import {
@@ -194,9 +194,32 @@ export function OperatorBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [activeTab, setActiveTab] = useState<"CONFIRMED" | "CANCELLED">("CONFIRMED");
+  const [subStatusFilter, setSubStatusFilter] = useState("ALL");
+  const [dateFilter, setDateFilter] = useState("");
+  const [originFilter, setOriginFilter] = useState("");
+  const [destinationFilter, setDestinationFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [seatMapTrip, setSeatMapTrip] = useState<{ tripId: string; label: string } | null>(null);
+
+  // Reset filters when tab changes
+  useEffect(() => {
+    setSubStatusFilter("ALL");
+  }, [activeTab]);
+
+  const uniqueOrigins = useMemo(() => {
+    const set = new Set(bookings.map((b) => b.boarding_point).filter(Boolean));
+    return Array.from(set).sort();
+  }, [bookings]);
+
+  const uniqueDestinations = useMemo(() => {
+    const set = new Set(bookings.map((b) => b.dropping_point).filter(Boolean));
+    return Array.from(set).sort();
+  }, [bookings]);
+
+  const subStatusOptions = activeTab === "CONFIRMED"
+    ? ["ALL", "CONFIRMED", "COMPLETED", "SEAT_LOCKED"]
+    : ["ALL", "CANCELLED", "EXPIRED", "REFUNDED"];
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -219,7 +242,13 @@ export function OperatorBookings() {
 
   // Filtered bookings
   const filtered = bookings.filter((b) => {
-    const matchesStatus = statusFilter === "ALL" || b.status === statusFilter;
+    const matchesTab = activeTab === "CONFIRMED"
+      ? ["CONFIRMED", "COMPLETED", "SEAT_LOCKED"].includes(b.status)
+      : ["CANCELLED", "EXPIRED", "REFUNDED"].includes(b.status);
+    const matchesSubStatus = subStatusFilter === "ALL" || b.status === subStatusFilter;
+    const matchesDate = !dateFilter || b.journey_date === dateFilter;
+    const matchesOrigin = !originFilter || b.boarding_point === originFilter;
+    const matchesDestination = !destinationFilter || b.dropping_point === destinationFilter;
     const matchesSearch =
       !searchTerm ||
       b.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -227,10 +256,8 @@ export function OperatorBookings() {
       b.dropping_point.toLowerCase().includes(searchTerm.toLowerCase()) ||
       b.seat_numbers.some((s) => s.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (b.passenger_details || []).some((p) => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    return matchesStatus && matchesSearch;
+    return matchesTab && matchesSubStatus && matchesDate && matchesOrigin && matchesDestination && matchesSearch;
   });
-
-  const statusOptions = ["ALL", "SEAT_LOCKED", "CONFIRMED", "COMPLETED", "CANCELLED", "EXPIRED", "REFUNDED"];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -266,34 +293,148 @@ export function OperatorBookings() {
         </div>
       </div>
 
-      {/* Search and Filter */}
-      <div className="card-premium p-4">
+      {/* Tab Buttons */}
+      <div className="flex border-b border-surface-200 gap-6">
+        <button
+          onClick={() => setActiveTab("CONFIRMED")}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all relative flex items-center gap-2 ${
+            activeTab === "CONFIRMED"
+              ? "border-brand-600 text-brand-600 font-extrabold"
+              : "border-transparent text-surface-500 hover:text-surface-800"
+          }`}
+          id="tab-confirmed"
+        >
+          Confirmed
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+            activeTab === "CONFIRMED" ? "bg-brand-105 text-brand-700 font-extrabold bg-brand-50" : "bg-surface-100 text-surface-500"
+          }`}>
+            {bookings.filter(b => ["CONFIRMED", "COMPLETED", "SEAT_LOCKED"].includes(b.status)).length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("CANCELLED")}
+          className={`pb-3 text-sm font-bold border-b-2 transition-all relative flex items-center gap-2 ${
+            activeTab === "CANCELLED"
+              ? "border-brand-600 text-brand-600 font-extrabold"
+              : "border-transparent text-surface-500 hover:text-surface-800"
+          }`}
+          id="tab-cancelled"
+        >
+          Cancelled
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
+            activeTab === "CANCELLED" ? "bg-red-50 text-red-700 font-extrabold" : "bg-surface-100 text-surface-500"
+          }`}>
+            {bookings.filter(b => ["CANCELLED", "EXPIRED", "REFUNDED"].includes(b.status)).length}
+          </span>
+        </button>
+      </div>
+
+      {/* Search and Filter Panel */}
+      <div className="card-premium p-5 space-y-4">
+        {/* Row 1: Search & Reset */}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
             <input
               type="text"
               placeholder="Search by ticket ID, passenger, route, seat..."
-              className="input-premium w-full pl-10"
+              className="input-premium w-full !pl-10 text-sm"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               id="booking-search"
             />
           </div>
-          <div className="relative">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
-            <select
-              className="input-premium pl-10 pr-8 appearance-none"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              id="booking-status-filter"
+          {(searchTerm || subStatusFilter !== "ALL" || dateFilter || originFilter || destinationFilter) && (
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setSubStatusFilter("ALL");
+                setDateFilter("");
+                setOriginFilter("");
+                setDestinationFilter("");
+              }}
+              className="px-4 py-2 bg-surface-100 hover:bg-surface-200 text-surface-600 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+              id="clear-filters"
             >
-              {statusOptions.map((s) => (
-                <option key={s} value={s}>
-                  {s === "ALL" ? "All Status" : s.replace(/_/g, " ")}
-                </option>
-              ))}
-            </select>
+              <X className="h-4 w-4" />
+              Clear Filters
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Grid of filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-3 border-t border-surface-100/80">
+          {/* Sub-status select */}
+          <div className="relative">
+            <label className="block text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Sub Status</label>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-400" />
+              <select
+                className="input-premium w-full !pl-9 pr-8 appearance-none text-xs !py-2"
+                value={subStatusFilter}
+                onChange={(e) => setSubStatusFilter(e.target.value)}
+                id="booking-substatus-filter"
+              >
+                {subStatusOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "ALL" ? `All ${activeTab === "CONFIRMED" ? "Confirmed" : "Cancelled"}` : s.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Date Picker */}
+          <div className="relative">
+            <label className="block text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Journey Date</label>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-400" />
+              <input
+                type="date"
+                className="input-premium w-full !pl-9 text-xs !py-2"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                id="booking-date-filter"
+              />
+            </div>
+          </div>
+
+          {/* Origin Select */}
+          <div className="relative">
+            <label className="block text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Boarding Point (Origin)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-400" />
+              <select
+                className="input-premium w-full !pl-9 pr-8 appearance-none text-xs !py-2"
+                value={originFilter}
+                onChange={(e) => setOriginFilter(e.target.value)}
+                id="booking-origin-filter"
+              >
+                <option value="">All Boarding Points</option>
+                {uniqueOrigins.map((o) => (
+                  <option key={o} value={o}>{o}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Destination Select */}
+          <div className="relative">
+            <label className="block text-[10px] font-bold text-surface-400 uppercase tracking-wider mb-1.5">Dropping Point (Destination)</label>
+            <div className="relative">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-400" />
+              <select
+                className="input-premium w-full !pl-9 pr-8 appearance-none text-xs !py-2"
+                value={destinationFilter}
+                onChange={(e) => setDestinationFilter(e.target.value)}
+                id="booking-destination-filter"
+              >
+                <option value="">All Dropping Points</option>
+                {uniqueDestinations.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -338,9 +479,9 @@ export function OperatorBookings() {
                       <Ticket className="h-10 w-10 text-surface-300" />
                       <p className="text-surface-500 font-medium">No bookings found</p>
                       <p className="text-surface-400 text-sm">
-                        {searchTerm || statusFilter !== "ALL"
-                          ? "Try adjusting your search or filter"
-                          : "Bookings will appear here when customers book trips"}
+                        {searchTerm || subStatusFilter !== "ALL" || dateFilter || originFilter || destinationFilter
+                          ? "Try adjusting your search or filters"
+                          : `No ${activeTab.toLowerCase()} bookings found`}
                       </p>
                     </div>
                   </td>

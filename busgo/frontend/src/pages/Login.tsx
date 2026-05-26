@@ -41,10 +41,18 @@ export function Login() {
           );
           
           const role = user.role?.toUpperCase();
-          if (role === "ADMIN" && from === "/") {
-            navigate("/admin");
-          } else if (role === "OPERATOR" && from === "/") {
-            navigate("/operator");
+          if (role === "ADMIN") {
+            if (from === "/" || from.startsWith("/operator") || from.startsWith("/admin")) {
+              navigate("/admin");
+            } else {
+              navigate(from, { state: fromState, replace: true });
+            }
+          } else if (role === "OPERATOR") {
+            if (from === "/" || from.startsWith("/operator") || from.startsWith("/admin")) {
+              navigate("/operator");
+            } else {
+              navigate(from, { state: fromState, replace: true });
+            }
           } else {
             navigate(from, { state: fromState, replace: true });
           }
