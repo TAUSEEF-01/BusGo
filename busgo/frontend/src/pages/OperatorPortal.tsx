@@ -96,6 +96,7 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
 /* ─── Dashboard Content ────────────────────────────── */
 function DashboardHome() {
   const { user } = useAuthStore();
+  const [timeframe, setTimeframe] = useState<"7" | "30">("7");
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any[]>([
@@ -118,7 +119,7 @@ function DashboardHome() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        console.log("DashboardHome: useEffect triggered. User ID:", user?.id);
+        console.log("DashboardHome: useEffect triggered. User ID:", user?.id, "Timeframe:", timeframe);
         if (user?.id) {
           setLoading(true);
           
@@ -160,27 +161,46 @@ function DashboardHome() {
             revenueStr = `৳ ${(totalRevenue / 1000).toFixed(1)}K`;
           }
 
-          // Compute daily revenue for the last 7 days chart (Monday-Sunday index)
-          const dailyRevenue = [0, 0, 0, 0, 0, 0, 0];
+          // Generate dynamic calendar days based on timeframe selection (7 days or 30 days)
+          const daysToGenerate = timeframe === "30" ? 30 : 7;
+          const chartDays: any[] = [];
+          for (let i = daysToGenerate - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            chartDays.push({
+              dateStr: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }), // "25 May"
+              dayLabel: d.toLocaleDateString('en-GB', { weekday: 'short' }), // "Mon"
+              rawDate: d,
+              revenue: 0
+            });
+          }
+
+          // Populate daily revenues from bookings
           allBookings.forEach((b: any) => {
             if (b.status === "CONFIRMED" || b.status === "COMPLETED") {
-              const d = new Date(b.created_at || b.journey_date);
-              let day = d.getDay(); // 0 Sunday, 1 Monday, etc.
-              const index = day === 0 ? 6 : day - 1; // Mon is 0, Sun is 6
-              dailyRevenue[index] += parseFloat(b.total_fare || 0);
+              const bDate = new Date(b.created_at || b.journey_date);
+              const matchedIndex = chartDays.findIndex(item => 
+                item.rawDate.getFullYear() === bDate.getFullYear() &&
+                item.rawDate.getMonth() === bDate.getMonth() &&
+                item.rawDate.getDate() === bDate.getDate()
+              );
+              if (matchedIndex !== -1) {
+                chartDays[matchedIndex].revenue += parseFloat(b.total_fare || 0);
+              }
             }
           });
 
           // Scale heights for display
-          const maxVal = Math.max(...dailyRevenue);
-          const chartHeights = dailyRevenue.map(val => maxVal > 0 ? (val / maxVal) * 75 + 15 : 15);
+          const maxVal = Math.max(...chartDays.map(item => item.revenue));
+          const chartHeights = chartDays.map(item => maxVal > 0 ? (item.revenue / maxVal) * 75 + 15 : 15);
           console.log("DashboardHome: Calculated stats - bookings:", totalBookings, "revenue:", totalRevenue, "active trips:", activeTrips);
-          console.log("DashboardHome: Calculated daily revenue for chart:", dailyRevenue);
-          console.log("DashboardHome: Calculated chart heights:", chartHeights);
+          console.log(`DashboardHome: Generated last ${daysToGenerate} days chart data:`, chartDays);
           
-          const chartData = dailyRevenue.map((val, i) => ({
+          const chartData = chartDays.map((item, i) => ({
             height: chartHeights[i],
-            value: val
+            value: item.revenue,
+            dayLabel: item.dayLabel,
+            dateStr: item.dateStr
           }));
           setRevenueData(chartData);
 
@@ -213,7 +233,7 @@ function DashboardHome() {
       }
     };
     fetchData();
-  }, [user]);
+  }, [user, timeframe]);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -240,17 +260,21 @@ function DashboardHome() {
       <div className="card-premium p-6">
         <div className="flex items-center justify-between mb-6">
           <h3 className="font-bold text-surface-900">Revenue Overview</h3>
-          <select className="text-sm border border-surface-200 rounded-lg px-3 py-1.5 text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500">
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-            <option>Last 90 days</option>
+          <select 
+            value={timeframe}
+            onChange={(e) => setTimeframe(e.target.value as "7" | "30")}
+            className="text-sm border border-surface-200 rounded-lg px-3 py-1.5 text-surface-600 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            id="timeframe-select"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
           </select>
         </div>
         
         {/* Chart Layout Container */}
         <div className="flex gap-4 h-48 mt-4">
           {/* Y-axis Labels Column */}
-          <div className="flex flex-col justify-between h-[166px] text-[10px] text-surface-400 font-bold text-right w-14 pr-2 select-none">
+          <div className="flex flex-col justify-between h-[158px] text-[10px] text-surface-400 font-bold text-right w-14 pr-2 select-none">
             <span>{yAxisLabels[0]}</span>
             <span>{yAxisLabels[1]}</span>
             <span>{yAxisLabels[2]}</span>
@@ -260,7 +284,7 @@ function DashboardHome() {
           {/* Chart Content Area */}
           <div className="flex-1 h-full relative">
             {/* Background Gridlines */}
-            <div className="absolute inset-x-0 top-0 bottom-[26px] flex flex-col justify-between pointer-events-none">
+            <div className="absolute inset-x-0 top-0 bottom-[34px] flex flex-col justify-between pointer-events-none">
               <div className="border-b border-dashed border-surface-100 w-full h-0" />
               <div className="border-b border-dashed border-surface-100 w-full h-0" />
               <div className="border-b border-dashed border-surface-100 w-full h-0" />
@@ -268,14 +292,18 @@ function DashboardHome() {
             </div>
 
             {/* Bars Overlay */}
-            <div className="absolute inset-0 flex items-end gap-3 px-2 z-10">
+            <div className={`absolute inset-0 flex items-end px-2 z-10 ${
+              timeframe === "30" ? "gap-0.5 sm:gap-1" : "gap-3"
+            }`}>
               {revenueData.map((item, i) => (
                 <div key={i} className="flex-1 h-full flex flex-col items-center gap-1.5 group relative">
                   {/* Bar Container that takes all remaining height and aligns the bar to the bottom */}
-                  <div className="flex-1 w-full flex items-end justify-center px-1">
+                  <div className={`flex-1 w-full flex items-end justify-center ${
+                    timeframe === "30" ? "px-px sm:px-0.5" : "px-1"
+                  }`}>
                     <div
                       className="w-full bg-gradient-to-t from-brand-600 to-brand-400 rounded-t-lg transition-all duration-500 hover:from-brand-500 hover:to-brand-300 shadow-sm cursor-pointer relative"
-                      style={{ height: `${item.height}%`, animationDelay: `${i * 100}ms` }}
+                      style={{ height: `${item.height}%`, animationDelay: `${i * 50}ms` }}
                     >
                       {/* Ride-along Tooltip */}
                       <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-surface-900 text-white text-[10px] py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-elevation-2 z-30 font-bold">
@@ -285,9 +313,22 @@ function DashboardHome() {
                       </div>
                     </div>
                   </div>
-                  <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider select-none h-[20px] flex items-center">
-                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i]}
-                  </span>
+                  {/* Two-line Date and Day Label */}
+                  <div className="flex flex-col items-center select-none text-center h-[28px] justify-center mt-1">
+                    {(timeframe === "7" || i % 5 === 0 || i === revenueData.length - 1) ? (
+                      <>
+                        <span className="text-[9px] sm:text-[10px] text-surface-400 font-bold uppercase tracking-wider leading-none">
+                          {item.dayLabel}
+                        </span>
+                        <span className="text-[8px] sm:text-[9px] text-surface-400 font-semibold mt-0.5 whitespace-nowrap leading-none">
+                          {item.dateStr}
+                        </span>
+                      </>
+                    ) : (
+                      // Just a tiny dot spacer to keep columns clean and aligned on dense views
+                      <span className="text-[8px] text-surface-300 font-extrabold leading-none select-none">•</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

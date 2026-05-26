@@ -505,7 +505,18 @@ export function Routes() {
                   max={maxPrice}
                   value={priceRange}
                   onChange={(e) => setPriceRange(Number(e.target.value))}
-                  className="w-full h-1.5 bg-surface-100 rounded-lg appearance-none cursor-pointer accent-brand-600"
+                  className="w-full h-1.5 rounded-lg appearance-none cursor-pointer accent-brand-600 focus:outline-none"
+                  style={{
+                    background: `linear-gradient(to right, #DC2626 0%, #DC2626 ${
+                      maxPrice > minPriceInTrips
+                        ? ((priceRange - minPriceInTrips) / (maxPrice - minPriceInTrips)) * 100
+                        : 100
+                    }%, #E2E8F0 ${
+                      maxPrice > minPriceInTrips
+                        ? ((priceRange - minPriceInTrips) / (maxPrice - minPriceInTrips)) * 100
+                        : 100
+                    }%, #E2E8F0 100%)`,
+                  }}
                 />
               </div>
             </div>
