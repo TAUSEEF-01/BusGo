@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight, Clock, Bus, Star, Wifi, Snowflake, Zap, Search,
-  MapPin, Calendar, Users, Filter, X,
+  MapPin, Calendar, Users, Filter, X, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
@@ -73,11 +73,16 @@ export function Routes() {
   const [filteredTrips, setFilteredTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterOperator, setFilterOperator] = useState("");
+  const [selectedOperators, setSelectedOperators] = useState<string[]>([]);
   const [filterOrigin, setFilterOrigin] = useState("");
   const [filterDestination, setFilterDestination] = useState("");
-  const [filterBusType, setFilterBusType] = useState("");
+  const [selectedBusTypes, setSelectedBusTypes] = useState<string[]>([]);
   const [filterDate, setFilterDate] = useState("");
+  
+  // Price boundaries
+  const [maxPrice, setMaxPrice] = useState<number>(3000);
+  const [priceRange, setPriceRange] = useState<number>(3000);
+  const [sortBy, setSortBy] = useState<string>("price-asc");
 
   useEffect(() => {
     fetchAllTrips();
@@ -85,7 +90,7 @@ export function Routes() {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, filterOperator, filterOrigin, filterDestination, filterBusType, filterDate, trips]);
+  }, [searchTerm, selectedOperators, filterOrigin, filterDestination, selectedBusTypes, filterDate, priceRange, sortBy, trips]);
 
   const fetchAllTrips = async () => {
     setLoading(true);
@@ -113,6 +118,14 @@ export function Routes() {
       }
       
       setTrips(dbTrips);
+      
+      // Compute range boundaries dynamically
+      if (dbTrips.length > 0) {
+        const prices = dbTrips.map(t => t.fare_amount);
+        const max = Math.max(...prices);
+        setMaxPrice(max);
+        setPriceRange(max);
+      }
     } catch (err: any) {
       console.error("Error fetching trips:", err);
       toast.error("Failed to load available routes.");
@@ -145,14 +158,14 @@ export function Routes() {
       filtered = filtered.filter((trip) => trip.destination_city === filterDestination);
     }
 
-    // Operator filter
-    if (filterOperator) {
-      filtered = filtered.filter((trip) => trip.operator_name === filterOperator);
+    // Operator filter (Multiple)
+    if (selectedOperators.length > 0) {
+      filtered = filtered.filter((trip) => selectedOperators.includes(trip.operator_name));
     }
 
-    // Bus type filter
-    if (filterBusType) {
-      filtered = filtered.filter((trip) => trip.bus_type === filterBusType);
+    // Bus type filter (Multiple)
+    if (selectedBusTypes.length > 0) {
+      filtered = filtered.filter((trip) => selectedBusTypes.includes(trip.bus_type));
     }
 
     // Date filter
@@ -161,6 +174,20 @@ export function Routes() {
         const tripDate = new Date(trip.departure_datetime).toISOString().split('T')[0];
         return tripDate === filterDate;
       });
+    }
+
+    // Price range filter
+    filtered = filtered.filter((trip) => trip.fare_amount <= priceRange);
+
+    // Sorting logic
+    if (sortBy === "price-asc") {
+      filtered.sort((a, b) => a.fare_amount - b.fare_amount);
+    } else if (sortBy === "price-desc") {
+      filtered.sort((a, b) => b.fare_amount - a.fare_amount);
+    } else if (sortBy === "time-asc") {
+      filtered.sort((a, b) => new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime());
+    } else if (sortBy === "time-desc") {
+      filtered.sort((a, b) => new Date(b.departure_datetime).getTime() - new Date(a.departure_datetime).getTime());
     }
 
     setFilteredTrips(filtered);
@@ -205,11 +232,45 @@ export function Routes() {
 
   const clearFilters = () => {
     setSearchTerm("");
-    setFilterOperator("");
+    setSelectedOperators([]);
+    setSelectedBusTypes([]);
     setFilterOrigin("");
     setFilterDestination("");
-    setFilterBusType("");
     setFilterDate("");
+    setPriceRange(maxPrice);
+    setSortBy("price-asc");
+  };
+
+  const toggleOperator = (op: string) => {
+    setSelectedOperators(prev => 
+      prev.includes(op) ? prev.filter(x => x !== op) : [...prev, op]
+    );
+  };
+
+  const toggleBusType = (bt: string) => {
+    setSelectedBusTypes(prev => 
+      prev.includes(bt) ? prev.filter(x => x !== bt) : [...prev, bt]
+    );
+  };
+
+  const getFacetedCount = (type: "operator" | "bus_type", value: string) => {
+    return trips.filter((trip) => {
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        if (!trip.operator_name.toLowerCase().includes(term) &&
+            !trip.origin_city.toLowerCase().includes(term) &&
+            !trip.destination_city.toLowerCase().includes(term)) {
+          return false;
+        }
+      }
+      if (filterOrigin && trip.origin_city !== filterOrigin) return false;
+      if (filterDestination && trip.destination_city !== filterDestination) return false;
+      if (filterDate) {
+        const tripDate = new Date(trip.departure_datetime).toISOString().split('T')[0];
+        if (tripDate !== filterDate) return false;
+      }
+      return type === "operator" ? trip.operator_name === value : trip.bus_type === value;
+    }).length;
   };
 
   // Get unique values for filters
@@ -217,14 +278,16 @@ export function Routes() {
   const origins = Array.from(new Set(trips.map((t) => t.origin_city))).sort();
   const destinations = Array.from(new Set(trips.map((t) => t.destination_city))).sort();
   const busTypes = Array.from(new Set(trips.map((t) => t.bus_type))).sort();
+  const minPriceInTrips = trips.length > 0 ? Math.min(...trips.map(t => t.fare_amount)) : 0;
+
 
   return (
     <div className="min-h-screen bg-surface-50" id="routes-page">
-      {/* Search and Filters Bar */}
+      {/* Search Bar Panel */}
       <div className="bg-white border-b border-surface-200 py-4 px-6 shadow-elevation-1">
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
-          {/* Search */}
-          <div className="lg:col-span-3">
+          {/* Search Input */}
+          <div className="lg:col-span-4">
             <label className="block text-xs font-bold text-surface-700 mb-1">Search</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
@@ -239,32 +302,13 @@ export function Routes() {
             </div>
           </div>
 
-          {/* Operator Dropdown */}
-          <div className="lg:col-span-2">
-            <label className="block text-xs font-bold text-surface-700 mb-1">Operator</label>
-            <select
-              value={filterOperator}
-              onChange={(e) => setFilterOperator(e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none"
-              style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', backgroundRepeat: 'no-repeat' }}
-              id="filter-operator"
-            >
-              <option value="">All Operators</option>
-              {operators.map((op) => (
-                <option key={op} value={op}>
-                  {op}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* From Dropdown */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <label className="block text-xs font-bold text-surface-700 mb-1">From</label>
             <select
               value={filterOrigin}
               onChange={(e) => setFilterOrigin(e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none"
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none cursor-pointer"
               style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', backgroundRepeat: 'no-repeat' }}
               id="filter-origin"
             >
@@ -278,12 +322,12 @@ export function Routes() {
           </div>
 
           {/* To Dropdown */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             <label className="block text-xs font-bold text-surface-700 mb-1">To</label>
             <select
               value={filterDestination}
               onChange={(e) => setFilterDestination(e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none"
+              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none cursor-pointer"
               style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', backgroundRepeat: 'no-repeat' }}
               id="filter-destination"
             >
@@ -305,34 +349,15 @@ export function Routes() {
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+                className="w-full pl-9 pr-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 cursor-pointer"
                 id="filter-date"
               />
             </div>
           </div>
-
-          {/* Bus Type Dropdown */}
-          <div className="lg:col-span-1">
-            <label className="block text-xs font-bold text-surface-700 mb-1">Bus Type</label>
-            <select
-              value={filterBusType}
-              onChange={(e) => setFilterBusType(e.target.value)}
-              className="w-full px-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 appearance-none"
-              style={{ backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'m6 8 4 4 4-4\'/%3E%3C/svg%3E")', backgroundPosition: 'right 0.5rem center', backgroundSize: '1.25rem', backgroundRepeat: 'no-repeat' }}
-              id="filter-bus-type"
-            >
-              <option value="">All Type</option>
-              {busTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
-        {/* Active Filters inside search/filters bar */}
-        {(searchTerm || filterOperator || filterOrigin || filterDestination || filterBusType || filterDate) && (
+        {/* Active Filters Display */}
+        {(searchTerm || selectedOperators.length > 0 || filterOrigin || filterDestination || selectedBusTypes.length > 0 || filterDate || priceRange < maxPrice) && (
           <div className="max-w-7xl mx-auto flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-surface-100">
             <span className="text-xs text-surface-500 font-medium">Active filters:</span>
             {searchTerm && (
@@ -343,14 +368,14 @@ export function Routes() {
                 </button>
               </span>
             )}
-            {filterOperator && (
-              <span className="badge badge-info flex items-center gap-1 text-[11px] py-0.5 px-2">
-                Operator: {filterOperator}
-                <button onClick={() => setFilterOperator("")} className="hover:text-red-500 cursor-pointer">
+            {selectedOperators.map((op) => (
+              <span key={op} className="badge badge-info flex items-center gap-1 text-[11px] py-0.5 px-2">
+                Operator: {op}
+                <button onClick={() => toggleOperator(op)} className="hover:text-red-500 cursor-pointer">
                   <X className="h-3 w-3" />
                 </button>
               </span>
-            )}
+            ))}
             {filterOrigin && (
               <span className="badge badge-info flex items-center gap-1 text-[11px] py-0.5 px-2">
                 From: {filterOrigin}
@@ -375,10 +400,18 @@ export function Routes() {
                 </button>
               </span>
             )}
-            {filterBusType && (
+            {selectedBusTypes.map((bt) => (
+              <span key={bt} className="badge badge-info flex items-center gap-1 text-[11px] py-0.5 px-2">
+                Type: {bt}
+                <button onClick={() => toggleBusType(bt)} className="hover:text-red-500 cursor-pointer">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+            {priceRange < maxPrice && (
               <span className="badge badge-info flex items-center gap-1 text-[11px] py-0.5 px-2">
-                Type: {filterBusType}
-                <button onClick={() => setFilterBusType("")} className="hover:text-red-500 cursor-pointer">
+                Max Price: ৳{priceRange.toLocaleString()}
+                <button onClick={() => setPriceRange(maxPrice)} className="hover:text-red-500 cursor-pointer">
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -393,188 +426,292 @@ export function Routes() {
         )}
       </div>
 
+      {/* Main Grid Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Results Count */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-surface-500 font-medium">
-            <span className="font-bold text-surface-900">{filteredTrips.length}</span> trips found
-          </p>
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-20">
-            <div className="text-center">
-              <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-surface-500">Loading trips...</p>
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && filteredTrips.length === 0 && (
-          <div className="bg-white rounded-xl border border-surface-200 p-12 text-center shadow-elevation-1">
-            <Bus className="h-16 w-16 text-surface-300 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-surface-900 mb-2">No trips found</h3>
-            <p className="text-surface-600 mb-6">
-              Try adjusting your filters or search criteria
-            </p>
-            <button onClick={clearFilters} className="btn-primary">
-              Clear Filters
-            </button>
-          </div>
-        )}
-
-        {/* Trip Table Layout */}
-        {!loading && filteredTrips.length > 0 && (
-          <div className="bg-white rounded-xl border border-surface-200 shadow-elevation-1 overflow-hidden">
-            {/* Table Header */}
-            <div className="hidden md:grid grid-cols-12 gap-4 bg-surface-50 border-b border-surface-200 py-3.5 px-6 text-xs font-bold text-surface-500 uppercase tracking-wider">
-              <div className="col-span-3">Operator</div>
-              <div className="col-span-3">Departure/Arrival</div>
-              <div className="col-span-2 text-center">Duration</div>
-              <div className="col-span-2">Amenities</div>
-              <div className="col-span-2 text-right">Price/Action</div>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          
+          {/* Left Sidebar (Filters Panel) */}
+          <div className="lg:col-span-1 space-y-5">
+            <div className="flex items-center gap-2 pb-2 border-b border-surface-200">
+              <SlidersHorizontal className="h-5 w-5 text-brand-600" />
+              <h2 className="text-lg font-bold text-surface-900">Filters</h2>
             </div>
 
-            {/* Table Body */}
-            <div className="divide-y divide-surface-200">
-              {filteredTrips.map((trip, i) => {
-                const departure = formatTime(trip.departure_datetime);
-                const arrival = formatTime(trip.arrival_datetime);
-                const date = formatDate(trip.departure_datetime);
-                const duration = calculateDuration(trip.departure_datetime, trip.arrival_datetime);
-                const amenities = trip.amenities || [];
-                const logo = getOperatorLogo(trip.operator_name);
-                const rating = getOperatorRating(trip.operator_name);
-
-                return (
-                  <div
-                    key={trip.trip_id}
-                    className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center py-4 px-6 hover:bg-surface-50/50 transition-colors duration-150"
-                    id={`trip-row-${trip.trip_id}`}
-                  >
-                    {/* Operator column */}
-                    <div className="col-span-12 md:col-span-3 flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${logo.bgClass}`}>
-                        {logo.text}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-surface-900 text-sm">
-                          {trip.operator_name}
-                        </h4>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="bg-surface-100 text-surface-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
-                            {trip.bus_type}
-                          </span>
-                          <div className="flex items-center gap-0.5 text-xs text-surface-500 font-semibold">
-                            <Star className="h-3 w-3 text-accent-500 fill-accent-500" />
-                            <span>{rating}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Departure/Arrival column */}
-                    <div className="col-span-12 md:col-span-3 flex items-start gap-4 py-1">
-                      <div className="flex flex-col">
-                        <p className="text-sm font-bold text-surface-950">{departure}</p>
-                        <p className="text-xs text-surface-500 font-medium">{trip.origin_city}</p>
-                        <span className="text-[10px] text-brand-700 font-bold mt-1.5 bg-brand-50 px-1.5 py-0.5 rounded self-start">
-                          {date}
+            {/* Bus Type Box Filter */}
+            <div className="bg-white rounded-2xl border border-surface-200/80 p-5 shadow-elevation-1 space-y-4">
+              <h3 className="font-bold text-surface-900 text-sm">Bus Type</h3>
+              <div className="space-y-3">
+                {busTypes.map((type) => {
+                  const count = getFacetedCount("bus_type", type);
+                  const checked = selectedBusTypes.includes(type);
+                  return (
+                    <label key={type} className="flex items-center justify-between text-sm cursor-pointer group select-none">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleBusType(type)}
+                          className="w-4 h-4 rounded text-brand-600 border-surface-300 focus:ring-brand-500 focus:ring-offset-0 cursor-pointer accent-brand-600"
+                        />
+                        <span className={`font-medium ${checked ? "text-brand-600 font-bold" : "text-surface-600 group-hover:text-surface-950"}`}>
+                          {type}
                         </span>
                       </div>
-                      <div className="text-surface-300 font-light text-base select-none shrink-0 pt-0.5">→</div>
-                      <div className="flex flex-col">
-                        <p className="text-sm font-bold text-surface-950">{arrival}</p>
-                        <p className="text-xs text-surface-500 font-medium">{trip.destination_city}</p>
-                        {/* Hidden placeholder to perfectly align the left and right column heights */}
-                        <span className="text-[10px] py-0.5 mt-1.5 opacity-0 select-none">placeholder</span>
-                      </div>
-                    </div>
+                      <span className="text-xs text-surface-400 font-semibold">({count})</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Duration column */}
-                    <div className="col-span-12 md:col-span-2 flex justify-start md:justify-center items-center gap-2">
-                      <Bus className="h-4 w-4 text-brand-600 shrink-0" />
-                      <span className="text-sm font-medium text-surface-800">{duration}</span>
-                    </div>
+            {/* Operator Checkbox Filter */}
+            <div className="bg-white rounded-2xl border border-surface-200/80 p-5 shadow-elevation-1 space-y-4">
+              <h3 className="font-bold text-surface-900 text-sm">Operator</h3>
+              <div className="space-y-3">
+                {operators.map((op) => {
+                  const count = getFacetedCount("operator", op);
+                  const checked = selectedOperators.includes(op);
+                  return (
+                    <label key={op} className="flex items-center justify-between text-sm cursor-pointer group select-none">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleOperator(op)}
+                          className="w-4 h-4 rounded text-brand-600 border-surface-300 focus:ring-brand-500 focus:ring-offset-0 cursor-pointer accent-brand-600"
+                        />
+                        <span className={`font-medium ${checked ? "text-brand-600 font-bold" : "text-surface-600 group-hover:text-surface-950"}`}>
+                          {op}
+                        </span>
+                      </div>
+                      <span className="text-xs text-surface-400 font-semibold">({count})</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Amenities & Seats left column */}
-                    <div className="col-span-12 md:col-span-2 flex flex-row md:flex-col justify-between md:justify-center gap-2 md:gap-1.5">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {amenities.map((a) => {
-                          const lower = a.toLowerCase();
-                          if (lower === "wifi") {
-                            return (
-                              <span key={a} className="flex items-center gap-0.5 text-xs text-surface-500 font-semibold" title="WiFi">
-                                <Wifi className="h-3.5 w-3.5 text-surface-400" />
-                                WiFi
-                              </span>
-                            );
-                          }
-                          if (lower === "ac") {
-                            return (
-                              <span key={a} className="bg-surface-100 text-surface-600 px-1 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" title="Air Conditioning">
-                                AC
-                              </span>
-                            );
-                          }
-                          if (lower === "usb") {
-                            return (
-                              <span key={a} className="bg-surface-100 text-surface-600 px-1 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" title="USB Port">
-                                USB
-                              </span>
-                            );
-                          }
-                          return null;
-                        })}
-                        {amenities.length === 0 && (
-                          <span className="text-xs text-surface-400 font-medium">Standard</span>
-                        )}
-                      </div>
-                      <div className={`flex items-center gap-1 text-xs font-semibold ${
-                        trip.available_seats <= 10
-                          ? "text-red-600"
-                          : trip.available_seats <= 20
-                          ? "text-amber-600"
-                          : "text-emerald-600"
-                      }`}>
-                        <Users className="h-3.5 w-3.5" />
-                        <span>{trip.available_seats} seats left</span>
-                      </div>
-                    </div>
-
-                    {/* Price/Action column */}
-                    <div className="col-span-12 md:col-span-2 flex md:flex-row items-center justify-between md:justify-end gap-4 border-t md:border-t-0 border-surface-100 pt-3 md:pt-0">
-                      <div className="text-left md:text-right">
-                        <p className="text-lg font-black text-brand-700">৳{trip.fare_amount}</p>
-                        <p className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">per seat</p>
-                      </div>
-                      <button
-                        onClick={() =>
-                          navigate(`/booking/select-seats/${trip.trip_id}`, {
-                            state: {
-                              origin: trip.origin_city,
-                              destination: trip.destination_city,
-                              date: formatDate(trip.departure_datetime),
-                              price: trip.fare_amount,
-                              operator: trip.operator_name,
-                              departureTime: departure,
-                            },
-                          })
-                        }
-                        className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 shrink-0 cursor-pointer"
-                        id={`select-${trip.trip_id}`}
-                      >
-                        Select Seat <ArrowRight className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* Price Range Slider Filter */}
+            <div className="bg-white rounded-2xl border border-surface-200/80 p-5 shadow-elevation-1 space-y-4">
+              <h3 className="font-bold text-surface-900 text-sm">Price Range</h3>
+              <div className="flex justify-between text-xs text-surface-500 font-semibold">
+                <span>৳ {minPriceInTrips.toLocaleString()}</span>
+                <span>৳ {priceRange.toLocaleString()}</span>
+              </div>
+              <div className="pt-2">
+                <input
+                  type="range"
+                  min={minPriceInTrips}
+                  max={maxPrice}
+                  value={priceRange}
+                  onChange={(e) => setPriceRange(Number(e.target.value))}
+                  className="w-full h-1.5 bg-surface-100 rounded-lg appearance-none cursor-pointer accent-brand-600"
+                />
+              </div>
             </div>
           </div>
-        )}
+
+          {/* Right Area (Results & Sorting) */}
+          <div className="lg:col-span-3 space-y-4">
+            
+            {/* Header Block (Count + Sort) */}
+            <div className="flex items-center justify-between bg-surface-50/50 py-1.5 px-1 rounded-lg">
+              <p className="text-sm text-surface-500 font-medium">
+                <span className="font-bold text-surface-900 text-base">{filteredTrips.length}</span> trips found
+              </p>
+
+              {/* Sorting Button/Select Dropdown */}
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="appearance-none bg-white border border-surface-200 rounded-xl px-4 py-2.5 pr-10 text-sm font-semibold text-surface-700 shadow-sm hover:border-surface-300 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                >
+                  <option value="price-asc">Price: Low to High</option>
+                  <option value="price-desc">Price: High to Low</option>
+                  <option value="time-asc">Departure: Earliest</option>
+                  <option value="time-desc">Departure: Latest</option>
+                </select>
+                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-500 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Loading State */}
+            {loading && (
+              <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-surface-200 shadow-elevation-1">
+                <div className="text-center">
+                  <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-surface-500 font-medium">Loading available routes...</p>
+                </div>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!loading && filteredTrips.length === 0 && (
+              <div className="bg-white rounded-xl border border-surface-200 p-12 text-center shadow-elevation-1">
+                <Bus className="h-16 w-16 text-surface-300 mx-auto mb-4" />
+                <h3 className="text-xl font-bold text-surface-900 mb-2">No trips found</h3>
+                <p className="text-surface-600 mb-6 font-medium">
+                  Try adjusting your filters or search criteria
+                </p>
+                <button onClick={clearFilters} className="btn-primary">
+                  Clear Filters
+                </button>
+              </div>
+            )}
+
+            {/* Trip Table Layout */}
+            {!loading && filteredTrips.length > 0 && (
+              <div className="bg-white rounded-2xl border border-surface-200 shadow-elevation-1 overflow-hidden">
+                {/* Table Header */}
+                <div className="hidden md:grid grid-cols-12 gap-4 bg-surface-50 border-b border-surface-200 py-3.5 px-6 text-xs font-bold text-surface-500 uppercase tracking-wider">
+                  <div className="col-span-3">Operator</div>
+                  <div className="col-span-3">Departure/Arrival</div>
+                  <div className="col-span-2 text-center">Duration</div>
+                  <div className="col-span-2">Amenities</div>
+                  <div className="col-span-2 text-right">Price/Action</div>
+                </div>
+
+                {/* Table Body */}
+                <div className="divide-y divide-surface-200">
+                  {filteredTrips.map((trip, i) => {
+                    const departure = formatTime(trip.departure_datetime);
+                    const arrival = formatTime(trip.arrival_datetime);
+                    const date = formatDate(trip.departure_datetime);
+                    const duration = calculateDuration(trip.departure_datetime, trip.arrival_datetime);
+                    const amenities = trip.amenities || [];
+                    const logo = getOperatorLogo(trip.operator_name);
+                    const rating = getOperatorRating(trip.operator_name);
+
+                    return (
+                      <div
+                        key={trip.trip_id}
+                        className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center py-4 px-6 hover:bg-surface-50/50 transition-colors duration-150"
+                        id={`trip-row-${trip.trip_id}`}
+                      >
+                        {/* Operator column */}
+                        <div className="col-span-12 md:col-span-3 flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-sm ${logo.bgClass}`}>
+                            {logo.text}
+                          </div>
+                          <div>
+                            <h4 className="font-bold text-surface-900 text-sm">
+                              {trip.operator_name}
+                            </h4>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="bg-surface-100 text-surface-600 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                                {trip.bus_type}
+                              </span>
+                              <div className="flex items-center gap-0.5 text-xs text-surface-500 font-semibold">
+                                <Star className="h-3 w-3 text-accent-500 fill-accent-500" />
+                                <span>{rating}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Departure/Arrival column */}
+                        <div className="col-span-12 md:col-span-3 flex items-start gap-4 py-1">
+                          <div className="flex flex-col">
+                            <p className="text-sm font-bold text-surface-955">{departure}</p>
+                            <p className="text-xs text-surface-500 font-medium">{trip.origin_city}</p>
+                            <span className="text-[10px] text-brand-700 font-bold mt-1.5 bg-brand-50 px-1.5 py-0.5 rounded self-start">
+                              {date}
+                            </span>
+                          </div>
+                          <div className="text-surface-300 font-light text-base select-none shrink-0 pt-0.5">→</div>
+                          <div className="flex flex-col">
+                            <p className="text-sm font-bold text-surface-955">{arrival}</p>
+                            <p className="text-xs text-surface-500 font-medium">{trip.destination_city}</p>
+                            {/* Hidden placeholder to perfectly align the left and right column heights */}
+                            <span className="text-[10px] py-0.5 mt-1.5 opacity-0 select-none">placeholder</span>
+                          </div>
+                        </div>
+
+                        {/* Duration column */}
+                        <div className="col-span-12 md:col-span-2 flex justify-start md:justify-center items-center gap-2">
+                          <Bus className="h-4 w-4 text-brand-600 shrink-0" />
+                          <span className="text-sm font-medium text-surface-800">{duration}</span>
+                        </div>
+
+                        {/* Amenities & Seats left column */}
+                        <div className="col-span-12 md:col-span-2 flex flex-row md:flex-col justify-between md:justify-center gap-2 md:gap-1.5">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {amenities.map((a) => {
+                              const lower = a.toLowerCase();
+                              if (lower === "wifi") {
+                                return (
+                                  <span key={a} className="flex items-center gap-0.5 text-xs text-surface-500 font-semibold" title="WiFi">
+                                    <Wifi className="h-3.5 w-3.5 text-surface-400" />
+                                    WiFi
+                                  </span>
+                                );
+                              }
+                              if (lower === "ac") {
+                                return (
+                                  <span key={a} className="bg-surface-100 text-surface-600 px-1 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" title="Air Conditioning">
+                                    AC
+                                  </span>
+                                );
+                              }
+                              if (lower === "usb") {
+                                return (
+                                  <span key={a} className="bg-surface-100 text-surface-600 px-1 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider" title="USB Port">
+                                    USB
+                                  </span>
+                                );
+                              }
+                              return null;
+                            })}
+                            {amenities.length === 0 && (
+                              <span className="text-xs text-surface-400 font-medium">Standard</span>
+                            )}
+                          </div>
+                          <div className={`flex items-center gap-1 text-xs font-semibold ${
+                            trip.available_seats <= 10
+                              ? "text-red-600"
+                              : trip.available_seats <= 20
+                              ? "text-amber-600"
+                              : "text-emerald-600"
+                          }`}>
+                            <Users className="h-3.5 w-3.5" />
+                            <span>{trip.available_seats} seats left</span>
+                          </div>
+                        </div>
+
+                        {/* Price/Action column */}
+                        <div className="col-span-12 md:col-span-2 flex md:flex-row items-center justify-between md:justify-end gap-4 border-t md:border-t-0 border-surface-100 pt-3 md:pt-0">
+                          <div className="text-left md:text-right">
+                            <p className="text-lg font-black text-brand-700">৳{trip.fare_amount}</p>
+                            <p className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">per seat</p>
+                          </div>
+                          <button
+                            onClick={() =>
+                              navigate(`/booking/select-seats/${trip.trip_id}`, {
+                                state: {
+                                  origin: trip.origin_city,
+                                  destination: trip.destination_city,
+                                  date: formatDate(trip.departure_datetime),
+                                  price: trip.fare_amount,
+                                  operator: trip.operator_name,
+                                  departureTime: departure,
+                                },
+                              })
+                            }
+                            className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 shrink-0 cursor-pointer"
+                            id={`select-${trip.trip_id}`}
+                          >
+                            Select Seat <ArrowRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

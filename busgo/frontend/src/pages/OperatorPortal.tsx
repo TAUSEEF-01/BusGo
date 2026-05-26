@@ -88,22 +88,6 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
             );
           })}
         </nav>
-
-        {/* User */}
-        {/* <div className="p-4 border-t border-surface-800">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-bold">
-              {user?.name?.charAt(0).toUpperCase() || "O"}
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white truncate w-32">{user?.name || "Operator"}</p>
-              <p className="text-xs text-surface-500">Operator</p>
-            </div>
-          </div>
-          <button onClick={handleLogout} className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-sm text-red-400 hover:text-white hover:bg-red-500/20 transition-colors">
-            <LogOut className="h-4 w-4" /> Sign out
-          </button>
-        </div> */}
       </aside>
     </>
   );
@@ -120,23 +104,38 @@ function DashboardHome() {
     { label: "Active Trips", value: "0", change: "+0", up: true, icon: Bus, color: "from-blue-500 to-blue-600" },
     { label: "Avg Rating", value: "4.8", change: "0.0", up: true, icon: Star, color: "from-accent-500 to-accent-600" },
   ]);
-  const [revenueData, setRevenueData] = useState<number[]>([15, 15, 15, 15, 15, 15, 15]);
+  const [revenueData, setRevenueData] = useState<any[]>([
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+    { height: 15, value: 0 },
+  ]);
+  const [yAxisLabels, setYAxisLabels] = useState<string[]>(["৳ 10K", "৳ 5K", "৳ 2.5K"]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log("DashboardHome: useEffect triggered. User ID:", user?.id);
         if (user?.id) {
           setLoading(true);
+          
           // 1. Fetch bookings of the operator (limit=1000 to get a large set of bookings to calculate statistics)
+          console.log(`DashboardHome: Fetching bookings from /api/bookings/operator/${user.id}?limit=1000`);
           const bookingsRes = await apiClient.get(`/api/bookings/operator/${user.id}?limit=1000`);
+          console.log("DashboardHome: Bookings response raw data:", bookingsRes.data);
           let allBookings: any[] = [];
           if (bookingsRes.data.success) {
             allBookings = bookingsRes.data.data || [];
             setRecentBookings(allBookings.slice(0, 5));
           }
 
-          // 2. Fetch all trips to calculate active trips
-          const tripsRes = await apiClient.get(`/api/operators/trips/`);
+          // 2. Fetch trips filtered by this operator to calculate active trips
+          console.log(`DashboardHome: Fetching trips from /api/operators/trips/?operator_id=${user.id}`);
+          const tripsRes = await apiClient.get(`/api/operators/trips/?operator_id=${user.id}`);
+          console.log("DashboardHome: Trips response raw data:", tripsRes.data);
           let allTrips: any[] = [];
           if (tripsRes.data.success) {
             allTrips = tripsRes.data.data || [];
@@ -151,9 +150,7 @@ function DashboardHome() {
             .reduce((sum: number, b: any) => sum + parseFloat(b.total_fare || 0), 0);
 
           // Active trips = scheduled trips belonging to this operator
-          const activeTrips = allTrips.filter(
-            (t: any) => t.status === "SCHEDULED" && (t.operator_id === user.id || t.operator_name?.toLowerCase().includes("greenline"))
-          ).length;
+          const activeTrips = allTrips.filter((t: any) => t.status === "SCHEDULED").length;
 
           // Format revenue value nicely
           let revenueStr = `৳ ${totalRevenue.toLocaleString()}`;
@@ -174,10 +171,33 @@ function DashboardHome() {
             }
           });
 
-          // Scale heights for uvicorn chart display
+          // Scale heights for display
           const maxVal = Math.max(...dailyRevenue);
           const chartHeights = dailyRevenue.map(val => maxVal > 0 ? (val / maxVal) * 75 + 15 : 15);
-          setRevenueData(chartHeights);
+          console.log("DashboardHome: Calculated stats - bookings:", totalBookings, "revenue:", totalRevenue, "active trips:", activeTrips);
+          console.log("DashboardHome: Calculated daily revenue for chart:", dailyRevenue);
+          console.log("DashboardHome: Calculated chart heights:", chartHeights);
+          
+          const chartData = dailyRevenue.map((val, i) => ({
+            height: chartHeights[i],
+            value: val
+          }));
+          setRevenueData(chartData);
+
+          // Compute Y-axis labels
+          const tempMax = maxVal > 0 ? maxVal : 10000;
+          const label1 = tempMax;
+          const label2 = tempMax * 0.67;
+          const label3 = tempMax * 0.33;
+          
+          const formatLabel = (val: number) => {
+            if (val === 0) return "৳ 0";
+            if (val >= 1000000) return `৳ ${(val / 1000000).toFixed(1)}M`;
+            if (val >= 1000) return `৳ ${(val / 1000).toFixed(1)}K`;
+            return `৳ ${Math.round(val)}`;
+          };
+          
+          setYAxisLabels([formatLabel(label1), formatLabel(label2), formatLabel(label3)]);
 
           setStats([
             { label: "Total Bookings", value: totalBookings.toLocaleString(), change: totalBookings > 0 ? "+100%" : "+0%", up: true, icon: Ticket, color: "from-brand-500 to-brand-600" },
@@ -187,7 +207,7 @@ function DashboardHome() {
           ]);
         }
       } catch (err) {
-        console.error("Failed to fetch dashboard metrics", err);
+        console.error("DashboardHome: Failed to fetch dashboard metrics", err);
       } finally {
         setLoading(false);
       }
@@ -226,19 +246,52 @@ function DashboardHome() {
             <option>Last 90 days</option>
           </select>
         </div>
-        {/* Chart visualization */}
-        <div className="flex items-end gap-2 h-48">
-          {revenueData.map((h, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full bg-gradient-to-t from-brand-600 to-brand-400 rounded-t-lg transition-all duration-500 hover:from-brand-500 hover:to-brand-300"
-                style={{ height: `${h}%`, animationDelay: `${i * 100}ms` }}
-              />
-              <span className="text-[10px] text-surface-400 font-medium">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i]}
-              </span>
+        
+        {/* Chart Layout Container */}
+        <div className="flex gap-4 h-48 mt-4">
+          {/* Y-axis Labels Column */}
+          <div className="flex flex-col justify-between h-[166px] text-[10px] text-surface-400 font-bold text-right w-14 pr-2 select-none">
+            <span>{yAxisLabels[0]}</span>
+            <span>{yAxisLabels[1]}</span>
+            <span>{yAxisLabels[2]}</span>
+            <span>৳ 0</span>
+          </div>
+
+          {/* Chart Content Area */}
+          <div className="flex-1 h-full relative">
+            {/* Background Gridlines */}
+            <div className="absolute inset-x-0 top-0 bottom-[26px] flex flex-col justify-between pointer-events-none">
+              <div className="border-b border-dashed border-surface-100 w-full h-0" />
+              <div className="border-b border-dashed border-surface-100 w-full h-0" />
+              <div className="border-b border-dashed border-surface-100 w-full h-0" />
+              <div className="border-b border-solid border-surface-200 w-full h-0" />
             </div>
-          ))}
+
+            {/* Bars Overlay */}
+            <div className="absolute inset-0 flex items-end gap-3 px-2 z-10">
+              {revenueData.map((item, i) => (
+                <div key={i} className="flex-1 h-full flex flex-col items-center gap-1.5 group relative">
+                  {/* Bar Container that takes all remaining height and aligns the bar to the bottom */}
+                  <div className="flex-1 w-full flex items-end justify-center px-1">
+                    <div
+                      className="w-full bg-gradient-to-t from-brand-600 to-brand-400 rounded-t-lg transition-all duration-500 hover:from-brand-500 hover:to-brand-300 shadow-sm cursor-pointer relative"
+                      style={{ height: `${item.height}%`, animationDelay: `${i * 100}ms` }}
+                    >
+                      {/* Ride-along Tooltip */}
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-surface-900 text-white text-[10px] py-1 px-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap shadow-elevation-2 z-30 font-bold">
+                        ৳ {item.value.toLocaleString()}
+                        {/* Little tooltip arrow */}
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-surface-900 w-0 h-0" />
+                      </div>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider select-none h-[20px] flex items-center">
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][i]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
