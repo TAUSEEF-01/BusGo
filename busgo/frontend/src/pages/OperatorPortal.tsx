@@ -11,6 +11,7 @@ import { toast } from "react-hot-toast";
 
 import { ManageTrips } from "./ManageTrips";
 import { OperatorBookings } from "./OperatorBookings";
+import { OperatorAnalytics } from "./OperatorAnalytics";
 
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
@@ -732,7 +733,7 @@ export function OperatorPortal() {
             <Route path="/" element={<DashboardHome />} />
             <Route path="/trips" element={<ManageTrips />} />
             <Route path="/bookings" element={<OperatorBookings />} />
-            <Route path="/analytics" element={<PlaceholderPage title="Analytics" icon={BarChart3} />} />
+            <Route path="/analytics" element={<OperatorAnalytics />} />
             <Route path="/settings" element={<OperatorSettings />} />
           </Routes>
         </main>
