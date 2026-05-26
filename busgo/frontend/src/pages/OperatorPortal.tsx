@@ -49,7 +49,7 @@ function Sidebar({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => vo
         <div className="fixed inset-0 z-40 bg-surface-900/50 backdrop-blur-sm lg:hidden" onClick={() => setOpen(false)} />
       )}
 
-      <aside className={`fixed lg:static inset-y-0 left-0 z-50 w-64 bg-surface-900 flex flex-col transition-transform duration-300 lg:translate-x-0 ${
+      <aside className={`fixed lg:sticky top-0 left-0 z-50 h-screen w-64 bg-surface-900 flex flex-col transition-transform duration-300 lg:translate-x-0 ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}>
         {/* Logo */}
