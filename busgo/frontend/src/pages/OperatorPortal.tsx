@@ -151,8 +151,8 @@ function DashboardHome() {
             .filter((b: any) => b.status === "CONFIRMED" || b.status === "COMPLETED")
             .reduce((sum: number, b: any) => sum + parseFloat(b.total_fare || 0), 0);
 
-          // Active trips = scheduled trips belonging to this operator
-          const activeTrips = allTrips.filter((t: any) => t.status === "SCHEDULED").length;
+          // Active trips = scheduled trips belonging to this operator that have not passed the departure datetime (due date)
+          const activeTrips = allTrips.filter((t: any) => t.status === "SCHEDULED" && t.departure_datetime && new Date(t.departure_datetime) > new Date()).length;
 
           // Format revenue value nicely
           let revenueStr = `৳ ${totalRevenue.toLocaleString()}`;

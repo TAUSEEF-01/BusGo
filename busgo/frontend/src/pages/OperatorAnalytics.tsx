@@ -575,9 +575,13 @@ export function OperatorAnalytics() {
     const prevTotalBookings = prevBookings.length;
     const prevCancelRate = prevTotalBookings > 0 ? (prevCancelled / prevTotalBookings) * 100 : 0;
 
-    // Trips completed
-    const currentCompleted = filteredTrips.filter((t) => t.status === "COMPLETED").length;
-    const prevCompleted = prevTrips.filter((t) => t.status === "COMPLETED").length;
+    // Trips completed (trips that passed the due date are considered completed)
+    const currentCompleted = filteredTrips.filter(
+      (t) => t.status === "COMPLETED" || (t.status !== "CANCELLED" && new Date(t.departure_datetime) <= new Date())
+    ).length;
+    const prevCompleted = prevTrips.filter(
+      (t) => t.status === "COMPLETED" || (t.status !== "CANCELLED" && new Date(t.departure_datetime) <= new Date())
+    ).length;
 
     return [
       {
@@ -996,13 +1000,19 @@ export function OperatorAnalytics() {
                         </div>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className={`badge text-[10px] ${
-                          t.status === "COMPLETED" ? "badge-success" :
-                          t.status === "CANCELLED" ? "badge-error" :
-                          "badge-info"
-                        }`}>
-                          {t.status}
-                        </span>
+                        {(() => {
+                          const isCompleted = t.status === "COMPLETED" || (t.status !== "CANCELLED" && new Date(t.departure_datetime) <= new Date());
+                          const displayStatus = isCompleted ? "COMPLETED" : t.status;
+                          return (
+                            <span className={`badge text-[10px] ${
+                              displayStatus === "COMPLETED" ? "badge-success" :
+                              displayStatus === "CANCELLED" ? "badge-error" :
+                              "badge-info"
+                            }`}>
+                              {displayStatus}
+                            </span>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );
