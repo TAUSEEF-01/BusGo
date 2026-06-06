@@ -83,15 +83,20 @@ apiClient.interceptors.response.use(
         
         // Fallback to custom refresh token logic
         const { refreshToken } = useAuthStore.getState();
-        const { data } = await axios.post(`${baseURL}/api/auth/refresh`, {
+        const response = await axios.post(`${baseURL}/api/auth/refresh`, {
           refresh_token: refreshToken,
         });
 
-        useAuthStore.getState().setTokens(data.access_token, data.refresh_token);
+        const tokenData = response.data?.data;
+        if (!tokenData || !tokenData.access_token) {
+          throw new Error("Invalid token refresh response structure");
+        }
+
+        useAuthStore.getState().setTokens(tokenData.access_token, tokenData.refresh_token);
         
-        processQueue(null, data.access_token);
+        processQueue(null, tokenData.access_token);
         
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        originalRequest.headers.Authorization = `Bearer ${tokenData.access_token}`;
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
