@@ -11,7 +11,7 @@ class RegisterRequest(BaseModel):
     phone: str
     full_name: str
     password: str
-    email: Optional[EmailStr] = None
+    email: EmailStr
     role: Optional[UserRole] = UserRole.CUSTOMER
 
     @field_validator('role')

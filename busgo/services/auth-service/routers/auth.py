@@ -37,9 +37,12 @@ async def create_refresh_token(db: AsyncSession, user_id: uuid.UUID) -> str:
 
 @router.post("/register")
 async def register(req: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.phone == req.phone))
+    if not req.email:
+        raise HTTPException(status_code=400, detail="Email is required")
+        
+    result = await db.execute(select(User).where(User.email == req.email))
     if result.scalars().first():
-        raise HTTPException(status_code=400, detail="Phone already registered")
+        raise HTTPException(status_code=400, detail="Email already registered")
         
     user = User(
         phone=req.phone,
@@ -172,14 +175,14 @@ async def update_profile(req: UpdateProfileRequest, current_user: User = Depends
     if req.full_name is not None:
         current_user.full_name = req.full_name
     if req.email is not None:
-        current_user.email = req.email
+        if req.email != current_user.email:
+            # Check if email is already used by another user
+            email_check = await db.execute(select(User).where(User.email == req.email))
+            if email_check.scalars().first():
+                raise HTTPException(status_code=400, detail="Email already in use")
+            current_user.email = req.email
     if req.phone is not None:
-        if req.phone != current_user.phone:
-            # Check if phone is already used by another user
-            phone_check = await db.execute(select(User).where(User.phone == req.phone))
-            if phone_check.scalars().first():
-                raise HTTPException(status_code=400, detail="Phone number already in use")
-            current_user.phone = req.phone
+        current_user.phone = req.phone
 
     await db.commit()
     await db.refresh(current_user)
