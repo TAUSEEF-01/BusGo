@@ -108,6 +108,15 @@ async def payment_callback(gateway: str, payment_id: UUID, req: CallbackRequest,
         await db.commit()
         return BaseResponse(success=False, message="Payment failed")
 
+@router.get("/my", response_model=BaseResponse[List[PaymentResponse]])
+async def get_my_payments(db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    user_id = payload.get("user_id")
+    if not user_id or user_id == "system":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    result = await db.execute(select(Payment).where(Payment.user_id == user_id).order_by(Payment.initiated_at.desc()))
+    payments = result.scalars().all()
+    return BaseResponse(success=True, data=[PaymentResponse.model_validate(p) for p in payments])
+
 @router.get("/{payment_id}", response_model=BaseResponse[PaymentResponse])
 async def get_payment(payment_id: UUID, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Payment).where(Payment.id == payment_id))

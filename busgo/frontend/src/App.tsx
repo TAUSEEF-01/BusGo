@@ -18,6 +18,7 @@ import { AdminPortal } from "./pages/AdminPortal";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { OperatorPortal } from "./pages/OperatorPortal";
+import { Profile } from "./pages/Profile";
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -81,6 +82,14 @@ function App() {
           element={
             <ProtectedRoute>
               <MyBookings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
             </ProtectedRoute>
           }
         />

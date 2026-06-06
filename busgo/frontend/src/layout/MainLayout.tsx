@@ -158,6 +158,9 @@ function Navbar() {
                               <Shield className="h-4 w-4" /> Admin Portal
                             </Link>
                           )}
+                           <Link to="/profile" className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 transition-colors">
+                            <User className="h-4 w-4 text-surface-400" /> My Profile
+                          </Link>
                           <Link to="/my-bookings" className="flex items-center gap-2 px-4 py-2.5 text-sm text-surface-700 hover:bg-surface-50 transition-colors">
                             <Ticket className="h-4 w-4 text-surface-400" /> My Bookings
                           </Link>
@@ -275,6 +278,19 @@ function Navbar() {
                   {link.label}
                 </Link>
               ))}
+              {isAuthenticated && (
+                <Link
+                  to="/profile"
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
+                    location.pathname === "/profile"
+                      ? "bg-brand-50 text-brand-600"
+                      : "text-surface-700 hover:bg-surface-50"
+                  }`}
+                >
+                  <User className="h-5 w-5 text-surface-400" />
+                  My Profile
+                </Link>
+              )}
               <Link
                 to="/routes"
                 className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-surface-700 hover:bg-surface-50 transition-colors"
