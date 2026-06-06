@@ -12,7 +12,7 @@ from models.user import User, RefreshToken, OTPRecord
 from schemas.auth import (
     RegisterRequest, VerifyOTPRequest, LoginRequest, 
     RefreshRequest, SendOTPRequest, GoogleLoginRequest, 
-    TokenResponse, UserResponse
+    TokenResponse, UserResponse, UpdateProfileRequest
 )
 from core.security import get_password_hash, verify_password, create_access_token
 from core.config import settings
@@ -166,6 +166,24 @@ async def logout(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me")
 async def get_me(current_user: User = Depends(get_current_user)):
     return {"success": True, "data": UserResponse.model_validate(current_user)}
+
+@router.put("/me")
+async def update_profile(req: UpdateProfileRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if req.full_name is not None:
+        current_user.full_name = req.full_name
+    if req.email is not None:
+        current_user.email = req.email
+    if req.phone is not None:
+        if req.phone != current_user.phone:
+            # Check if phone is already used by another user
+            phone_check = await db.execute(select(User).where(User.phone == req.phone))
+            if phone_check.scalars().first():
+                raise HTTPException(status_code=400, detail="Phone number already in use")
+            current_user.phone = req.phone
+
+    await db.commit()
+    await db.refresh(current_user)
+    return {"success": True, "data": UserResponse.model_validate(current_user), "message": "Profile updated successfully"}
 
 @router.post("/send-otp")
 async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):

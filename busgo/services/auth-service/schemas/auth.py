@@ -55,3 +55,8 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     user: UserResponse
+
+class UpdateProfileRequest(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None

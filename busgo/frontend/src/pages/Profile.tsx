@@ -86,7 +86,7 @@ const formatTime = (timeStr: string) => {
 };
 
 export function Profile() {
-  const { user } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("travel");
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -97,6 +97,59 @@ export function Profile() {
     activeTrips: 0,
     totalSpent: 0,
   });
+
+  // Profile Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(user?.name || "");
+  const [editEmail, setEditEmail] = useState(user?.email || "");
+  const [editPhone, setEditPhone] = useState(user?.phone || "");
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Sync edits if user changes
+  useEffect(() => {
+    if (user) {
+      setEditName(user.name);
+      setEditEmail(user.email);
+      setEditPhone(user.phone);
+    }
+  }, [user]);
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setSubmitting(true);
+
+    try {
+      const res = await apiClient.put("/api/auth/me", {
+        full_name: editName,
+        email: editEmail,
+        phone: editPhone,
+      });
+
+      if (res.data?.success) {
+        const updatedUser = res.data.data;
+        updateUser({
+          ...user!,
+          name: updatedUser.full_name,
+          email: updatedUser.email,
+          phone: updatedUser.phone,
+        });
+        setSuccessMsg("Profile updated successfully!");
+        setIsEditing(false);
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setErrorMsg(res.data?.message || "Failed to update profile");
+      }
+    } catch (err: any) {
+      console.error("Profile update failed:", err);
+      setErrorMsg(err.response?.data?.detail || err.message || "Failed to update profile");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -206,61 +259,127 @@ export function Profile() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-10">
         {/* User Card */}
         <div className="bg-white rounded-2xl border border-surface-200 shadow-elevation-2 p-6 md:p-8 mb-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex items-center gap-4 sm:gap-6">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-accent-600 flex items-center justify-center text-white text-3xl font-black shadow-brand-lg select-none">
-                {user?.name?.charAt(0).toUpperCase() || "U"}
-              </div>
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-xl sm:text-2xl font-extrabold text-surface-900">
-                    {user?.name || "BusGo Traveler"}
-                  </h1>
-                  <span className="badge badge-info uppercase text-[10px] tracking-wider font-bold">
-                    {user?.role || "CUSTOMER"}
-                  </span>
+          {successMsg && (
+            <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-semibold flex items-center gap-2 animate-scale-in">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              {successMsg}
+            </div>
+          )}
+          {errorMsg && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm font-semibold flex items-center gap-2 animate-scale-in">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              {errorMsg}
+            </div>
+          )}
+
+          {!isEditing ? (
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="flex items-center gap-4 sm:gap-6">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-accent-600 flex items-center justify-center text-white text-3xl font-black shadow-brand-lg select-none shrink-0">
+                  {user?.name?.charAt(0).toUpperCase() || "U"}
                 </div>
-                <p className="text-surface-500 text-sm mt-1 flex items-center gap-1.5">
-                  <Mail className="h-3.5 w-3.5" /> {user?.email}
-                </p>
-                <p className="text-surface-500 text-sm mt-1 flex items-center gap-1.5">
-                  <Phone className="h-3.5 w-3.5" /> {user?.phone || "No phone added"}
-                </p>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-xl sm:text-2xl font-extrabold text-surface-900">
+                      {user?.name || "BusGo Traveler"}
+                    </h1>
+                    <span className="badge badge-info uppercase text-[10px] tracking-wider font-bold">
+                      {user?.role || "CUSTOMER"}
+                    </span>
+                  </div>
+                  <p className="text-surface-500 text-sm mt-1 flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 text-surface-400" /> {user?.email}
+                  </p>
+                  <p className="text-surface-500 text-sm mt-1 flex items-center gap-1.5">
+                    <Phone className="h-3.5 w-3.5 text-surface-400" /> {user?.phone || "No phone added"}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center gap-1 text-xs text-surface-400 font-semibold bg-surface-50 px-3 py-1.5 rounded-lg border border-surface-200 self-start md:self-center">
-              <Calendar className="h-4 w-4 text-surface-400" />
-              <span>Verified Account</span>
-            </div>
-          </div>
-
-          <hr className="my-6 border-surface-200/60" />
-
-          {/* User Details Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-150">
-              <Award className="h-5 w-5 text-brand-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-wider">Account Status</p>
-                <p className="text-sm font-bold text-surface-900 mt-0.5">Active</p>
+              <div className="flex items-center gap-3 self-start md:self-center">
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="btn-secondary !py-2 !px-4 text-xs font-bold cursor-pointer"
+                  id="profile-edit-button"
+                >
+                  Edit Profile
+                </button>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-150">
-              <Shield className="h-5 w-5 text-brand-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-wider">Security Layer</p>
-                <p className="text-sm font-bold text-surface-900 mt-0.5">Two-Factor Enabled</p>
+          ) : (
+            <form onSubmit={handleSaveProfile} className="space-y-4 animate-scale-in">
+              <h2 className="text-lg font-bold text-surface-900 mb-2">Edit Profile Information</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="input-premium"
+                    placeholder="Enter full name"
+                    id="profile-edit-name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    className="input-premium"
+                    placeholder="Enter email address"
+                    id="profile-edit-email"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    required
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    className="input-premium"
+                    placeholder="Enter phone number"
+                    id="profile-edit-phone"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3 p-3.5 rounded-xl bg-surface-50 border border-surface-150">
-              <Wallet className="h-5 w-5 text-brand-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[10px] text-surface-400 font-bold uppercase tracking-wider">Default Currency</p>
-                <p className="text-sm font-bold text-surface-900 mt-0.5">BDT (৳)</p>
+              <div className="flex justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditName(user?.name || "");
+                    setEditEmail(user?.email || "");
+                    setEditPhone(user?.phone || "");
+                    setErrorMsg(null);
+                  }}
+                  className="btn-secondary !py-2 !px-5 text-xs font-bold cursor-pointer"
+                  disabled={submitting}
+                  id="profile-edit-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary !py-2 !px-5 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  disabled={submitting}
+                  id="profile-edit-save"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
               </div>
-            </div>
-          </div>
+            </form>
+          )}
         </div>
 
         {/* Stats Grid */}

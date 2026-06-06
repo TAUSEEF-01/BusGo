@@ -17,6 +17,7 @@ interface AuthState {
   login: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   setTokens: (accessToken: string, refreshToken: string) => void;
+  updateUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -32,6 +33,8 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false }),
       setTokens: (accessToken, refreshToken) =>
         set({ accessToken, refreshToken }),
+      updateUser: (user) =>
+        set((state) => ({ user: state.user ? { ...state.user, ...user } : null })),
     }),
     {
       name: "busgo-auth",
