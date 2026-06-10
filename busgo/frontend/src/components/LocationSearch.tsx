@@ -7,6 +7,7 @@ interface LocationSearchProps {
   onChange: (location: { name: string; address: string }) => void;
   placeholder?: string;
   variant?: "boarding" | "dropping";
+  city?: string;
 }
 
 export function LocationSearch({
@@ -14,6 +15,7 @@ export function LocationSearch({
   onChange,
   placeholder = "Search location...",
   variant = "boarding",
+  city = "",
 }: LocationSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<BDLocation[]>([]);
@@ -37,18 +39,38 @@ export function LocationSearch({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Search on query change
+  // Helper to get default locations filtered by city
+  const getDefaultLocations = (cityName: string): BDLocation[] => {
+    if (!cityName) return BD_LOCATIONS.slice(0, 20);
+    const normalized = cityName.toLowerCase().trim();
+    let searchTarget = normalized;
+    if (normalized === "barisal") searchTarget = "barishal";
+    else if (normalized === "chittagong") searchTarget = "chattogram";
+
+    const filtered = BD_LOCATIONS.filter(loc => 
+      loc.district.toLowerCase() === searchTarget ||
+      loc.division.toLowerCase() === searchTarget ||
+      loc.name.toLowerCase().includes(searchTarget)
+    );
+
+    if (filtered.length > 0) {
+      return filtered.slice(0, 20);
+    }
+    return BD_LOCATIONS.slice(0, 20);
+  };
+
+  // Search on query or city change
   useEffect(() => {
     if (query.trim().length >= 1) {
       const found = searchLocations(query, 12);
       setResults(found);
       setHighlightIdx(-1);
     } else {
-      // Show default popular locations when empty
-      setResults(BD_LOCATIONS.slice(0, 20));
+      // Show default popular locations filtered by city when empty
+      setResults(getDefaultLocations(city));
       setHighlightIdx(-1);
     }
-  }, [query]);
+  }, [query, city]);
 
   // Scroll highlighted item into view
   useEffect(() => {

@@ -1382,125 +1382,132 @@ export function ManageTrips() {
               <h3 className="font-bold text-lg text-surface-900">{editingRouteId ? "Edit Route" : "Add New Route"}</h3>
               <button onClick={() => setIsAddRouteOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleAddRoute} className="p-6 space-y-4 overflow-y-auto flex-1">
-              <div>
-                <label className="block text-sm font-semibold text-surface-700 mb-1">Origin City</label>
-                <select required className="input-premium w-full" value={routeForm.origin_city} onChange={e => setRouteForm({...routeForm, origin_city: e.target.value})}>
-                  <option value="">-- Select Origin --</option>
-                  {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-semibold text-surface-700 mb-1">Destination City</label>
-                <select required className="input-premium w-full" value={routeForm.destination_city} onChange={e => setRouteForm({...routeForm, destination_city: e.target.value})}>
-                  <option value="">-- Select Destination --</option>
-                  {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
-                    <option key={city} value={city}>{city}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleAddRoute} className="flex flex-col flex-1 overflow-hidden">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1 pb-36">
                 <div>
-                  <label className="block text-sm font-semibold text-surface-700 mb-1">Distance (km)</label>
-                  <input type="number" required className="input-premium w-full" value={routeForm.distance_km} onChange={e => setRouteForm({...routeForm, distance_km: parseInt(e.target.value)})} min="1" />
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Origin City</label>
+                  <select required className="input-premium w-full" value={routeForm.origin_city} onChange={e => setRouteForm({...routeForm, origin_city: e.target.value})}>
+                    <option value="">-- Select Origin --</option>
+                    {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-surface-700 mb-1">Duration (hrs)</label>
-                  <input type="number" step="0.5" required className="input-premium w-full" value={routeForm.estimated_duration_hours} onChange={e => setRouteForm({...routeForm, estimated_duration_hours: parseFloat(e.target.value)})} min="0.5" />
+                  <label className="block text-sm font-semibold text-surface-700 mb-1">Destination City</label>
+                  <select required className="input-premium w-full" value={routeForm.destination_city} onChange={e => setRouteForm({...routeForm, destination_city: e.target.value})}>
+                    <option value="">-- Select Destination --</option>
+                    {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
                 </div>
-              </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-surface-700 mb-1">Distance (km)</label>
+                    <input type="number" required className="input-premium w-full" value={routeForm.distance_km} onChange={e => setRouteForm({...routeForm, distance_km: parseInt(e.target.value)})} min="1" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-surface-700 mb-1">Duration (hrs)</label>
+                    <input type="number" step="0.5" required className="input-premium w-full" value={routeForm.estimated_duration_hours} onChange={e => setRouteForm({...routeForm, estimated_duration_hours: parseFloat(e.target.value)})} min="0.5" />
+                  </div>
+                </div>
 
-              {/* Boarding Points Section */}
-              <div className="pt-3 border-t border-surface-100">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="flex items-center gap-2 text-sm font-bold text-emerald-700">
-                    <MapPin className="w-4 h-4" />
-                    Boarding Points
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addBoardingPoint}
-                    className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Point
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {boardingPoints.map((point, idx) => (
-                    <div key={`bp-${idx}`} className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <LocationSearch
-                          value={{ name: point.name, address: point.address }}
-                          onChange={(loc) => {
-                            const updated = [...boardingPoints];
-                            updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
-                            setBoardingPoints(updated);
-                          }}
-                          placeholder="Search boarding point..."
-                          variant="boarding"
-                        />
+                {/* Boarding Points Section */}
+                <div className="pt-3 border-t border-surface-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+                      <MapPin className="w-4 h-4" />
+                      Boarding Points
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addBoardingPoint}
+                      className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Point
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {boardingPoints.map((point, idx) => (
+                      <div key={`bp-${idx}`} className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <LocationSearch
+                            value={{ name: point.name, address: point.address }}
+                            onChange={(loc) => {
+                              const updated = [...boardingPoints];
+                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                              setBoardingPoints(updated);
+                            }}
+                            placeholder="Search boarding point..."
+                            variant="boarding"
+                            city={routeForm.origin_city}
+                          />
+                        </div>
+                        {boardingPoints.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeBoardingPoint(idx)}
+                            className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      {boardingPoints.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeBoardingPoint(idx)}
-                          className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
 
-              {/* Dropping Points Section */}
-              <div className="pt-3 border-t border-surface-100">
-                <div className="flex items-center justify-between mb-3">
-                  <label className="flex items-center gap-2 text-sm font-bold text-orange-700">
-                    <MapPin className="w-4 h-4" />
-                    Dropping Points
-                  </label>
-                  <button
-                    type="button"
-                    onClick={addDroppingPoint}
-                    className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add Point
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {droppingPoints.map((point, idx) => (
-                    <div key={`dp-${idx}`} className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <LocationSearch
-                          value={{ name: point.name, address: point.address }}
-                          onChange={(loc) => {
-                            const updated = [...droppingPoints];
-                            updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
-                            setDroppingPoints(updated);
-                          }}
-                          placeholder="Search dropping point..."
-                          variant="dropping"
-                        />
+                {/* Dropping Points Section */}
+                <div className="pt-3 border-t border-surface-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="flex items-center gap-2 text-sm font-bold text-orange-700">
+                      <MapPin className="w-4 h-4" />
+                      Dropping Points
+                    </label>
+                    <button
+                      type="button"
+                      onClick={addDroppingPoint}
+                      className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Point
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {droppingPoints.map((point, idx) => (
+                      <div key={`dp-${idx}`} className="flex items-start gap-2">
+                        <div className="flex-1">
+                          <LocationSearch
+                            value={{ name: point.name, address: point.address }}
+                            onChange={(loc) => {
+                              const updated = [...droppingPoints];
+                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                              setDroppingPoints(updated);
+                            }}
+                            placeholder="Search dropping point..."
+                            variant="dropping"
+                            city={routeForm.destination_city}
+                          />
+                        </div>
+                        {droppingPoints.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeDroppingPoint(idx)}
+                            className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
-                      {droppingPoints.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeDroppingPoint(idx)}
-                          className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary w-full mt-4">{editingRouteId ? "Update Route" : "Save Route"}</button>
+              <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-end gap-3 shrink-0 bg-surface-50/50">
+                <button type="button" onClick={() => setIsAddRouteOpen(false)} className="btn-secondary px-5 py-2.5 !text-sm">Cancel</button>
+                <button type="submit" className="btn-primary px-5 py-2.5 !text-sm">{editingRouteId ? "Update Route" : "Save Route"}</button>
+              </div>
             </form>
           </div>
         </div>
