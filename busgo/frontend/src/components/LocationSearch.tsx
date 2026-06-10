@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Search, MapPin, X, ChevronDown } from "lucide-react";
-import { searchLocations, BDLocation } from "../data/bangladeshLocations";
+import { searchLocations, BDLocation, BD_LOCATIONS } from "../data/bangladeshLocations";
 
 interface LocationSearchProps {
   value: { name: string; address: string };
@@ -44,7 +44,9 @@ export function LocationSearch({
       setResults(found);
       setHighlightIdx(-1);
     } else {
-      setResults([]);
+      // Show default popular locations when empty
+      setResults(BD_LOCATIONS.slice(0, 20));
+      setHighlightIdx(-1);
     }
   }, [query]);
 
@@ -137,17 +139,31 @@ export function LocationSearch({
               setIsOpen(true);
             }}
             onFocus={() => {
-              if (query.trim().length >= 1) setIsOpen(true);
+              setIsOpen(true);
+            }}
+            onClick={() => {
+              setIsOpen(true);
             }}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="input-premium w-full text-xs !py-2 !pl-9 !pr-8"
+            className="input-premium w-full text-xs !py-2 !pl-9 !pr-8 cursor-pointer"
           />
-          <ChevronDown
-            className={`absolute right-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-surface-400 pointer-events-none transition-transform ${
-              isOpen ? "rotate-180" : ""
-            }`}
-          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen((prev) => !prev);
+              inputRef.current?.focus();
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-surface-100 rounded transition-colors"
+          >
+            <ChevronDown
+              className={`h-3.5 w-3.5 text-surface-400 transition-transform ${
+                isOpen ? "rotate-180" : ""
+              }`}
+            />
+          </button>
         </div>
       )}
 
@@ -158,11 +174,7 @@ export function LocationSearch({
           className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl border border-surface-200 shadow-lg max-h-56 overflow-y-auto"
           style={{ minWidth: "100%" }}
         >
-          {query.trim().length < 1 ? (
-            <div className="px-4 py-3 text-xs text-surface-400 text-center font-medium">
-              Type to search Bangladesh locations...
-            </div>
-          ) : results.length === 0 ? (
+          {results.length === 0 ? (
             <div className="px-4 py-3 text-xs text-surface-400 text-center font-medium">
               No locations found for "{query}"
             </div>
