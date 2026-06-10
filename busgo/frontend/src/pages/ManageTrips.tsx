@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
+import { LocationSearch } from "../components/LocationSearch";
 
 import { useAuthStore } from "../stores/authStore";
 
@@ -20,6 +21,13 @@ interface PassengerDetail {
   age: number;
   gender: string;
   seat: string;
+}
+
+interface RoutePoint {
+  name: string;
+  address: string;
+  lat: number;
+  lng: number;
 }
 
 interface BookingInfo {
@@ -554,6 +562,24 @@ export function ManageTrips() {
     estimated_duration_hours: 2,
   });
 
+  const [boardingPoints, setBoardingPoints] = useState<RoutePoint[]>([{ name: "", address: "", lat: 0, lng: 0 }]);
+  const [droppingPoints, setDroppingPoints] = useState<RoutePoint[]>([{ name: "", address: "", lat: 0, lng: 0 }]);
+
+  const addBoardingPoint = () => setBoardingPoints([...boardingPoints, { name: "", address: "", lat: 0, lng: 0 }]);
+  const addDroppingPoint = () => setDroppingPoints([...droppingPoints, { name: "", address: "", lat: 0, lng: 0 }]);
+  const removeBoardingPoint = (idx: number) => setBoardingPoints(boardingPoints.filter((_, i) => i !== idx));
+  const removeDroppingPoint = (idx: number) => setDroppingPoints(droppingPoints.filter((_, i) => i !== idx));
+  const updateBoardingPoint = (idx: number, field: keyof RoutePoint, value: string) => {
+    const updated = [...boardingPoints];
+    (updated[idx] as any)[field] = value;
+    setBoardingPoints(updated);
+  };
+  const updateDroppingPoint = (idx: number, field: keyof RoutePoint, value: string) => {
+    const updated = [...droppingPoints];
+    (updated[idx] as any)[field] = value;
+    setDroppingPoints(updated);
+  };
+
   const openAddRoute = () => {
     setRouteForm({
       origin_city: "",
@@ -561,6 +587,8 @@ export function ManageTrips() {
       distance_km: 100,
       estimated_duration_hours: 2,
     });
+    setBoardingPoints([{ name: "", address: "", lat: 0, lng: 0 }]);
+    setDroppingPoints([{ name: "", address: "", lat: 0, lng: 0 }]);
     setEditingRouteId(null);
     setIsAddRouteOpen(true);
   };
@@ -572,6 +600,16 @@ export function ManageTrips() {
       distance_km: route.distance_km,
       estimated_duration_hours: route.estimated_duration_hours,
     });
+    setBoardingPoints(
+      route.boarding_points && route.boarding_points.length > 0
+        ? route.boarding_points.map((p: any) => ({ name: p.name || "", address: p.address || "", lat: p.lat || 0, lng: p.lng || 0 }))
+        : [{ name: "", address: "", lat: 0, lng: 0 }]
+    );
+    setDroppingPoints(
+      route.dropping_points && route.dropping_points.length > 0
+        ? route.dropping_points.map((p: any) => ({ name: p.name || "", address: p.address || "", lat: p.lat || 0, lng: p.lng || 0 }))
+        : [{ name: "", address: "", lat: 0, lng: 0 }]
+    );
     setEditingRouteId(route.id);
     setIsAddRouteOpen(true);
   };
@@ -799,11 +837,24 @@ export function ManageTrips() {
 
   const handleAddRoute = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate that at least one boarding and dropping point has a name
+    const validBoarding = boardingPoints.filter(p => p.name.trim());
+    const validDropping = droppingPoints.filter(p => p.name.trim());
+    if (validBoarding.length === 0) {
+      toast.error("Please add at least one boarding point with a name");
+      return;
+    }
+    if (validDropping.length === 0) {
+      toast.error("Please add at least one dropping point with a name");
+      return;
+    }
+    
     try {
       const payload = {
         ...routeForm,
-        boarding_points: [{ name: "Main Counter", address: "Main Station", lat: 0, lng: 0 }],
-        dropping_points: [{ name: "Main Drop", address: "Main Drop Station", lat: 0, lng: 0 }]
+        boarding_points: validBoarding,
+        dropping_points: validDropping
       };
       
       if (editingRouteId) {
@@ -995,6 +1046,7 @@ export function ManageTrips() {
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Origin</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Destination</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Distance</th>
+                  <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase">Boarding / Dropping</th>
                   <th className="px-5 py-3 text-xs font-bold text-surface-500 uppercase text-right">Actions</th>
                 </tr>
               </thead>
@@ -1017,6 +1069,18 @@ export function ManageTrips() {
                           <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.origin_city}</td>
                           <td className="px-5 py-4 text-sm font-bold text-surface-900">{r.destination_city}</td>
                           <td className="px-5 py-4 text-sm text-surface-600">{r.distance_km} km</td>
+                          <td className="px-5 py-4 text-sm">
+                            <div className="flex items-center gap-3">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                                <MapPin className="w-3 h-3" />
+                                {r.boarding_points?.filter((p: any) => p.name?.trim()).length || 0} boarding
+                              </span>
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-orange-50 text-orange-700 text-xs font-bold border border-orange-100">
+                                <MapPin className="w-3 h-3" />
+                                {r.dropping_points?.filter((p: any) => p.name?.trim()).length || 0} dropping
+                              </span>
+                            </div>
+                          </td>
                           <td className="px-5 py-4 text-sm text-right">
                             <button onClick={() => openEditRoute(r)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
                               <Edit2 className="w-4 h-4" />
@@ -1029,7 +1093,7 @@ export function ManageTrips() {
                       ))}
                       {filteredRoutes.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-5 py-8 text-center text-surface-500 italic">
+                          <td colSpan={5} className="px-5 py-8 text-center text-surface-500 italic">
                             No routes found matching the active filter.
                           </td>
                         </tr>
@@ -1313,12 +1377,12 @@ export function ManageTrips() {
       {/* Add Route Modal */}
       {isAddRouteOpen && (
         <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
-            <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-elevation-3 flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg text-surface-900">{editingRouteId ? "Edit Route" : "Add New Route"}</h3>
               <button onClick={() => setIsAddRouteOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
             </div>
-            <form onSubmit={handleAddRoute} className="p-6 space-y-4">
+            <form onSubmit={handleAddRoute} className="p-6 space-y-4 overflow-y-auto flex-1">
               <div>
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Origin City</label>
                 <select required className="input-premium w-full" value={routeForm.origin_city} onChange={e => setRouteForm({...routeForm, origin_city: e.target.value})}>
@@ -1347,6 +1411,95 @@ export function ManageTrips() {
                   <input type="number" step="0.5" required className="input-premium w-full" value={routeForm.estimated_duration_hours} onChange={e => setRouteForm({...routeForm, estimated_duration_hours: parseFloat(e.target.value)})} min="0.5" />
                 </div>
               </div>
+
+              {/* Boarding Points Section */}
+              <div className="pt-3 border-t border-surface-100">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="flex items-center gap-2 text-sm font-bold text-emerald-700">
+                    <MapPin className="w-4 h-4" />
+                    Boarding Points
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addBoardingPoint}
+                    className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Point
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {boardingPoints.map((point, idx) => (
+                    <div key={`bp-${idx}`} className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <LocationSearch
+                          value={{ name: point.name, address: point.address }}
+                          onChange={(loc) => {
+                            const updated = [...boardingPoints];
+                            updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                            setBoardingPoints(updated);
+                          }}
+                          placeholder="Search boarding point..."
+                          variant="boarding"
+                        />
+                      </div>
+                      {boardingPoints.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeBoardingPoint(idx)}
+                          className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dropping Points Section */}
+              <div className="pt-3 border-t border-surface-100">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="flex items-center gap-2 text-sm font-bold text-orange-700">
+                    <MapPin className="w-4 h-4" />
+                    Dropping Points
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addDroppingPoint}
+                    className="flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Add Point
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {droppingPoints.map((point, idx) => (
+                    <div key={`dp-${idx}`} className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <LocationSearch
+                          value={{ name: point.name, address: point.address }}
+                          onChange={(loc) => {
+                            const updated = [...droppingPoints];
+                            updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                            setDroppingPoints(updated);
+                          }}
+                          placeholder="Search dropping point..."
+                          variant="dropping"
+                        />
+                      </div>
+                      {droppingPoints.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeDroppingPoint(idx)}
+                          className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <button type="submit" className="btn-primary w-full mt-4">{editingRouteId ? "Update Route" : "Save Route"}</button>
             </form>
           </div>
