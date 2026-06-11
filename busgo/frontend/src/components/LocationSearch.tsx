@@ -41,7 +41,26 @@ export function LocationSearch({
 
   // Helper to get default locations filtered by city
   const getDefaultLocations = (cityName: string): BDLocation[] => {
-    if (!cityName) return BD_LOCATIONS.slice(0, 20);
+    if (!cityName) {
+      const popularKeywords = [
+        "gabtoli", "mohakhali", "sayedabad",
+        "dampara", "bahaddarhat", "gec more",
+        "kumargaon", "kadamtali",
+        "kolatoli", "central bus stand",
+        "rajshahi bus terminal", "bogra satmatha",
+        "sonadanga", "jessore monihar",
+        "nathullabad",
+        "central bus terminal, rangpur",
+        "mymensingh bus stand"
+      ];
+      const selected = BD_LOCATIONS.filter(loc => 
+        popularKeywords.some(keyword => loc.name.toLowerCase().includes(keyword))
+      );
+      if (selected.length > 0) {
+        return selected.slice(0, 20);
+      }
+      return BD_LOCATIONS.slice(0, 20);
+    }
     const normalized = cityName.toLowerCase().trim();
     let searchTarget = normalized;
     if (normalized === "barisal") searchTarget = "barishal";

@@ -1376,8 +1376,8 @@ export function ManageTrips() {
 
       {/* Add Route Modal */}
       {isAddRouteOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-elevation-3 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-elevation-3 flex flex-col my-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg text-surface-900">{editingRouteId ? "Edit Route" : "Add New Route"}</h3>
               <button onClick={() => setIsAddRouteOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
@@ -1515,8 +1515,8 @@ export function ManageTrips() {
 
       {/* Add Bus Modal */}
       {isAddBusOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
+        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3 my-auto">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-lg text-surface-900">{editingBusId ? "Edit Bus" : "Add New Bus"}</h3>
               <button onClick={() => setIsAddBusOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
@@ -1599,8 +1599,8 @@ export function ManageTrips() {
 
       {/* Add Trip Modal */}
       {isAddTripOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3">
+        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3 my-auto">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-lg text-surface-900">Schedule Trip</h3>
               <button onClick={() => setIsAddTripOpen(false)} className="text-surface-400 hover:text-surface-700"><X className="w-5 h-5"/></button>
