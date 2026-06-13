@@ -17,6 +17,10 @@ app.add_middleware(
 
 app.include_router(cancellation.router)
 
+@app.on_event('startup')
+def startup():
+    Base.metadata.create_all(bind=engine)
+
 @app.get('/')
 async def root():
     return {'message': 'cancellation-service is running'}
