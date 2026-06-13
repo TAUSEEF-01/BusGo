@@ -462,6 +462,9 @@ export function ManageTrips() {
   const [isAddRouteOpen, setIsAddRouteOpen] = useState(false);
   const [editingBusId, setEditingBusId] = useState<string | null>(null);
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
+  const [submittingBus, setSubmittingBus] = useState(false);
+  const [submittingRoute, setSubmittingRoute] = useState(false);
+  const [submittingTrip, setSubmittingTrip] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<{ trip: any; routeLabel: string; busLabel: string } | null>(null);
   const [mapModalConfig, setMapModalConfig] = useState<{
     isOpen: boolean;
@@ -700,6 +703,8 @@ export function ManageTrips() {
 
   const handleAddBus = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingBus) return;
+    setSubmittingBus(true);
     try {
       const payload = {
         registration_no: busForm.registration_no,
@@ -795,11 +800,14 @@ export function ManageTrips() {
       }
     } catch (err: any) {
       toast.error(err.response?.data?.detail || `Failed to ${editingBusId ? 'update' : 'add'} bus`);
+    } finally {
+      setSubmittingBus(false);
     }
   };
 
   const handleAddTrip = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingTrip) return;
     try {
       // Find bus for total seats
       const bus = buses.find(b => b.id === tripForm.bus_id);
@@ -823,6 +831,7 @@ export function ManageTrips() {
         }
       }
 
+      setSubmittingTrip(true);
       const promises = tripSelectedDates.map(async (dateStr) => {
         const departureISO = combineDateAndTimeToISO(dateStr, tripForm.departure_datetime);
         const arrivalISO = calculateArrivalISO(dateStr, tripForm.departure_datetime, tripForm.arrival_datetime);
@@ -845,11 +854,14 @@ export function ManageTrips() {
       fetchData();
     } catch (err: any) {
       toast.error(err.response?.data?.detail || "Failed to schedule trips");
+    } finally {
+      setSubmittingTrip(false);
     }
   };
 
   const handleAddRoute = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRoute) return;
     
     // Validate that at least one boarding and dropping point has a name
     const validBoarding = boardingPoints.filter(p => p.name.trim());
@@ -863,6 +875,7 @@ export function ManageTrips() {
       return;
     }
     
+    setSubmittingRoute(true);
     try {
       const payload = {
         ...routeForm,
@@ -888,6 +901,8 @@ export function ManageTrips() {
     } catch (err: any) {
       const detail = err.response?.data?.detail;
       toast.error(typeof detail === "string" ? detail : `Failed to ${editingRouteId ? 'update' : 'add'} route`);
+    } finally {
+      setSubmittingRoute(false);
     }
   };
 
@@ -1558,7 +1573,9 @@ export function ManageTrips() {
 
               <div className="px-6 py-4 border-t border-surface-100 flex items-center justify-end gap-3 shrink-0 bg-surface-50/50">
                 <button type="button" onClick={() => setIsAddRouteOpen(false)} className="btn-secondary px-5 py-2.5 !text-sm">Cancel</button>
-                <button type="submit" className="btn-primary px-5 py-2.5 !text-sm">{editingRouteId ? "Update Route" : "Save Route"}</button>
+                <button type="submit" disabled={submittingRoute} className="btn-primary px-5 py-2.5 !text-sm">
+                  {submittingRoute ? "Saving..." : (editingRouteId ? "Update Route" : "Save Route")}
+                </button>
               </div>
             </form>
           </div>
@@ -1644,7 +1661,9 @@ export function ManageTrips() {
                 )}
               </div>
 
-              <button type="submit" className="btn-primary w-full mt-4">{editingBusId ? "Update Bus" : "Save Bus"}</button>
+              <button type="submit" disabled={submittingBus} className="btn-primary w-full mt-4">
+                {submittingBus ? "Saving..." : (editingBusId ? "Update Bus" : "Save Bus")}
+              </button>
             </form>
           </div>
         </div>,
@@ -1695,7 +1714,9 @@ export function ManageTrips() {
                 <label className="block text-sm font-semibold text-surface-700 mb-1">Fare Amount (৳)</label>
                 <input type="number" required className="input-premium w-full" value={tripForm.fare_amount} onChange={e => setTripForm({...tripForm, fare_amount: parseInt(e.target.value)})} min="100" />
               </div>
-              <button type="submit" className="btn-primary w-full mt-4">Schedule Trip</button>
+              <button type="submit" disabled={submittingTrip} className="btn-primary w-full mt-4">
+                {submittingTrip ? "Scheduling..." : "Schedule Trip"}
+              </button>
             </form>
           </div>
         </div>,

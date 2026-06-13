@@ -90,6 +90,19 @@ async def create_route(id: UUID, req: RouteCreate, db: AsyncSession = Depends(ge
     route_data["boarding_points"] = [p for p in route_data["boarding_points"]]
     route_data["dropping_points"] = [p for p in route_data["dropping_points"]]
     
+    # Check for exact duplicate route to ensure idempotency
+    existing_stmt = select(Route).where(
+        Route.operator_id == id,
+        Route.origin_city == req.origin_city,
+        Route.destination_city == req.destination_city
+    )
+    existing_res = await db.execute(existing_stmt)
+    for existing_route in existing_res.scalars().all():
+        if (existing_route.boarding_points == route_data["boarding_points"] and 
+            existing_route.dropping_points == route_data["dropping_points"] and
+            abs(existing_route.distance_km - req.distance_km) < 0.1):
+            return BaseResponse(success=True, data=RouteResponse.model_validate(existing_route), message="Route already exists")
+
     route = Route(operator_id=id, **route_data)
     db.add(route)
     await db.commit()
