@@ -631,6 +631,7 @@ export function ManageTrips() {
   };
 
   const fetchData = async () => {
+    if (!OPERATOR_ID) return;
     setLoading(true);
     try {
       console.log("Fetching data for operator:", OPERATOR_ID);
@@ -655,8 +656,10 @@ export function ManageTrips() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (OPERATOR_ID) {
+      fetchData();
+    }
+  }, [OPERATOR_ID]);
 
   const handleDeleteBus = async (id: string) => {
     if (!confirm("Are you sure you want to remove this bus?")) return;
