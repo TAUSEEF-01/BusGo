@@ -8,7 +8,7 @@ set -e
 
 SERVER_IP="135.171.216.245"
 DOMAIN="busgo.farefin.com"
-REPO_URL="https://github.com/TAUSEEF-01/Jaabo.git"
+REPO_URL="https://github.com/TAUSEEF-01/BusGo.git"
 PROJECT_DIR="$HOME/Jaabo"
 
 echo "=================================================="
