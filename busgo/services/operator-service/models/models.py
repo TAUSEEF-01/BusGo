@@ -60,7 +60,7 @@ class Route(Base):
     dropping_points = Column(JSONB, nullable=False)
 
     operator = relationship("Operator", back_populates="routes")
-    trips = relationship("Trip", back_populates="route")
+    trips = relationship("Trip", back_populates="route", cascade="all, delete-orphan", passive_deletes=True)
 
 class Trip(Base):
     __tablename__ = "trips"

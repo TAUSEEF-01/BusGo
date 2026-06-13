@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from database import get_db
-from models.models import Bus, Route, Operator
+from models.models import Bus, Route, Operator, Trip
 from schemas.schemas import BusCreate, BusUpdate, BusResponse, RouteCreate, RouteUpdate, RouteResponse
 from api.deps import get_current_user_payload
 
@@ -158,10 +158,22 @@ async def delete_route(id: UUID, db: AsyncSession = Depends(get_db), payload: di
     route = result.scalars().first()
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
+        
+    # Check if any associated trips have sold tickets
+    trips_res = await db.execute(
+        select(Trip, Bus)
+        .join(Bus, Trip.bus_id == Bus.id)
+        .where(Trip.route_id == id)
+    )
+    trips_list = trips_res.all()
+    for trip, bus in trips_list:
+        if trip.available_seats < bus.total_seats:
+            raise HTTPException(status_code=400, detail="Cannot delete route because one of its scheduled trips has sold tickets.")
+
     try:
         await db.delete(route)
         await db.commit()
         return BaseResponse(success=True, message="Route deleted successfully")
-    except Exception:
+    except Exception as e:
         await db.rollback()
-        raise HTTPException(status_code=400, detail="Cannot delete route because it has scheduled trips.")
+        raise HTTPException(status_code=400, detail=f"Failed to delete route: {str(e)}")
