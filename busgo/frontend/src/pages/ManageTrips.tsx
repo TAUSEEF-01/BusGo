@@ -649,7 +649,7 @@ export function ManageTrips() {
       if (tripsRes.data.success) setTrips(tripsRes.data.data);
     } catch (error) {
       console.error("Failed to fetch operator data", error);
-      toast.error("Failed to load operator data. Please check console for details.");
+      // toast.error("Failed to load operator data. Please check console for details.");
     } finally {
       setLoading(false);
     }

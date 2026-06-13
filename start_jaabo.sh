@@ -44,18 +44,18 @@ export DEALS_SERVICE_PORT=8510
 export ADMIN_SERVICE_PORT=8511
 export AUDIT_SERVICE_PORT=8512
 
-export DATABASE_URL_AUTH=postgresql+asyncpg://user:password@postgres:5432/auth_db
-export DATABASE_URL_SEARCH=postgresql+asyncpg://user:password@postgres:5432/search_db
-export DATABASE_URL_INVENTORY=postgresql+asyncpg://user:password@postgres:5432/inventory_db
-export DATABASE_URL_BOOKING=postgresql+asyncpg://user:password@postgres:5432/booking_db
-export DATABASE_URL_PAYMENT=postgresql+asyncpg://user:password@postgres:5432/payment_db
-export DATABASE_URL_TICKET=postgresql+asyncpg://user:password@postgres:5432/ticket_db
-export DATABASE_URL_NOTIFICATION=postgresql://user:password@postgres:5432/notification_db
-export DATABASE_URL_CANCELLATION=postgresql://user:password@postgres:5432/cancellation_db
-export DATABASE_URL_OPERATOR=postgresql+asyncpg://user:password@postgres:5432/operator_db
-export DATABASE_URL_DEALS=postgresql://user:password@postgres:5432/deals_db
-export DATABASE_URL_ADMIN=postgresql://user:password@postgres:5432/admin_db
-export DATABASE_URL_AUDIT=postgresql://user:password@postgres:5432/audit_db
+export DATABASE_URL_AUTH=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_SEARCH=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_INVENTORY=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_BOOKING=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_PAYMENT=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_TICKET=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_NOTIFICATION=postgresql://user:password@postgres:5432/postgres
+export DATABASE_URL_CANCELLATION=postgresql://user:password@postgres:5432/postgres
+export DATABASE_URL_OPERATOR=postgresql+asyncpg://user:password@postgres:5432/postgres
+export DATABASE_URL_DEALS=postgresql://user:password@postgres:5432/postgres
+export DATABASE_URL_ADMIN=postgresql://user:password@postgres:5432/postgres
+export DATABASE_URL_AUDIT=postgresql://user:password@postgres:5432/postgres
 
 cd busgo/infrastructure
 echo "Building and starting containers (this may take a moment)..."

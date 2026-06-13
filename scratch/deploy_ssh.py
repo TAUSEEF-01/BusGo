@@ -17,7 +17,7 @@ def deploy():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        ssh.connect(hostname, username=username, password=password, timeout=20)
+        ssh.connect(hostname, username=username, password=password, timeout=60, banner_timeout=60)
         print("SSH Connection successful!")
 
         # SFTP Upload setup_server.sh
