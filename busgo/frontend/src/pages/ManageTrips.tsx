@@ -1092,6 +1092,19 @@ export function ManageTrips() {
                                 <MapPin className="w-3 h-3" />
                                 {r.dropping_points?.filter((p: any) => p.name?.trim()).length || 0} dropping
                               </span>
+                              {(() => {
+                                const count = trips.filter((t: any) => t.route_id === r.id).length;
+                                return (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold border ${
+                                    count > 0 
+                                      ? "bg-blue-50 text-blue-700 border-blue-100" 
+                                      : "bg-surface-50 text-surface-500 border-surface-200"
+                                  }`}>
+                                    <Bus className="w-3 h-3" />
+                                    {count} trips
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </td>
                           <td className="px-5 py-4 text-sm text-right">
