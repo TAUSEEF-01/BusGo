@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import {
@@ -89,8 +90,8 @@ function SeatMapModal({
   const lockedSeats = seats.filter((s) => s.status === "LOCKED").length;
   const availableSeats = seats.filter((s) => s.status === "AVAILABLE").length;
 
-  return (
-    <div className="fixed inset-0 z-50 bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div
         className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-elevation-3 animate-fade-in"
         onClick={(e) => e.stopPropagation()}
@@ -184,7 +185,8 @@ function SeatMapModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

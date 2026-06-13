@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users, ArrowRight, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
@@ -111,8 +112,8 @@ function TripDetailsModal({
     }))
   );
 
-  return (
-    <div className="fixed inset-0 z-[60] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-surface-900/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl w-full max-w-3xl overflow-hidden shadow-elevation-3 animate-fade-in flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center bg-gradient-to-r from-brand-600 to-brand-700 shrink-0">
           <div>
@@ -307,7 +308,8 @@ function TripDetailsModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1386,8 +1388,8 @@ export function ManageTrips() {
       </div>
 
       {/* Add Route Modal */}
-      {isAddRouteOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+      {isAddRouteOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-elevation-3 flex flex-col my-auto max-h-[90vh]">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center shrink-0">
               <h3 className="font-bold text-lg text-surface-900">{editingRouteId ? "Edit Route" : "Add New Route"}</h3>
@@ -1547,12 +1549,13 @@ export function ManageTrips() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Bus Modal */}
-      {isAddBusOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+      {isAddBusOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3 my-auto">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-lg text-surface-900">{editingBusId ? "Edit Bus" : "Add New Bus"}</h3>
@@ -1631,12 +1634,13 @@ export function ManageTrips() {
               <button type="submit" className="btn-primary w-full mt-4">{editingBusId ? "Update Bus" : "Save Bus"}</button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Trip Modal */}
-      {isAddTripOpen && (
-        <div className="fixed inset-0 z-50 bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
+      {isAddTripOpen && createPortal(
+        <div className="fixed inset-0 z-[100] bg-surface-900/50 flex items-start justify-center p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-elevation-3 my-auto">
             <div className="px-6 py-4 border-b border-surface-100 flex justify-between items-center">
               <h3 className="font-bold text-lg text-surface-900">Schedule Trip</h3>
@@ -1681,7 +1685,8 @@ export function ManageTrips() {
               <button type="submit" className="btn-primary w-full mt-4">Schedule Trip</button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* Trip Details Modal */}
       {selectedTrip && (

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Search, MapPin, X, Loader2, Compass } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -228,8 +229,8 @@ export function MapSelectorModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-99 flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm">
       <div className="bg-white rounded-3xl w-full max-w-4xl shadow-elevation-3 overflow-hidden flex flex-col h-[85vh] animate-scale-in">
         
         {/* Header */}
@@ -304,7 +305,7 @@ export function MapSelectorModal({
                       onClick={() => handleResultClick(result)}
                       className="w-full text-left px-3 py-2.5 hover:bg-surface-50 flex items-start gap-2.5 transition-colors text-xs first:rounded-t-lg last:rounded-b-lg"
                     >
-                      <MapPin className={`w-4 h-4 shrink-0 mt-0.5 text-${themeColor}-500`} />
+                      <MapPin className={`w-4.5 h-4.5 shrink-0 mt-0.5 text-${themeColor}-500`} />
                       <div className="flex-1 min-w-0">
                         <p className="font-bold text-surface-900 truncate">
                           {result.name || result.display_name.split(",")[0]}
@@ -401,6 +402,7 @@ export function MapSelectorModal({
           
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
