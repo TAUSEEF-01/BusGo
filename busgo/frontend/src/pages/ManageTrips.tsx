@@ -3,6 +3,7 @@ import { Bus, Map, Clock, Plus, Loader2, X, Edit2, Trash2, Eye, Calendar, Users,
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 import { LocationSearch } from "../components/LocationSearch";
+import { MapSelectorModal } from "../components/MapSelectorModal";
 
 import { useAuthStore } from "../stores/authStore";
 
@@ -460,6 +461,16 @@ export function ManageTrips() {
   const [editingBusId, setEditingBusId] = useState<string | null>(null);
   const [editingRouteId, setEditingRouteId] = useState<string | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<{ trip: any; routeLabel: string; busLabel: string } | null>(null);
+  const [mapModalConfig, setMapModalConfig] = useState<{
+    isOpen: boolean;
+    variant: "boarding" | "dropping";
+    index: number;
+    initialValue?: RoutePoint;
+  }>({
+    isOpen: false,
+    variant: "boarding",
+    index: 0,
+  });
 
   const combineDateAndTime = (timeStr: string) => {
     if (!timeStr) return "";
@@ -1436,7 +1447,7 @@ export function ManageTrips() {
                             value={{ name: point.name, address: point.address }}
                             onChange={(loc) => {
                               const updated = [...boardingPoints];
-                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address, lat: 0, lng: 0 };
                               setBoardingPoints(updated);
                             }}
                             placeholder="Search boarding point..."
@@ -1444,13 +1455,26 @@ export function ManageTrips() {
                             city={routeForm.origin_city}
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setMapModalConfig({
+                            isOpen: true,
+                            variant: "boarding",
+                            index: idx,
+                            initialValue: point
+                          })}
+                          className="p-2.5 text-surface-500 hover:text-brand-600 hover:bg-brand-50 border border-surface-200 rounded-xl transition-colors shrink-0 mt-0.5 flex items-center justify-center"
+                          title="Choose location on map"
+                        >
+                          <Map className="w-4 h-4" />
+                        </button>
                         {boardingPoints.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeBoardingPoint(idx)}
-                            className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                            className="p-2.5 text-surface-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0 mt-0.5"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -1481,7 +1505,7 @@ export function ManageTrips() {
                             value={{ name: point.name, address: point.address }}
                             onChange={(loc) => {
                               const updated = [...droppingPoints];
-                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address };
+                              updated[idx] = { ...updated[idx], name: loc.name, address: loc.address, lat: 0, lng: 0 };
                               setDroppingPoints(updated);
                             }}
                             placeholder="Search dropping point..."
@@ -1489,13 +1513,26 @@ export function ManageTrips() {
                             city={routeForm.destination_city}
                           />
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setMapModalConfig({
+                            isOpen: true,
+                            variant: "dropping",
+                            index: idx,
+                            initialValue: point
+                          })}
+                          className="p-2.5 text-surface-500 hover:text-brand-600 hover:bg-brand-50 border border-surface-200 rounded-xl transition-colors shrink-0 mt-0.5 flex items-center justify-center"
+                          title="Choose location on map"
+                        >
+                          <Map className="w-4 h-4" />
+                        </button>
                         {droppingPoints.length > 1 && (
                           <button
                             type="button"
                             onClick={() => removeDroppingPoint(idx)}
-                            className="p-1.5 text-surface-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 mt-1.5"
+                            className="p-2.5 text-surface-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0 mt-0.5"
                           >
-                            <X className="w-3.5 h-3.5" />
+                            <X className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -1653,6 +1690,28 @@ export function ManageTrips() {
           routeLabel={selectedTrip.routeLabel}
           busLabel={selectedTrip.busLabel}
           onClose={() => setSelectedTrip(null)}
+        />
+      )}
+      {mapModalConfig.isOpen && (
+        <MapSelectorModal
+          isOpen={mapModalConfig.isOpen}
+          variant={mapModalConfig.variant}
+          initialValue={mapModalConfig.initialValue}
+          onClose={() => setMapModalConfig({ ...mapModalConfig, isOpen: false })}
+          onConfirm={(selectedPoint) => {
+            const isBoarding = mapModalConfig.variant === "boarding";
+            const index = mapModalConfig.index;
+            if (isBoarding) {
+              const updated = [...boardingPoints];
+              updated[index] = selectedPoint;
+              setBoardingPoints(updated);
+            } else {
+              const updated = [...droppingPoints];
+              updated[index] = selectedPoint;
+              setDroppingPoints(updated);
+            }
+            setMapModalConfig({ ...mapModalConfig, isOpen: false });
+          }}
         />
       )}
     </div>
