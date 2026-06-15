@@ -302,6 +302,20 @@ export function Home() {
               Book Bus Tickets
               <span className="block text-accent-400">Anywhere in Bangladesh</span>
             </h1>
+
+            {/* Bus Animation */}
+            <div className="mt-8 mb-2 flex flex-col items-center justify-center animate-fade-in-up animate-delay-200">
+              <div className="relative inline-block">
+                {/* Animated Bus */}
+                <div className="bus-animation">
+                  <Bus className="h-16 w-16 sm:h-20 sm:w-20 text-white drop-shadow-lg" />
+                </div>
+                {/* Road line */}
+                <div className="mt-2 h-0.5 w-36 sm:w-44 bg-white/20 rounded-full overflow-hidden">
+                  <div className="h-full w-1/3 bg-white/60 rounded-full animate-road-line" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* ── Search Card ── */}

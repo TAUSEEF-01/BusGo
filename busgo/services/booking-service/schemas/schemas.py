@@ -40,6 +40,8 @@ class BookingResponse(BaseModel):
     passenger_details: Optional[List[Dict[str, Any]]] = None
     boarding_point: str
     dropping_point: str
+    origin_city: Optional[str] = None
+    destination_city: Optional[str] = None
     journey_date: date
     departure_time: time
     expires_at: datetime
