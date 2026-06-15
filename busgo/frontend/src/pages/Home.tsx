@@ -426,16 +426,15 @@ export function Home() {
               </div>
 
               {/* Journey date */}
-              <div className="lg:col-span-2">
+              <div className={tripType === "round-way" ? "lg:col-span-2" : "lg:col-span-3"}>
                 <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">Journey Date</label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 pointer-events-none" />
                   <input
                     type="date"
                     value={date}
                     min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
+                    className="w-full pl-4 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
                   />
                 </div>
               </div>
@@ -445,20 +444,19 @@ export function Home() {
                 <div className="lg:col-span-2">
                   <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">Return Date</label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 pointer-events-none" />
                     <input
                       type="date"
                       value={returnDate}
                       min={date || new Date().toISOString().split("T")[0]}
                       onChange={(e) => setReturnDate(e.target.value)}
-                      className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
+                      className="w-full pl-4 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
                     />
                   </div>
                 </div>
               )}
 
               {/* Search button */}
-              <div className={tripType === "round-way" ? "lg:col-span-1" : "lg:col-span-3"}>
+              <div className={tripType === "round-way" ? "lg:col-span-1" : "lg:col-span-2"}>
                 <label className="block text-xs font-bold text-transparent uppercase tracking-wider mb-1.5 select-none">.</label>
                 <button
                   type="submit"
@@ -531,21 +529,42 @@ export function Home() {
 
       {/* ──── NOTICES ──── */}
       {visibleNotices.length > 0 && (
-        <section className="bg-amber-50 border-y border-amber-200" id="notices-section">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+        <section className="bg-gradient-to-b from-amber-50/70 to-surface-50 border-y border-amber-100/80 py-6" id="notices-section">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
             {visibleNotices.map((notice) => (
-              <div key={notice.id} className="flex items-start gap-3 bg-white border border-amber-200 rounded-xl p-4 shadow-sm">
-                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Megaphone className="h-5 w-5 text-amber-600" />
+              <div
+                key={notice.id}
+                className="relative overflow-hidden bg-gradient-to-r from-amber-500/[0.03] to-orange-500/[0.03] hover:from-amber-500/[0.06] hover:to-orange-500/[0.06] border border-amber-500/20 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 flex items-start gap-4 animate-fade-in-up"
+              >
+                {/* Left Accent Bar */}
+                <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-500 to-orange-500" />
+                
+                {/* Speaker icon with wobble animation */}
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/20">
+                  <Megaphone className="h-5 w-5 animate-wobble" />
                 </div>
+
+                {/* Text Content */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-surface-900 text-sm">{notice.title}</p>
-                  <p className="text-surface-600 text-sm mt-0.5 whitespace-pre-line">{notice.body}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="bg-amber-500/10 text-amber-800 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md tracking-wider border border-amber-500/20">
+                      Announcement
+                    </span>
+                    <h4 className="font-extrabold text-surface-900 text-sm sm:text-base tracking-tight">
+                      {notice.title}
+                    </h4>
+                  </div>
+                  <p className="text-surface-600 text-sm mt-2 whitespace-pre-line leading-relaxed font-medium">
+                    {notice.body}
+                  </p>
                 </div>
+
+                {/* Dismiss button */}
                 <button
                   onClick={() => dismissNotice(notice.id)}
-                  className="p-1.5 rounded-lg hover:bg-amber-100 text-surface-400 hover:text-surface-700 transition-colors flex-shrink-0"
+                  className="p-2 rounded-xl bg-surface-100/50 hover:bg-amber-500/10 hover:text-amber-800 text-surface-400 transition-colors flex-shrink-0 cursor-pointer"
                   title="Dismiss"
+                  id={`dismiss-notice-${notice.id}`}
                 >
                   <X className="h-4 w-4" />
                 </button>
