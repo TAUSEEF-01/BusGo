@@ -20,7 +20,37 @@ import {
   Quote,
   ChevronLeft,
   ChevronRight,
+  Megaphone,
+  X,
+  RotateCcw,
+  ArrowLeftRight,
+  Tag,
 } from "lucide-react";
+
+const RECENT_SEARCHES_KEY = "busgo_recent_searches";
+const MAX_RECENT_SEARCHES = 4;
+
+interface RecentSearch {
+  origin: string;
+  destination: string;
+  date: string;
+  tripType: string;
+  savedAt: number;
+}
+
+function saveRecentSearch(search: RecentSearch) {
+  const existing: RecentSearch[] = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+  // Remove duplicate (same origin+dest)
+  const filtered = existing.filter(
+    (s) => !(s.origin === search.origin && s.destination === search.destination)
+  );
+  const updated = [search, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+}
+
+function getRecentSearches(): RecentSearch[] {
+  return JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+}
 
 /* ─── Scroll-triggered fade-in hook ────────────────── */
 function useScrollFade() {
@@ -87,7 +117,30 @@ const CITIES = [
 export function Home() {
   const navigate = useNavigate();
   const { user, isAuthenticated } = useAuthStore();
+
+  // All hooks must be declared before any conditional return
+  const [tripType, setTripType] = useState<"one-way" | "round-way">("one-way");
   const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [date, setDate] = useState("");
+  const [returnDate, setReturnDate] = useState("");
+  const [originQuery, setOriginQuery] = useState("");
+  const [destQuery, setDestQuery] = useState("");
+  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  const [allCities, setAllCities] = useState<string[]>([]);
+  const originRef = useRef<HTMLDivElement>(null);
+  const destRef = useRef<HTMLDivElement>(null);
+  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>(() => getRecentSearches());
+  const [notices, setNotices] = useState<any[]>([]);
+  const [dismissedNotices, setDismissedNotices] = useState<Set<string>>(new Set());
+  const [popularTrips, setPopularTrips] = useState<any[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(true);
+  const stats = useScrollFade();
+  const routes = useScrollFade();
+  const howItWorks = useScrollFade();
+  const features = useScrollFade();
+  const testimonials = useScrollFade();
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -100,27 +153,43 @@ export function Home() {
     }
   }, [isAuthenticated, user, navigate]);
 
-  if (isAuthenticated && user && (user.role?.toUpperCase() === "OPERATOR" || user.role?.toUpperCase() === "ADMIN")) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-50">
-        <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
-  const [destination, setDestination] = useState("");
-  const [date, setDate] = useState("");
-  const [showOriginDropdown, setShowOriginDropdown] = useState(false);
-  const [showDestDropdown, setShowDestDropdown] = useState(false);
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") setRecentSearches(getRecentSearches());
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (origin && destination && date) {
-      navigate(`/search?origin=${origin}&destination=${destination}&date=${date}`);
-    }
-  };
+  // Fetch city list for autocomplete
+  useEffect(() => {
+    apiClient.get("/api/operators/trips/").then((res) => {
+      if (res.data.success) {
+        const trips = res.data.data || [];
+        const cities = Array.from(new Set([
+          ...trips.map((t: any) => t.origin_city),
+          ...trips.map((t: any) => t.destination_city),
+        ].filter(Boolean))) as string[];
+        setAllCities(cities.sort());
+      }
+    }).catch(() => setAllCities(CITIES));
+  }, []);
 
-  const [popularTrips, setPopularTrips] = useState<any[]>([]);
-  const [loadingPopular, setLoadingPopular] = useState(true);
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (originRef.current && !originRef.current.contains(e.target as Node)) setShowOriginDropdown(false);
+      if (destRef.current && !destRef.current.contains(e.target as Node)) setShowDestDropdown(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    apiClient.get("/api/admin/notices/active").then((res) => {
+      if (res.data.success) setNotices(res.data.data);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const fetchPopular = async () => {
@@ -128,10 +197,16 @@ export function Home() {
         const res = await apiClient.get("/api/operators/trips/");
         if (res.data.success) {
           const now = new Date();
-          const activeTrips = (res.data.data || [])
-            .filter((trip: any) => trip.status === 'SCHEDULED' && trip.departure_datetime && new Date(trip.departure_datetime) > now)
-            .slice(0, 6);
-          setPopularTrips(activeTrips);
+          // Deduplicate by origin+destination, keep cheapest fare per route
+          const seen = new Map<string, any>();
+          for (const trip of (res.data.data || [])) {
+            if (trip.status !== 'SCHEDULED' || !trip.departure_datetime || new Date(trip.departure_datetime) <= now) continue;
+            const key = `${trip.origin_city}|${trip.destination_city}`;
+            if (!seen.has(key) || trip.fare_amount < seen.get(key).fare_amount) {
+              seen.set(key, trip);
+            }
+          }
+          setPopularTrips(Array.from(seen.values()).slice(0, 6));
         }
       } catch (err) {
         console.error("Failed to fetch popular routes", err);
@@ -142,11 +217,57 @@ export function Home() {
     fetchPopular();
   }, []);
 
-  const stats = useScrollFade();
-  const routes = useScrollFade();
-  const howItWorks = useScrollFade();
-  const features = useScrollFade();
-  const testimonials = useScrollFade();
+  if (isAuthenticated && user && (user.role?.toUpperCase() === "OPERATOR" || user.role?.toUpperCase() === "ADMIN")) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-50">
+        <div className="w-12 h-12 border-4 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const filteredOriginCities = allCities.filter(
+    (c) => c.toLowerCase().includes(originQuery.toLowerCase()) && c !== destination
+  );
+  const filteredDestCities = allCities.filter(
+    (c) => c.toLowerCase().includes(destQuery.toLowerCase()) && c !== origin
+  );
+
+  const selectOrigin = (city: string) => {
+    setOrigin(city);
+    setOriginQuery(city);
+    setShowOriginDropdown(false);
+  };
+  const selectDest = (city: string) => {
+    setDestination(city);
+    setDestQuery(city);
+    setShowDestDropdown(false);
+  };
+  const swapCities = () => {
+    setOrigin(destination);
+    setOriginQuery(destination);
+    setDestination(origin);
+    setDestQuery(origin);
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (origin && destination && date) {
+      const search: RecentSearch = { origin, destination, date, tripType: tripType === "round-way" ? "Round Way" : "One Way", savedAt: Date.now() };
+      saveRecentSearch(search);
+      setRecentSearches(getRecentSearches());
+      navigate(`/search?origin=${origin}&destination=${destination}&date=${date}`);
+    }
+  };
+
+  const handleRecentClick = (s: RecentSearch) => {
+    navigate(`/search?origin=${s.origin}&destination=${s.destination}&date=${s.date}`);
+  };
+
+  const dismissNotice = (id: string) => {
+    setDismissedNotices((prev) => new Set(prev).add(id));
+  };
+
+  const visibleNotices = notices.filter((n) => !dismissedNotices.has(n.id));
 
   const getGradient = (i: number) => {
     const gradients = [
@@ -163,90 +284,210 @@ export function Home() {
   return (
     <div className="flex flex-col">
       {/* ──── HERO SECTION ──── */}
-      <section className="relative min-h-[90vh] flex items-center hero-gradient" id="hero-section">
-        {/* Animated background elements */}
+      <section className="relative min-h-[85vh] flex items-center hero-gradient" id="hero-section">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl floating" />
           <div className="absolute top-1/3 -left-32 w-80 h-80 bg-white/5 rounded-full blur-3xl floating-delayed" />
-          <div className="absolute bottom-10 right-1/4 w-64 h-64 bg-accent-500/10 rounded-full blur-3xl floating" />
-          {/* Grid pattern overlay */}
-          <div className="absolute inset-0" style={{
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px)',
-            backgroundSize: '40px 40px',
-          }} />
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
         </div>
 
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 mt-8">
-          <div className="text-center max-w-4xl mx-auto">
-            {/* Pill badge */}
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium mb-8 animate-fade-in-down">
+        <div className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-24 mt-8">
+          {/* Headline */}
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white/90 text-sm font-medium mb-6 animate-fade-in-down">
               <Zap className="h-4 w-4 text-accent-400" />
-              <span>Trusted by 10M+ travelers across Bangladesh</span>
+              <span>Bangladesh's Largest Online Bus Ticket Platform</span>
             </div>
-
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-tight animate-fade-in-up" id="hero-heading">
-              Travel Anywhere,
-              <br />
-              <span className="relative">
-                Book
-                <span className="relative inline-block mx-2">
-                  <span className="relative z-10">Instantly</span>
-                  <span className="absolute bottom-1 left-0 right-0 h-3 bg-accent-500/40 -skew-x-3 rounded" />
-                </span>
-              </span>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-tight animate-fade-in-up" id="hero-heading">
+              Book Bus Tickets
+              <span className="block text-accent-400">Anywhere in Bangladesh</span>
             </h1>
+          </div>
 
-            <p className="mt-6 text-lg sm:text-xl text-white/70 max-w-2xl mx-auto font-body animate-fade-in-up animate-delay-200" id="hero-subtitle">
-              Compare operators, choose your seat, and book bus tickets in under 60 seconds. The smartest way to travel across Bangladesh.
-            </p>
-
-            {/* Bus Animation */}
-            <div className="mt-12 mb-8 animate-fade-in-up animate-delay-300">
-              <div className="relative inline-block">
-                {/* Animated Bus */}
-                <div className="bus-animation">
-                  <Bus className="h-24 w-24 sm:h-32 sm:w-32 text-white drop-shadow-2xl" />
-                </div>
-                {/* Road line */}
-                <div className="mt-4 h-1 w-64 sm:w-80 bg-white/20 rounded-full overflow-hidden">
-                  <div className="h-full w-1/3 bg-white/60 rounded-full animate-road-line" />
-                </div>
-              </div>
+          {/* ── Search Card ── */}
+          <form onSubmit={handleSearch} className="bg-white rounded-2xl shadow-2xl p-6 animate-fade-in-up animate-delay-200" id="hero-search-form">
+            {/* Trip type toggle */}
+            <div className="flex gap-2 mb-5">
+              <button
+                type="button"
+                onClick={() => setTripType("one-way")}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${tripType === "one-way" ? "bg-brand-600 text-white shadow-sm" : "bg-surface-100 text-surface-600 hover:bg-surface-200"}`}
+              >
+                One Way
+              </button>
+              <button
+                type="button"
+                onClick={() => setTripType("round-way")}
+                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${tripType === "round-way" ? "bg-brand-600 text-white shadow-sm" : "bg-surface-100 text-surface-600 hover:bg-surface-200"}`}
+              >
+                Round Way
+              </button>
             </div>
 
-            {/* Quick Features */}
-            <div className="mb-10 animate-fade-in-up animate-delay-400">
-              <div className="flex flex-wrap items-center justify-center gap-6 text-white/80 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <Zap className="h-4 w-4 text-accent-400" />
-                  </div>
-                  <span>Instant Booking</span>
+            {/* Inputs row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-end">
+              {/* From */}
+              <div className="lg:col-span-3 relative" ref={originRef}>
+                <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">From</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-500 pointer-events-none" />
+                  <input
+                    id="origin-input"
+                    type="text"
+                    value={originQuery}
+                    onChange={(e) => { setOriginQuery(e.target.value); setOrigin(""); setShowOriginDropdown(true); }}
+                    onFocus={() => setShowOriginDropdown(true)}
+                    placeholder="Departure city"
+                    className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors placeholder:text-surface-400"
+                    autoComplete="off"
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <Shield className="h-4 w-4 text-emerald-400" />
+                {showOriginDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-surface-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                    {recentSearches.length > 0 && !originQuery && (
+                      <div>
+                        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 uppercase tracking-wider">Recent</p>
+                        {recentSearches.map((s, i) => (
+                          <button key={i} type="button" onClick={() => selectOrigin(s.origin)}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-brand-50 text-left text-sm text-surface-700 transition-colors">
+                            <RotateCcw className="h-3.5 w-3.5 text-surface-400 flex-shrink-0" />
+                            <span className="font-medium">{s.origin}</span>
+                            <span className="text-surface-400 text-xs ml-auto">→ {s.destination}</span>
+                          </button>
+                        ))}
+                        {filteredOriginCities.length > 0 && <hr className="border-surface-100 my-1" />}
+                      </div>
+                    )}
+                    {filteredOriginCities.map((city) => (
+                      <button key={city} type="button" onClick={() => selectOrigin(city)}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-brand-50 text-left text-sm text-surface-700 transition-colors">
+                        <MapPin className="h-3.5 w-3.5 text-surface-400 flex-shrink-0" />
+                        {city}
+                      </button>
+                    ))}
+                    {filteredOriginCities.length === 0 && originQuery && (
+                      <p className="px-3 py-3 text-sm text-surface-400 text-center">No cities found</p>
+                    )}
                   </div>
-                  <span>Secure Payment</span>
+                )}
+              </div>
+
+              {/* Swap button */}
+              <div className="lg:col-span-1 flex items-end justify-center pb-0.5">
+                <button type="button" onClick={swapCities}
+                  className="w-10 h-10 rounded-full border-2 border-surface-200 bg-white hover:border-brand-400 hover:bg-brand-50 flex items-center justify-center transition-all group">
+                  <ArrowLeftRight className="h-4 w-4 text-surface-400 group-hover:text-brand-600 transition-colors" />
+                </button>
+              </div>
+
+              {/* To */}
+              <div className="lg:col-span-3 relative" ref={destRef}>
+                <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">To</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={destQuery}
+                    onChange={(e) => { setDestQuery(e.target.value); setDestination(""); setShowDestDropdown(true); }}
+                    onFocus={() => setShowDestDropdown(true)}
+                    placeholder="Destination city"
+                    className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors placeholder:text-surface-400"
+                    autoComplete="off"
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                    <Star className="h-4 w-4 text-accent-400" />
+                {showDestDropdown && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-surface-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                    {recentSearches.length > 0 && !destQuery && (
+                      <div>
+                        <p className="px-3 pt-2 pb-1 text-[10px] font-bold text-surface-400 uppercase tracking-wider">Recent</p>
+                        {recentSearches.map((s, i) => (
+                          <button key={i} type="button" onClick={() => selectDest(s.destination)}
+                            className="w-full flex items-center gap-2 px-3 py-2 hover:bg-brand-50 text-left text-sm text-surface-700 transition-colors">
+                            <RotateCcw className="h-3.5 w-3.5 text-surface-400 flex-shrink-0" />
+                            <span className="font-medium">{s.destination}</span>
+                            <span className="text-surface-400 text-xs ml-auto">{s.origin} →</span>
+                          </button>
+                        ))}
+                        {filteredDestCities.length > 0 && <hr className="border-surface-100 my-1" />}
+                      </div>
+                    )}
+                    {filteredDestCities.map((city) => (
+                      <button key={city} type="button" onClick={() => selectDest(city)}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-brand-50 text-left text-sm text-surface-700 transition-colors">
+                        <MapPin className="h-3.5 w-3.5 text-surface-400 flex-shrink-0" />
+                        {city}
+                      </button>
+                    ))}
+                    {filteredDestCities.length === 0 && destQuery && (
+                      <p className="px-3 py-3 text-sm text-surface-400 text-center">No cities found</p>
+                    )}
                   </div>
-                  <span>Best Prices</span>
+                )}
+              </div>
+
+              {/* Journey date */}
+              <div className="lg:col-span-2">
+                <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">Journey Date</label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={date}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(e) => setDate(e.target.value)}
+                    className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
+                  />
                 </div>
               </div>
-            </div>
 
-            {/* Continue Button */}
-            <button
-              onClick={() => navigate("/routes")}
-              className="btn-primary !py-4 !px-8 text-lg font-bold inline-flex items-center gap-3 shadow-2xl hover:shadow-brand hover:scale-105 transition-all duration-300 animate-fade-in-up animate-delay-500"
-              id="continue-to-routes"
-            >
-              Explore Available Routes
-              <ArrowRight className="h-6 w-6" />
-            </button>
+              {/* Return date (round-way only) */}
+              {tripType === "round-way" && (
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider mb-1.5">Return Date</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 pointer-events-none" />
+                    <input
+                      type="date"
+                      value={returnDate}
+                      min={date || new Date().toISOString().split("T")[0]}
+                      onChange={(e) => setReturnDate(e.target.value)}
+                      className="w-full pl-9 pr-3 py-3 border-2 border-surface-200 rounded-xl text-sm font-medium text-surface-900 focus:outline-none focus:border-brand-500 transition-colors cursor-pointer"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Search button */}
+              <div className={tripType === "round-way" ? "lg:col-span-1" : "lg:col-span-3"}>
+                <label className="block text-xs font-bold text-transparent uppercase tracking-wider mb-1.5 select-none">.</label>
+                <button
+                  type="submit"
+                  disabled={!origin || !destination || !date}
+                  className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg hover:shadow-brand text-sm"
+                  id="hero-search-btn"
+                >
+                  <Search className="h-4 w-4" />
+                  Search
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {/* Trust pills */}
+          <div className="flex flex-wrap items-center justify-center gap-6 mt-8 text-white/70 text-sm">
+            {[
+              { icon: Zap, label: "Instant Booking" },
+              { icon: Shield, label: "Secure Payment" },
+              { icon: Star, label: "Best Prices" },
+              { icon: Tag, label: "Exclusive Deals" },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
+                  <Icon className="h-3.5 w-3.5 text-accent-400" />
+                </div>
+                <span>{label}</span>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -288,6 +529,76 @@ export function Home() {
         </div>
       </section>
 
+      {/* ──── NOTICES ──── */}
+      {visibleNotices.length > 0 && (
+        <section className="bg-amber-50 border-y border-amber-200" id="notices-section">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-3">
+            {visibleNotices.map((notice) => (
+              <div key={notice.id} className="flex items-start gap-3 bg-white border border-amber-200 rounded-xl p-4 shadow-sm">
+                <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Megaphone className="h-5 w-5 text-amber-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-surface-900 text-sm">{notice.title}</p>
+                  <p className="text-surface-600 text-sm mt-0.5 whitespace-pre-line">{notice.body}</p>
+                </div>
+                <button
+                  onClick={() => dismissNotice(notice.id)}
+                  className="p-1.5 rounded-lg hover:bg-amber-100 text-surface-400 hover:text-surface-700 transition-colors flex-shrink-0"
+                  title="Dismiss"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ──── RECENT SEARCHES ──── */}
+      {recentSearches.length > 0 && (
+        <section className="py-10 bg-surface-50" id="recent-searches">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-xl font-bold text-surface-900 mb-5">Your Recent Searches</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {recentSearches.map((s, i) => {
+                const from = new Date(s.date);
+                const fmtDate = from.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-");
+                return (
+                  <button
+                    key={i}
+                    onClick={() => handleRecentClick(s)}
+                    className="group bg-white border border-surface-200 rounded-2xl p-5 text-left hover:border-brand-300 hover:shadow-elevation-2 transition-all duration-200"
+                  >
+                    <div className="w-9 h-9 rounded-xl bg-brand-50 flex items-center justify-center mb-3 group-hover:bg-brand-100 transition-colors">
+                      <RotateCcw className="h-4 w-4 text-brand-600" />
+                    </div>
+                    <div className="flex items-center gap-1.5 font-bold text-surface-900 text-base">
+                      {s.origin}
+                      <ArrowRight className="h-3.5 w-3.5 text-surface-400 flex-shrink-0" />
+                      {s.destination}
+                    </div>
+                    <p className="text-surface-500 text-xs mt-1">{fmtDate}</p>
+                    <p className="text-surface-400 text-xs">{s.tripType}</p>
+                    <p className="text-brand-600 text-xs font-semibold mt-3 group-hover:underline">Check Prices &rsaquo;</p>
+                  </button>
+                );
+              })}
+              {/* Start a new search card */}
+              <button
+                onClick={() => document.getElementById("origin-input")?.focus()}
+                className="bg-surface-100 border border-dashed border-surface-300 rounded-2xl p-5 flex flex-col items-center justify-center gap-2 hover:bg-surface-200 transition-colors"
+              >
+                <div className="w-10 h-10 rounded-full bg-surface-200 flex items-center justify-center">
+                  <Search className="h-5 w-5 text-surface-400" />
+                </div>
+                <p className="text-surface-500 text-sm font-medium">Start a new search</p>
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ──── POPULAR ROUTES ──── */}
       <section className="py-20 bg-white" id="popular-routes">
         <div ref={routes} className="scroll-fade max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -307,7 +618,12 @@ export function Home() {
               popularTrips.map((route, i) => (
                 <button
                   key={route.id}
-                  onClick={() => navigate(`/search?origin=${route.origin_city}&destination=${route.destination_city}&date=${route.departure_datetime.split('T')[0]}`)}
+                  onClick={() => {
+                    const d = route.departure_datetime.split('T')[0];
+                    saveRecentSearch({ origin: route.origin_city, destination: route.destination_city, date: d, tripType: "Round Way", savedAt: Date.now() });
+                    setRecentSearches(getRecentSearches());
+                    navigate(`/search?origin=${route.origin_city}&destination=${route.destination_city}&date=${d}`);
+                  }}
                   className="group card-premium p-0 overflow-hidden text-left"
                   id={`route-card-${i}`}
                 >

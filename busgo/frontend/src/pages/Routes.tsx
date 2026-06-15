@@ -7,6 +7,19 @@ import {
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
+const RECENT_SEARCHES_KEY = "busgo_recent_searches";
+const MAX_RECENT_SEARCHES = 4;
+
+function saveRecentSearch(origin: string, destination: string, date: string) {
+  if (!origin || !destination) return;
+  const existing = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+  const filtered = existing.filter(
+    (s: any) => !(s.origin === origin && s.destination === destination)
+  );
+  const updated = [{ origin, destination, date, tripType: "Round Way", savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+}
+
 interface Trip {
   trip_id: string;
   operator_name: string;
@@ -697,7 +710,12 @@ export function Routes() {
                             <p className="text-[10px] text-surface-400 font-semibold uppercase tracking-wider">per seat</p>
                           </div>
                           <button
-                            onClick={() =>
+                            onClick={() => {
+                              saveRecentSearch(
+                                trip.origin_city,
+                                trip.destination_city,
+                                new Date(trip.departure_datetime).toISOString().split("T")[0]
+                              );
                               navigate(`/booking/select-seats/${trip.trip_id}`, {
                                 state: {
                                   origin: trip.origin_city,
@@ -707,8 +725,8 @@ export function Routes() {
                                   operator: trip.operator_name,
                                   departureTime: departure,
                                 },
-                              })
-                            }
+                              });
+                            }}
                             className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 shrink-0 cursor-pointer"
                             id={`select-${trip.trip_id}`}
                           >

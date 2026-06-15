@@ -8,5 +8,7 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
     INVENTORY_SERVICE_URL: str = os.getenv("INVENTORY_SERVICE_URL", "https://busgo-nhbi.onrender.com/api/inventory")
     DEALS_SERVICE_URL: str = os.getenv("DEALS_SERVICE_URL", "https://busgo-nhbi.onrender.com/api/deals")
+    PAYMENT_SERVICE_URL: str = os.getenv("PAYMENT_SERVICE_URL", "http://payment-service:8000")
+    BANK_SERVICE_URL: str = os.getenv("BANK_SERVICE_URL", "http://bank-service:8000")
 
 settings = Settings()

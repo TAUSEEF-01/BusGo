@@ -1,17 +1,26 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowRight, Bus, Clock, MapPin, Star, Info, X } from "lucide-react";
+import { ArrowRight, Bus, Clock, MapPin, Star, Info, X, ChevronDown } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
 /* ─── Seat Layout ──────────────────────────────────── */
 type SeatStatus = "available" | "booked" | "ladies" | "selected";
 
+const MAX_SEATS = 4;
+
 interface Seat {
   id: string;
   row: number;
   col: number;
   status: SeatStatus;
+}
+
+interface RoutePoint {
+  name: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
 }
 
 function generateDefaultLayout(): Seat[] {
@@ -39,8 +48,15 @@ export function SelectSeats() {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [tripDetails, setTripDetails] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [boardingPoint, setBoardingPoint] = useState<string>("");
+  const [droppingPoint, setDroppingPoint] = useState<string>("");
   const selected = seats.filter((s) => s.status === "selected");
   const pricePerSeat = state.price || tripDetails?.fare_amount || 850;
+
+  const boardingPoints: RoutePoint[] = tripDetails?.boarding_points || [];
+  const droppingPoints: RoutePoint[] = tripDetails?.dropping_points || [];
+  const selectedBoarding = boardingPoints.find((p) => p.name === boardingPoint);
+  const selectedDropping = droppingPoints.find((p) => p.name === droppingPoint);
 
   useEffect(() => {
     if (trip_id) {
@@ -53,7 +69,10 @@ export function SelectSeats() {
     try {
       const res = await apiClient.get(`/api/operators/trips/${trip_id}?_t=${Date.now()}`);
       if (res.data.success) {
-        setTripDetails(res.data.data);
+        const data = res.data.data;
+        setTripDetails(data);
+        if (data.boarding_points?.length > 0) setBoardingPoint(data.boarding_points[0].name);
+        if (data.dropping_points?.length > 0) setDroppingPoint(data.dropping_points[0].name);
       }
     } catch (err) {
       console.error("Failed to fetch trip details", err);
@@ -97,15 +116,26 @@ export function SelectSeats() {
   };
 
   const toggleSeat = (id: string) => {
-    setSeats((prev) =>
-      prev.map((s) => {
+    setSeats((prev) => {
+      const target = prev.find((s) => s.id === id);
+      if (!target || target.status === "booked") return prev;
+
+      // Deselecting is always allowed
+      const isSelecting = target.status !== "selected";
+      if (isSelecting) {
+        const selectedCount = prev.filter((s) => s.status === "selected").length;
+        if (selectedCount >= MAX_SEATS) {
+          toast.error(`Maximum ${MAX_SEATS} seats can be selected.`);
+          return prev;
+        }
+      }
+
+      return prev.map((s) => {
         if (s.id !== id) return s;
-        if (s.status === "booked") return s;
         if (s.status === "selected") return { ...s, status: "available" };
-        if (s.status === "ladies") return { ...s, status: "selected" };
         return { ...s, status: "selected" };
-      })
-    );
+      });
+    });
   };
 
   const removeSeat = (id: string) => {
@@ -155,6 +185,12 @@ export function SelectSeats() {
                     <span className="text-xs font-medium text-surface-600">{item.label}</span>
                   </div>
                 ))}
+              </div>
+
+              {/* Max seats notice */}
+              <div className="flex items-center justify-center mb-6 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                <Info className="h-4 w-4 text-amber-600 mr-2 flex-shrink-0" />
+                <span className="text-sm font-medium text-amber-700">Maximum {MAX_SEATS} seats can be selected.</span>
               </div>
 
               {/* Bus Container */}
@@ -248,6 +284,65 @@ export function SelectSeats() {
                   </div>
                 </div>
 
+                {/* Boarding & Dropping Points */}
+                {(boardingPoints.length > 0 || droppingPoints.length > 0) && (
+                  <div className="rounded-xl border border-surface-200 divide-y divide-surface-200 mb-4 overflow-hidden">
+                    {/* Boarding */}
+                    <div className="p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-brand-50">
+                          <MapPin className="h-3 w-3 text-brand-600" />
+                        </span>
+                        <span className="text-xs font-semibold text-surface-700 uppercase tracking-wide">Boarding Point</span>
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={boardingPoint}
+                          onChange={(e) => setBoardingPoint(e.target.value)}
+                          className="w-full appearance-none pl-3 pr-9 py-2.5 text-sm font-medium text-surface-900 rounded-lg border border-surface-200 bg-surface-50 hover:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent cursor-pointer transition-colors truncate"
+                          id="boarding-point-select"
+                        >
+                          {boardingPoints.length === 0 && <option value="">Not available</option>}
+                          {boardingPoints.map((p, i) => (
+                            <option key={`b-${i}`} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="h-4 w-4 text-surface-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      {selectedBoarding?.address && (
+                        <p className="mt-1.5 text-xs text-surface-500 leading-snug line-clamp-2">{selectedBoarding.address}</p>
+                      )}
+                    </div>
+
+                    {/* Dropping */}
+                    <div className="p-3">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-red-50">
+                          <MapPin className="h-3 w-3 text-red-500" />
+                        </span>
+                        <span className="text-xs font-semibold text-surface-700 uppercase tracking-wide">Dropping Point</span>
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={droppingPoint}
+                          onChange={(e) => setDroppingPoint(e.target.value)}
+                          className="w-full appearance-none pl-3 pr-9 py-2.5 text-sm font-medium text-surface-900 rounded-lg border border-surface-200 bg-surface-50 hover:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent cursor-pointer transition-colors truncate"
+                          id="dropping-point-select"
+                        >
+                          {droppingPoints.length === 0 && <option value="">Not available</option>}
+                          {droppingPoints.map((p, i) => (
+                            <option key={`d-${i}`} value={p.name}>{p.name}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="h-4 w-4 text-surface-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      {selectedDropping?.address && (
+                        <p className="mt-1.5 text-xs text-surface-500 leading-snug line-clamp-2">{selectedDropping.address}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Selected Seats */}
                 {selected.length > 0 ? (
                   <>
@@ -289,21 +384,30 @@ export function SelectSeats() {
 
                 <button
                   onClick={() => {
-                    if (selected.length > 0) {
-                      navigate("/booking/passengers", {
-                        state: {
-                          trip_id: trip_id,
-                          operator_id: state.operator_id || tripDetails?.operator_id,
-                          seats: selected.map((s) => s.id),
-                          totalFare: selected.length * pricePerSeat + 20,
-                          origin: state.origin || tripDetails?.origin_city || "Dhaka",
-                          destination: state.destination || tripDetails?.destination_city || "Chittagong",
-                          date: state.date || (tripDetails?.departure_datetime ? tripDetails.departure_datetime.split('T')[0] : "2026-05-01"),
-                          departureTime: state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM"),
-                          operator: state.operator || tripDetails?.operator_name || "Greenline Paribahan"
-                        },
-                      });
+                    if (selected.length === 0) return;
+                    if (boardingPoints.length > 0 && !boardingPoint) {
+                      toast.error("Please select a boarding point.");
+                      return;
                     }
+                    if (droppingPoints.length > 0 && !droppingPoint) {
+                      toast.error("Please select a dropping point.");
+                      return;
+                    }
+                    navigate("/booking/passengers", {
+                      state: {
+                        trip_id: trip_id,
+                        operator_id: state.operator_id || tripDetails?.operator_id,
+                        seats: selected.map((s) => s.id),
+                        totalFare: selected.length * pricePerSeat + 20,
+                        origin: state.origin || tripDetails?.origin_city || "Dhaka",
+                        destination: state.destination || tripDetails?.destination_city || "Chittagong",
+                        boardingPoint: boardingPoint || undefined,
+                        droppingPoint: droppingPoint || undefined,
+                        date: state.date || (tripDetails?.departure_datetime ? tripDetails.departure_datetime.split('T')[0] : "2026-05-01"),
+                        departureTime: state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM"),
+                        operator: state.operator || tripDetails?.operator_name || "Greenline Paribahan"
+                      },
+                    });
                   }}
                   disabled={selected.length === 0}
                   className="btn-primary w-full flex items-center justify-center gap-2 !py-3 disabled:opacity-50 disabled:cursor-not-allowed"

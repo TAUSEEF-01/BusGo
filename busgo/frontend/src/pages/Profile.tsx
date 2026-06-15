@@ -569,9 +569,11 @@ export function Profile() {
 
                           {/* Status */}
                           <div className="col-span-12 md:col-span-2">
-                            <span className={`badge ${PAYMENT_STATUS_STYLES[payment.status]}`}>
-                              {payment.status}
-                            </span>
+                            {payment.status !== "PENDING" && (
+                              <span className={`badge ${PAYMENT_STATUS_STYLES[payment.status]}`}>
+                                {payment.status}
+                              </span>
+                            )}
                           </div>
 
                           {/* Amount */}

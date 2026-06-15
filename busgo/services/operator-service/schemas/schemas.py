@@ -122,3 +122,5 @@ class TripEnrichedResponse(TripResponse):
     amenities: List[str]
     origin_city: str
     destination_city: str
+    boarding_points: Optional[List[Point]] = None
+    dropping_points: Optional[List[Point]] = None

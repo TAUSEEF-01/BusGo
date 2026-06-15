@@ -5,6 +5,7 @@ from typing import List
 from uuid import UUID
 from datetime import datetime, timezone
 import asyncio
+import logging
 
 from database import get_db
 from models.models import Payment, PaymentStatus, Refund, RefundStatus
@@ -12,6 +13,7 @@ from schemas.schemas import (InitiateRequest, InitiateResponse, CallbackRequest,
                              PaymentResponse, RefundRequest, RefundResponse)
 from api.deps import get_current_user_payload
 from services.booking_client import BookingClient
+from services.bank_client import BankClient
 from services.gateway import MockGateway
 
 import sys
@@ -57,20 +59,47 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         })
         raise HTTPException(status_code=403, detail="Maximum payment attempts exceeded for this trip")
 
-    payment = Payment(
-        booking_id=req.booking_id,
-        user_id=user_id,
-        trip_id=trip_id,
-        amount=req.amount,
-        method=req.method,
-        status=PaymentStatus.PENDING
+    # Verify funds and debit the user's bank/mobile account via bank-service.
+    method_value = req.method.value if hasattr(req.method, "value") else str(req.method)
+    bank_result = await BankClient.verify_debit(
+        user_id=str(user_id),
+        amount=float(req.amount),
+        method=method_value,
+        reference=str(req.booking_id),
     )
-    db.add(payment)
-    await db.commit()
-    await db.refresh(payment)
+    if not bank_result.get("success"):
+        await KafkaProducerClient.publish("audit.log", {
+            "event": "payment.declined", "user_id": user_id,
+            "reason": bank_result.get("message"), "booking_id": str(req.booking_id)
+        })
+        raise HTTPException(status_code=402, detail=bank_result.get("message", "Insufficient balance"))
+
+    try:
+        payment = Payment(
+            booking_id=req.booking_id,
+            user_id=user_id,
+            trip_id=trip_id,
+            amount=req.amount,
+            method=req.method,
+            status=PaymentStatus.PENDING,
+            completed_at=datetime.now(timezone.utc),
+        )
+        db.add(payment)
+        await db.commit()
+        await db.refresh(payment)
+    except Exception as db_err:
+        logging.error(f"Payment record save failed for booking {req.booking_id}: {db_err}")
+        # Debit already went through — credit it back so the user isn't charged.
+        await BankClient.rollback_debit(
+            user_id=str(user_id),
+            amount=float(req.amount),
+            method=method_value,
+            reference=str(req.booking_id),
+        )
+        raise HTTPException(status_code=500, detail="Payment could not be processed. Your account has not been charged. Please try again.")
 
     redirect_url = MockGateway.get_redirect_url(str(payment.id), req.method)
-    
+
     return BaseResponse(success=True, data=InitiateResponse(payment_id=payment.id, redirect_url=redirect_url))
 
 @router.post("/{gateway}/callback", response_model=BaseResponse)

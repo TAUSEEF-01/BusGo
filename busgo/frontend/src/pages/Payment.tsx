@@ -1,12 +1,37 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
-  ArrowRight, CreditCard, Phone, Lock, Shield, CheckCircle, Clock, MapPin, Smartphone,
+  ArrowRight, CreditCard, Lock, Shield, CheckCircle, Clock, MapPin, Smartphone, Wallet, Landmark,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
 type PaymentMethod = "bkash" | "nagad" | "card" | "banking";
+
+// Which bank account type funds each payment method (mirrors backend mapping).
+const METHOD_ACCOUNT_TYPE: Record<PaymentMethod, "MOBILE" | "BANK"> = {
+  bkash: "MOBILE",
+  nagad: "MOBILE",
+  card: "BANK",
+  banking: "BANK",
+};
+
+// PaymentMethod enum value sent to the backend.
+const METHOD_ENUM: Record<PaymentMethod, string> = {
+  bkash: "BKASH",
+  nagad: "NAGAD",
+  card: "CARD",
+  banking: "INTERNET_BANKING",
+};
+
+interface BankAccount {
+  id: string;
+  account_type: "MOBILE" | "BANK";
+  provider: string;
+  account_number: string;
+  balance: number;
+  currency: string;
+}
 
 const METHODS: { id: PaymentMethod; label: string; desc: string; color: string; logo: string }[] = [
   { id: "bkash", label: "bKash", desc: "Pay with bKash mobile wallet", color: "from-pink-500 to-pink-600", logo: "b" },
@@ -29,8 +54,51 @@ export function Payment() {
   const [cvv, setCvv] = useState("");
   const [cardName, setCardName] = useState("");
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [tripId, setTripId] = useState<string | null>(state.trip_id || null);
 
-  const total = state.totalFare || 1720;
+  const [total, setTotal] = useState<number>(state.totalFare || 0);
+
+  // Account that funds the currently selected method.
+  const activeAccount = accounts.find((a) => a.account_type === METHOD_ACCOUNT_TYPE[method]);
+  const insufficient = !!activeAccount && Number(activeAccount.balance) < total;
+
+  // Fetch the user's bank/mobile accounts and balances.
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await apiClient.get("/api/bank/accounts/my");
+        if (mounted && res.data.success) {
+          setAccounts(res.data.data.map((a: any) => ({ ...a, balance: Number(a.balance) })));
+        }
+      } catch (err) {
+        console.error("Failed to load bank accounts", err);
+      } finally {
+        if (mounted) setAccountsLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  // Ensure we have trip_id + accurate total from the booking record.
+  useEffect(() => {
+    if (!booking_id) return;
+    if (tripId && total) return;
+    (async () => {
+      try {
+        const res = await apiClient.get(`/api/bookings/${booking_id}`);
+        if (res.data.success) {
+          const b = res.data.data;
+          if (b.trip_id) setTripId(b.trip_id);
+          if (b.total_fare) setTotal(Number(b.total_fare));
+        }
+      } catch (err) {
+        console.error("Failed to load booking", err);
+      }
+    })();
+  }, [booking_id]);
 
   // Timer countdown
   useEffect(() => {
@@ -71,44 +139,71 @@ export function Payment() {
       return;
     }
     
+    if (!tripId) {
+      toast.error("Could not load booking details. Please refresh and try again.");
+      return;
+    }
+
+    // Pre-flight balance check for a friendly message before hitting the server.
+    if (insufficient) {
+      toast.error(`Insufficient balance in your ${activeAccount?.provider} account.`);
+      return;
+    }
+
     setLoading(true);
     try {
-      // Simulate payment processing delay (in real app, this would call payment gateway)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Mock payment validation - in production, this would verify with payment gateway
-      const paymentSuccessful = true; // Simulate successful payment
-      
-      if (!paymentSuccessful) {
-        toast.error("Payment was declined. Please try again or use a different payment method.");
+      // 1) Initiate payment — payment-service verifies funds and debits the
+      //    user's bank/mobile account via bank-service.
+      const initRes = await apiClient.post("/api/payments/initiate", {
+        booking_id,
+        trip_id: tripId,
+        amount: total,
+        method: METHOD_ENUM[method],
+      });
+
+      if (!initRes.data.success) {
+        toast.error(initRes.data.message || "Payment was declined.");
         setLoading(false);
         return;
       }
-      
-      // Generate payment transaction ID
-      const payment_id = crypto.randomUUID();
-      
-      // Confirm payment with booking service
+
+      const payment_id = initRes.data.data.payment_id;
+
+      // 2) Confirm the booking with the resulting payment id.
       const response = await apiClient.post(`/api/bookings/${booking_id}/confirm-payment`, null, {
-        params: { payment_id }
+        params: { payment_id },
       });
-      
+
       if (response.data.success) {
         toast.success("Payment successful! Your seats are now confirmed.");
-        // Navigate to confirmation page
         navigate(`/booking/confirmation/${booking_id}`);
       } else {
         toast.error(response.data.message || "Payment confirmation failed. Please contact support.");
       }
     } catch (err: any) {
       console.error("Payment error:", err);
-      let errMsg = "Payment processing failed. Your seats have not been booked.";
+      const status = err.response?.status;
       const detail = err.response?.data?.detail;
-      if (typeof detail === "string") {
-        errMsg = detail;
-      } else if (Array.isArray(detail)) {
-        errMsg = detail.map((d: any) => d.msg).join(", ");
+
+      let errMsg = "Payment processing failed. Please try again.";
+
+      if (status === 402) {
+        // Insufficient balance — safe to show the bank message.
+        errMsg = typeof detail === "string" ? detail : "Insufficient balance to complete this payment.";
+        apiClient.get("/api/bank/accounts/my").then((r) => {
+          if (r.data.success) setAccounts(r.data.data.map((a: any) => ({ ...a, balance: Number(a.balance) })));
+        }).catch(() => {});
+      } else if (status === 400) {
+        errMsg = typeof detail === "string" ? detail : "Invalid payment request. Please try again.";
+      } else if (status === 403) {
+        errMsg = "Too many payment attempts. Please contact support.";
+      } else if (status && status >= 500) {
+        // Never show internal server details to the user.
+        errMsg = typeof detail === "string" && detail.length < 120 && !detail.includes("sqlalchemy") && !detail.includes("asyncpg")
+          ? detail
+          : "Something went wrong on our end. Please try again in a moment.";
       }
+
       toast.error(errMsg);
     } finally {
       setLoading(false);
@@ -177,6 +272,60 @@ export function Payment() {
                     : "Your seats are temporarily held for you."}
                 </p>
               </div>
+            </div>
+
+            {/* Account Balances */}
+            <div className="card-premium p-6">
+              <h2 className="text-lg font-bold text-surface-900 mb-1">Your Accounts</h2>
+              <p className="text-sm text-surface-500 mb-4">Your balance is checked before payment is processed.</p>
+              {accountsLoading ? (
+                <div className="flex justify-center py-6">
+                  <div className="w-7 h-7 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+                </div>
+              ) : accounts.length === 0 ? (
+                <p className="text-sm text-surface-500">No linked accounts found.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {accounts.map((a) => {
+                    const isActive = a.account_type === METHOD_ACCOUNT_TYPE[method];
+                    const low = isActive && Number(a.balance) < total;
+                    return (
+                      <div
+                        key={a.id}
+                        className={`p-4 rounded-xl border-2 transition-all ${
+                          isActive
+                            ? low
+                              ? "border-red-300 bg-red-50"
+                              : "border-brand-400 bg-brand-50"
+                            : "border-surface-200 bg-white"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-8 h-8 rounded-lg bg-white border border-surface-200 flex items-center justify-center">
+                            {a.account_type === "MOBILE" ? (
+                              <Wallet className="h-4 w-4 text-pink-500" />
+                            ) : (
+                              <Landmark className="h-4 w-4 text-emerald-600" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-surface-900 truncate">{a.provider}</p>
+                            <p className="text-xs text-surface-500 truncate">{a.account_number}</p>
+                          </div>
+                        </div>
+                        <p className={`text-lg font-extrabold ${low ? "text-red-600" : "text-surface-900"}`}>
+                          ৳ {Number(a.balance).toLocaleString()}
+                        </p>
+                        {isActive && (
+                          <p className={`text-xs font-medium mt-0.5 ${low ? "text-red-600" : "text-brand-600"}`}>
+                            {low ? "Insufficient for this payment" : "Selected for this payment"}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="card-premium p-6">
@@ -292,8 +441,8 @@ export function Payment() {
 
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="btn-primary w-full flex items-center justify-center gap-2 !py-3.5 text-base disabled:opacity-60"
+                  disabled={loading || insufficient}
+                  className="btn-primary w-full flex items-center justify-center gap-2 !py-3.5 text-base disabled:opacity-60 disabled:cursor-not-allowed"
                   id="pay-now"
                 >
                   {loading ? (
@@ -301,6 +450,8 @@ export function Payment() {
                       <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       Processing...
                     </div>
+                  ) : insufficient ? (
+                    <>Insufficient Balance</>
                   ) : (
                     <>
                       <Lock className="h-4 w-4" />

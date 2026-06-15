@@ -1,4 +1,7 @@
 import httpx
+import logging
+from datetime import datetime, timezone
+from typing import Optional
 from core.config import settings
 
 class ExternalServices:
@@ -67,3 +70,54 @@ class ExternalServices:
             )
             res.raise_for_status()
             return res.json()
+
+    @staticmethod
+    async def get_payment_completed_at(payment_id: str) -> Optional[datetime]:
+        if not payment_id or payment_id == "None":
+            return None
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{settings.PAYMENT_SERVICE_URL}/{payment_id}",
+                    timeout=5.0,
+                )
+                if res.status_code == 200:
+                    data = res.json().get("data", {})
+                    completed_at_str = data.get("completed_at")
+                    if completed_at_str:
+                        dt = datetime.fromisoformat(completed_at_str)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        return dt
+        except Exception as e:
+            logging.error(f"Failed to fetch payment {payment_id}: {e}")
+        return None
+
+    @staticmethod
+    async def credit_refund(user_id: str, amount: float, payment_id: str, booking_id: str) -> bool:
+        """Fetch payment method then credit refund to the user's account via bank-service."""
+        try:
+            async with httpx.AsyncClient() as client:
+                # Get the payment to find which method was used
+                pay_res = await client.get(f"{settings.PAYMENT_SERVICE_URL}/{payment_id}", timeout=5.0)
+                if pay_res.status_code != 200:
+                    return False
+                method = pay_res.json().get("data", {}).get("method")
+                if not method:
+                    return False
+
+                credit_res = await client.post(
+                    f"{settings.BANK_SERVICE_URL}/credit",
+                    json={
+                        "user_id": user_id,
+                        "amount": amount,
+                        "method": method,
+                        "reference": booking_id,
+                        "description": "Cancellation refund (80%)",
+                    },
+                    timeout=8.0,
+                )
+                return credit_res.status_code == 200 and credit_res.json().get("success", False)
+        except Exception as e:
+            logging.error(f"Failed to credit refund for booking {booking_id}: {e}")
+            return False

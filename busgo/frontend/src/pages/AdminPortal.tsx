@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard, ChevronLeft, ArrowRight, Clock, MapPin, Calendar, Ticket } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard, ChevronLeft, ArrowRight, Clock, MapPin, Calendar, Ticket, Landmark, Wallet, Search, Check, RefreshCw, Megaphone, Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
@@ -8,9 +8,12 @@ import { toast } from "react-hot-toast";
 export function AdminPortal() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("Dashboard");
+  const validTabs = ["Dashboard", "Operators", "Routes", "Users", "User History", "Transactions", "Bank", "Notices", "Settings"];
+  const hashTab = decodeURIComponent(window.location.hash.replace("#", ""));
+  const [activeTab, setActiveTab] = useState(validTabs.includes(hashTab) ? hashTab : "Dashboard");
   const [loading, setLoading] = useState(true);
   const [tabLoading, setTabLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalBookings: 0,
@@ -30,6 +33,19 @@ export function AdminPortal() {
   const [selectedOperator, setSelectedOperator] = useState<any | null>(null);
   const [detailTab, setDetailTab] = useState<"history" | "payments">("history");
   const [opDetailTab, setOpDetailTab] = useState<"trips" | "routes">("trips");
+
+  // Bank section state
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
+  const [bankSearch, setBankSearch] = useState("");
+  const [bankUsers, setBankUsers] = useState<any[]>([]);
+  const [editBalances, setEditBalances] = useState<Record<string, string>>({});
+  const [savingAccount, setSavingAccount] = useState<string | null>(null);
+
+  // Notices state
+  const [adminNotices, setAdminNotices] = useState<any[]>([]);
+  const [noticeForm, setNoticeForm] = useState({ title: "", body: "", is_active: true });
+  const [editingNotice, setEditingNotice] = useState<any | null>(null);
+  const [savingNotice, setSavingNotice] = useState(false);
 
   const userStore = useAuthStore(state => state.user);
   const logout = useAuthStore(state => state.logout);
@@ -52,6 +68,36 @@ export function AdminPortal() {
     }
   };
 
+  const saveBalance = async (accountId: string) => {
+    const raw = editBalances[accountId];
+    if (raw === undefined || raw === "") {
+      toast.error("Enter a balance");
+      return;
+    }
+    const balance = Number(raw);
+    if (isNaN(balance) || balance < 0) {
+      toast.error("Invalid balance");
+      return;
+    }
+    setSavingAccount(accountId);
+    try {
+      const res = await apiClient.post(`/api/bank/admin/accounts/${accountId}/set-balance`, { balance });
+      if (res.data.success) {
+        toast.success("Balance updated");
+        setBankAccounts((prev) => prev.map((a) => a.id === accountId ? { ...a, balance: res.data.data.balance } : a));
+        setEditBalances((prev) => {
+          const next = { ...prev };
+          delete next[accountId];
+          return next;
+        });
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to update balance");
+    } finally {
+      setSavingAccount(null);
+    }
+  };
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -68,58 +114,83 @@ export function AdminPortal() {
     fetchStats();
   }, []);
 
+  // Keep URL hash in sync so refresh restores the active tab.
   useEffect(() => {
-    const fetchTabData = async () => {
-      if (activeTab === "Dashboard" || activeTab === "Finance" || activeTab === "Settings") return;
-      
-      setTabLoading(true);
-      try {
-        if (activeTab === "User History") {
-          const res = await apiClient.get('/api/admin/user-history');
-          if (res.data.success) setUserHistory(res.data.data);
-        } else if (activeTab === "Transactions") {
-          const [transRes, sumRes] = await Promise.all([
-            apiClient.get('/api/admin/transactions'),
-            apiClient.get('/api/admin/transactions/summary')
-          ]);
-          if (transRes.data.success) setTransactions(transRes.data.data);
-          if (sumRes.data.success) setTransactionSummary(sumRes.data.data);
-        } else if (activeTab === "Users") {
-          const [usersRes, historyRes, transRes] = await Promise.all([
-            apiClient.get('/api/admin/users'),
-            apiClient.get('/api/admin/user-history'),
-            apiClient.get('/api/admin/transactions')
-          ]);
-          if (usersRes.data.success) setUsers(usersRes.data.data);
-          if (historyRes.data.success) setUserHistory(historyRes.data.data);
-          if (transRes.data.success) setTransactions(transRes.data.data);
-        } else if (activeTab === "Operators") {
-          const [operatorsRes, tripsRes, routesRes, historyRes] = await Promise.all([
-            apiClient.get('/api/admin/operators'),
-            apiClient.get('/api/admin/trips'),
-            apiClient.get('/api/admin/routes'),
-            apiClient.get('/api/admin/user-history')
-          ]);
-          if (operatorsRes.data.success) setOperators(operatorsRes.data.data);
-          if (tripsRes.data.success) setTrips(tripsRes.data.data);
-          if (routesRes.data.success) setRoutes(routesRes.data.data);
-          if (historyRes.data.success) setUserHistory(historyRes.data.data);
-        } else {
-          const response = await apiClient.get(`/api/admin/${activeTab.toLowerCase()}`);
-          if (response.data.success) {
-            if (activeTab === "Operators") setOperators(response.data.data);
-            if (activeTab === "Routes") setRoutes(response.data.data);
-            if (activeTab === "Users") setUsers(response.data.data);
-          }
-        }
-      } catch (error) {
-        console.error(`Failed to fetch ${activeTab}:`, error);
-      } finally {
-        setTabLoading(false);
-      }
-    };
-    fetchTabData();
+    window.location.hash = encodeURIComponent(activeTab);
   }, [activeTab]);
+
+  const fetchTabData = useCallback(async (tab: string) => {
+    if (tab === "Dashboard" || tab === "Finance" || tab === "Settings") return;
+    setTabLoading(true);
+    try {
+      if (tab === "User History") {
+        const res = await apiClient.get('/api/admin/user-history');
+        if (res.data.success) setUserHistory(res.data.data);
+      } else if (tab === "Transactions") {
+        const [transRes, sumRes] = await Promise.all([
+          apiClient.get('/api/admin/transactions'),
+          apiClient.get('/api/admin/transactions/summary')
+        ]);
+        if (transRes.data.success) setTransactions(transRes.data.data);
+        if (sumRes.data.success) setTransactionSummary(sumRes.data.data);
+      } else if (tab === "Users") {
+        const [usersRes, historyRes, transRes] = await Promise.all([
+          apiClient.get('/api/admin/users'),
+          apiClient.get('/api/admin/user-history'),
+          apiClient.get('/api/admin/transactions')
+        ]);
+        if (usersRes.data.success) setUsers(usersRes.data.data);
+        if (historyRes.data.success) setUserHistory(historyRes.data.data);
+        if (transRes.data.success) setTransactions(transRes.data.data);
+      } else if (tab === "Bank") {
+        const [acctRes, usersRes] = await Promise.all([
+          apiClient.get('/api/bank/admin/accounts'),
+          apiClient.get('/api/admin/users'),
+        ]);
+        if (acctRes.data.success) setBankAccounts(acctRes.data.data);
+        if (usersRes.data.success) setBankUsers(usersRes.data.data);
+      } else if (tab === "Operators") {
+        const [operatorsRes, tripsRes, routesRes, historyRes] = await Promise.all([
+          apiClient.get('/api/admin/operators'),
+          apiClient.get('/api/admin/trips'),
+          apiClient.get('/api/admin/routes'),
+          apiClient.get('/api/admin/user-history')
+        ]);
+        if (operatorsRes.data.success) setOperators(operatorsRes.data.data);
+        if (tripsRes.data.success) setTrips(tripsRes.data.data);
+        if (routesRes.data.success) setRoutes(routesRes.data.data);
+        if (historyRes.data.success) setUserHistory(historyRes.data.data);
+      } else if (tab === "Routes") {
+        const response = await apiClient.get('/api/admin/routes');
+        if (response.data.success) setRoutes(response.data.data);
+      } else if (tab === "Notices") {
+        const res = await apiClient.get('/api/admin/notices');
+        if (res.data.success) setAdminNotices(res.data.data);
+      }
+    } catch (error) {
+      console.error(`Failed to fetch ${tab}:`, error);
+    } finally {
+      setTabLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTabData(activeTab);
+  }, [activeTab, fetchTabData]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (activeTab === "Dashboard") {
+      try {
+        const response = await apiClient.get('/api/admin/dashboard-stats');
+        if (response.data.success) setStats(response.data.data);
+      } catch (e) { console.error(e); }
+    } else {
+      await fetchTabData(activeTab);
+    }
+    setRefreshing(false);
+  };
+
 
   const navItems = [
     { id: "Dashboard", icon: Activity, label: "Dashboard" },
@@ -128,6 +199,8 @@ export function AdminPortal() {
     { id: "Users", icon: Users, label: "Users" },
     { id: "User History", icon: History, label: "User History" },
     { id: "Transactions", icon: CreditCard, label: "Transactions" },
+    { id: "Bank", icon: Landmark, label: "Bank" },
+    { id: "Notices", icon: Megaphone, label: "Notices" },
   ];
 
   const renderUserDetails = () => {
@@ -318,13 +391,15 @@ export function AdminPortal() {
                       <td className="py-3 px-4 text-sm font-semibold text-surface-800">{t.method}</td>
                       <td className="py-3 px-4 text-sm font-bold text-surface-900">৳ {t.amount}</td>
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                          t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
-                          t.status === 'FAILED' ? 'bg-red-100 text-red-700' : 
-                          'bg-amber-100 text-amber-700'
-                        }`}>
-                          {t.status}
-                        </span>
+                        {t.status !== 'PENDING' && (
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                            t.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {t.status}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -603,7 +678,15 @@ export function AdminPortal() {
           <button className="lg:hidden p-2 -ml-2 text-surface-500 hover:bg-surface-100 rounded-lg" onClick={() => setIsSidebarOpen(true)}>
             <Menu className="w-5 h-5" />
           </button>
-          <div className="ml-auto flex items-center gap-4 relative">
+          <div className="ml-auto flex items-center gap-3 relative">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing || tabLoading}
+              title={`Refresh ${activeTab}`}
+              className="p-2 rounded-lg text-surface-500 hover:text-brand-600 hover:bg-surface-100 transition-colors disabled:opacity-40"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+            </button>
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 hover:bg-surface-50 p-1 pr-2 rounded-full transition-colors"
@@ -988,13 +1071,15 @@ export function AdminPortal() {
                                 <td className="py-3 px-4 text-sm font-medium text-surface-900">{t.method}</td>
                                 <td className="py-3 px-4 text-sm font-bold text-surface-900">৳ {t.amount}</td>
                                 <td className="py-3 px-4">
-                                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                                    t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 
-                                    t.status === 'FAILED' ? 'bg-red-100 text-red-700' : 
-                                    'bg-amber-100 text-amber-700'
-                                  }`}>
-                                    {t.status}
-                                  </span>
+                                  {t.status !== 'PENDING' && (
+                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                                      t.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' :
+                                      t.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                                      'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {t.status}
+                                    </span>
+                                  )}
                                 </td>
                               </tr>
                             ))}
@@ -1007,6 +1092,241 @@ export function AdminPortal() {
                     </div>
                   )}
 
+                  {activeTab === "Bank" && (() => {
+                    const userMap: Record<string, any> = {};
+                    bankUsers.forEach((u) => { userMap[u.id] = u; });
+                    const q = bankSearch.trim().toLowerCase();
+                    const filtered = bankAccounts.filter((a) => {
+                      if (!q) return true;
+                      const u = userMap[a.user_id];
+                      return (
+                        a.account_number.toLowerCase().includes(q) ||
+                        a.provider.toLowerCase().includes(q) ||
+                        (u && (u.full_name?.toLowerCase().includes(q) || u.phone?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)))
+                      );
+                    });
+                    return (
+                      <div className="flex flex-col">
+                        <div className="p-4 border-b border-surface-200 bg-surface-50">
+                          <div className="relative max-w-md">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
+                            <input
+                              type="text"
+                              value={bankSearch}
+                              onChange={(e) => setBankSearch(e.target.value)}
+                              placeholder="Search by user, phone, provider or account number"
+                              className="input-premium !pl-9 !py-2 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-surface-50 border-b border-surface-200">
+                                <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">User</th>
+                                <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Account</th>
+                                <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Number</th>
+                                <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider">Balance</th>
+                                <th className="py-3 px-4 text-xs font-bold text-surface-500 uppercase tracking-wider text-right">Set Balance</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-surface-200">
+                              {filtered.map((a) => {
+                                const u = userMap[a.user_id];
+                                const editing = editBalances[a.id];
+                                return (
+                                  <tr key={a.id} className="hover:bg-surface-50 transition-colors">
+                                    <td className="py-3 px-4 text-sm font-medium text-surface-900">
+                                      {u?.full_name || "Unknown"}
+                                      <br/>
+                                      <span className="text-xs text-surface-400 font-normal">{u?.phone || a.user_id.substring(0, 8)}</span>
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-surface-800">
+                                        {a.account_type === "MOBILE" ? <Wallet className="h-4 w-4 text-pink-500" /> : <Landmark className="h-4 w-4 text-emerald-600" />}
+                                        {a.provider}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-sm font-mono text-surface-500">{a.account_number}</td>
+                                    <td className="py-3 px-4 text-sm font-extrabold text-surface-900">৳ {Number(a.balance).toLocaleString()}</td>
+                                    <td className="py-3 px-4">
+                                      <div className="flex items-center justify-end gap-2">
+                                        <input
+                                          type="number"
+                                          value={editing ?? ""}
+                                          onChange={(e) => setEditBalances((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                                          placeholder={String(Number(a.balance))}
+                                          className="w-28 px-2 py-1.5 text-sm rounded-lg border border-surface-200 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                                        />
+                                        <button
+                                          onClick={() => saveBalance(a.id)}
+                                          disabled={savingAccount === a.id || editing === undefined || editing === ""}
+                                          className="text-xs font-bold px-3 py-1.5 rounded-lg bg-brand-50 text-brand-600 hover:bg-brand-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                                        >
+                                          {savingAccount === a.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                                          Save
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {filtered.length === 0 && (
+                                <tr><td colSpan={5} className="py-8 text-center text-surface-500">No bank accounts found.</td></tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {activeTab === "Notices" && (
+                    <div className="p-6 space-y-6">
+                      {/* Create / Edit form */}
+                      <div className="bg-white border border-surface-200 rounded-2xl p-6 shadow-elevation-1">
+                        <h3 className="text-base font-bold text-surface-900 mb-4 flex items-center gap-2">
+                          {editingNotice ? <><Pencil className="h-4 w-4 text-brand-600" /> Edit Notice</> : <><Plus className="h-4 w-4 text-brand-600" /> New Notice</>}
+                        </h3>
+                        <div className="space-y-3">
+                          <input
+                            type="text"
+                            value={noticeForm.title}
+                            onChange={(e) => setNoticeForm((f) => ({ ...f, title: e.target.value }))}
+                            placeholder="Notice title (e.g. Eid Trip Notice)"
+                            className="input-premium w-full"
+                          />
+                          <textarea
+                            value={noticeForm.body}
+                            onChange={(e) => setNoticeForm((f) => ({ ...f, body: e.target.value }))}
+                            placeholder="Notice body — supports line breaks"
+                            rows={4}
+                            className="input-premium w-full resize-none"
+                          />
+                          <div className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={noticeForm.is_active}
+                                onChange={(e) => setNoticeForm((f) => ({ ...f, is_active: e.target.checked }))}
+                                className="w-4 h-4 accent-brand-600"
+                              />
+                              <span className="text-sm text-surface-700 font-medium">Publish immediately (visible to users)</span>
+                            </label>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              disabled={savingNotice || !noticeForm.title.trim() || !noticeForm.body.trim()}
+                              onClick={async () => {
+                                setSavingNotice(true);
+                                try {
+                                  if (editingNotice) {
+                                    const res = await apiClient.patch(`/api/admin/notices/${editingNotice.id}`, noticeForm);
+                                    if (res.data.success) {
+                                      setAdminNotices((prev) => prev.map((n) => n.id === editingNotice.id ? res.data.data : n));
+                                      toast.success("Notice updated");
+                                    }
+                                  } else {
+                                    const res = await apiClient.post('/api/admin/notices', noticeForm);
+                                    if (res.data.success) {
+                                      setAdminNotices((prev) => [res.data.data, ...prev]);
+                                      toast.success("Notice published");
+                                    }
+                                  }
+                                  setNoticeForm({ title: "", body: "", is_active: true });
+                                  setEditingNotice(null);
+                                } catch (err: any) {
+                                  toast.error(err.response?.data?.detail || "Failed to save notice");
+                                } finally {
+                                  setSavingNotice(false);
+                                }
+                              }}
+                              className="btn-primary !py-2 !px-5 text-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {savingNotice ? <Loader2 className="h-4 w-4 animate-spin" /> : editingNotice ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                              {editingNotice ? "Save Changes" : "Publish Notice"}
+                            </button>
+                            {editingNotice && (
+                              <button
+                                onClick={() => { setEditingNotice(null); setNoticeForm({ title: "", body: "", is_active: true }); }}
+                                className="btn-secondary !py-2 !px-5 text-sm"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Existing notices list */}
+                      <div className="space-y-3">
+                        {adminNotices.length === 0 && (
+                          <div className="text-center py-12 text-surface-400 italic">No notices yet. Create one above.</div>
+                        )}
+                        {adminNotices.map((n) => (
+                          <div key={n.id} className={`bg-white border rounded-2xl p-5 shadow-elevation-1 ${n.is_active ? "border-amber-200" : "border-surface-200 opacity-60"}`}>
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex items-start gap-3 min-w-0">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${n.is_active ? "bg-amber-100" : "bg-surface-100"}`}>
+                                  <Megaphone className={`h-4 w-4 ${n.is_active ? "text-amber-600" : "text-surface-400"}`} />
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <p className="font-bold text-surface-900">{n.title}</p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${n.is_active ? "bg-emerald-50 text-emerald-700" : "bg-surface-100 text-surface-500"}`}>
+                                      {n.is_active ? "Live" : "Hidden"}
+                                    </span>
+                                  </div>
+                                  <p className="text-surface-600 text-sm mt-1 whitespace-pre-line">{n.body}</p>
+                                  <p className="text-surface-400 text-xs mt-2">
+                                    {new Date(n.created_at).toLocaleString()}
+                                    {n.updated_at !== n.created_at && ` · edited ${new Date(n.updated_at).toLocaleString()}`}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <button
+                                  title={n.is_active ? "Hide notice" : "Publish notice"}
+                                  onClick={async () => {
+                                    try {
+                                      const res = await apiClient.patch(`/api/admin/notices/${n.id}`, { is_active: !n.is_active });
+                                      if (res.data.success) setAdminNotices((prev) => prev.map((x) => x.id === n.id ? res.data.data : x));
+                                      toast.success(n.is_active ? "Notice hidden" : "Notice published");
+                                    } catch { toast.error("Failed to update notice"); }
+                                  }}
+                                  className="p-2 rounded-lg hover:bg-surface-100 text-surface-400 hover:text-surface-700 transition-colors"
+                                >
+                                  {n.is_active ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                                <button
+                                  title="Edit"
+                                  onClick={() => { setEditingNotice(n); setNoticeForm({ title: n.title, body: n.body, is_active: n.is_active }); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                                  className="p-2 rounded-lg hover:bg-brand-50 text-surface-400 hover:text-brand-600 transition-colors"
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
+                                  title="Delete"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete notice "${n.title}"?`)) return;
+                                    try {
+                                      await apiClient.delete(`/api/admin/notices/${n.id}`);
+                                      setAdminNotices((prev) => prev.filter((x) => x.id !== n.id));
+                                      toast.success("Notice deleted");
+                                    } catch { toast.error("Failed to delete notice"); }
+                                  }}
+                                  className="p-2 rounded-lg hover:bg-red-50 text-surface-400 hover:text-red-600 transition-colors"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {(activeTab === "Settings") && (
                     <div className="flex flex-col items-center justify-center py-20 text-center">
                       <div className="w-20 h-20 bg-surface-100 rounded-full flex items-center justify-center mb-4">
@@ -1014,7 +1334,7 @@ export function AdminPortal() {
                       </div>
                       <h2 className="text-2xl font-bold text-surface-900 mb-2">Settings Management</h2>
                       <p className="text-surface-500 max-w-md mx-auto">
-                        The settings interface is coming soon. 
+                        The settings interface is coming soon.
                       </p>
                     </div>
                   )}

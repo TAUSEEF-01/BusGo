@@ -7,6 +7,19 @@ import {
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 
+const RECENT_SEARCHES_KEY = "busgo_recent_searches";
+const MAX_RECENT_SEARCHES = 4;
+
+function saveRecentSearch(origin: string, destination: string, date: string) {
+  if (!origin || !destination) return;
+  const existing = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+  const filtered = existing.filter(
+    (s: any) => !(s.origin === origin && s.destination === destination)
+  );
+  const updated = [{ origin, destination, date, tripType: "Round Way", savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+}
+
 /* ─── Types ───────────────────────────────────────── */
 interface Trip {
   trip_id: string;
@@ -351,17 +364,20 @@ export function SearchResults() {
                               <p className="text-xs text-surface-400">per seat</p>
                             </div>
                             <button
-                              onClick={() => navigate(`/booking/select-seats/${trip.trip_id}`, {
-                                state: {
-                                  origin: trip.origin_city,
-                                  destination: trip.destination_city,
-                                  date,
-                                  price: trip.fare_amount,
-                                  operator: trip.operator_name,
-                                  operator_id: trip.operator_id,
-                                  departureTime: departure
-                                }
-                              })}
+                              onClick={() => {
+                                saveRecentSearch(trip.origin_city, trip.destination_city, date);
+                                navigate(`/booking/select-seats/${trip.trip_id}`, {
+                                  state: {
+                                    origin: trip.origin_city,
+                                    destination: trip.destination_city,
+                                    date,
+                                    price: trip.fare_amount,
+                                    operator: trip.operator_name,
+                                    operator_id: trip.operator_id,
+                                    departureTime: departure
+                                  }
+                                });
+                              }}
                               className="btn-primary !py-2.5 !px-5 !text-sm flex items-center gap-1.5"
                               id={`select-${trip.trip_id}`}
                             >

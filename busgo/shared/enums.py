@@ -25,3 +25,7 @@ class TicketStatus(str, Enum):
     USED = 'USED'
     CANCELLED = 'CANCELLED'
     EXPIRED = 'EXPIRED'
+
+class AccountType(str, Enum):
+    BANK = 'BANK'
+    MOBILE = 'MOBILE'

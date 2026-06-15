@@ -1,11 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 import asyncpg
 import os
 import uuid
+from datetime import datetime
 from shared.database_config import get_database_url
+from database import get_db
+from sqlalchemy.orm import Session
+from models import Notice
 
 router = APIRouter(tags=["admin"])
+
+
+class NoticeCreate(BaseModel):
+    title: str
+    body: str
+    is_active: bool = True
+
+
+class NoticeUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class RoleUpdate(BaseModel):
     role: str
@@ -203,3 +220,62 @@ async def get_trips():
         if 'fare_amount' in t and t['fare_amount'] is not None:
             t['fare_amount'] = float(t['fare_amount'])
     return {"success": True, "data": trips}
+
+
+def _notice_to_dict(n: Notice) -> dict:
+    return {
+        "id": str(n.id),
+        "title": n.title,
+        "body": n.body,
+        "is_active": n.is_active,
+        "created_at": n.created_at.isoformat() if n.created_at else None,
+        "updated_at": n.updated_at.isoformat() if n.updated_at else None,
+    }
+
+
+@router.get("/notices")
+def get_notices(db: Session = Depends(get_db)):
+    notices = db.query(Notice).order_by(Notice.created_at.desc()).all()
+    return {"success": True, "data": [_notice_to_dict(n) for n in notices]}
+
+
+@router.get("/notices/active")
+def get_active_notices(db: Session = Depends(get_db)):
+    notices = db.query(Notice).filter(Notice.is_active == True).order_by(Notice.created_at.desc()).all()
+    return {"success": True, "data": [_notice_to_dict(n) for n in notices]}
+
+
+@router.post("/notices")
+def create_notice(req: NoticeCreate, db: Session = Depends(get_db)):
+    notice = Notice(title=req.title, body=req.body, is_active=req.is_active)
+    db.add(notice)
+    db.commit()
+    db.refresh(notice)
+    return {"success": True, "data": _notice_to_dict(notice)}
+
+
+@router.patch("/notices/{notice_id}")
+def update_notice(notice_id: str, req: NoticeUpdate, db: Session = Depends(get_db)):
+    notice = db.query(Notice).filter(Notice.id == uuid.UUID(notice_id)).first()
+    if not notice:
+        raise HTTPException(status_code=404, detail="Notice not found")
+    if req.title is not None:
+        notice.title = req.title
+    if req.body is not None:
+        notice.body = req.body
+    if req.is_active is not None:
+        notice.is_active = req.is_active
+    notice.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(notice)
+    return {"success": True, "data": _notice_to_dict(notice)}
+
+
+@router.delete("/notices/{notice_id}")
+def delete_notice(notice_id: str, db: Session = Depends(get_db)):
+    notice = db.query(Notice).filter(Notice.id == uuid.UUID(notice_id)).first()
+    if not notice:
+        raise HTTPException(status_code=404, detail="Notice not found")
+    db.delete(notice)
+    db.commit()
+    return {"success": True, "message": "Notice deleted"}

@@ -43,6 +43,7 @@ export OPERATOR_SERVICE_PORT=8509
 export DEALS_SERVICE_PORT=8510
 export ADMIN_SERVICE_PORT=8511
 export AUDIT_SERVICE_PORT=8512
+export BANK_SERVICE_PORT=8513
 
 export DATABASE_URL_AUTH=postgresql+asyncpg://user:password@postgres:5432/postgres
 export DATABASE_URL_SEARCH=postgresql+asyncpg://user:password@postgres:5432/postgres
@@ -86,6 +87,7 @@ echo "   Operator:      http://localhost:8509/docs"
 echo "   Deals:         http://localhost:8510/docs"
 echo "   Admin:         http://localhost:8511/docs"
 echo "   Audit:         http://localhost:8512/docs"
+echo "   Bank:          http://localhost:8513/docs"
 echo
 echo "Swagger UI (via Kong Gateway):"
 echo "   Auth:          http://localhost:18085/api/auth/docs"

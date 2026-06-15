@@ -59,6 +59,8 @@ async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
     trip_dict['amenities'] = bus.amenities
     trip_dict['origin_city'] = route.origin_city
     trip_dict['destination_city'] = route.destination_city
+    trip_dict['boarding_points'] = route.boarding_points
+    trip_dict['dropping_points'] = route.dropping_points
     trip_dict['trip_id'] = str(trip.id)
     
     # Dynamically fetch available seats count from database

@@ -36,32 +36,17 @@ export function PassengerDetails() {
     }
   }, [location.state]);
 
-  const [contactInfo, setContactInfo] = useState({ email: "", phone: "" });
-  const [passengers, setPassengers] = useState(
-    state.seats ? state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" }))
-    : [{ seat: "A3", name: "", phone: "", gender: "male" }]
-  );
-
-  useEffect(() => {
-    if (state.seats && passengers.length !== state.seats.length) {
-      setPassengers(state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" })));
-    }
-  }, [state.seats]);
+  const [contactInfo, setContactInfo] = useState({ name: "", email: "", phone: "" });
+  const seatNumbers: string[] = state.seats || ["A3"];
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const updatePassenger = (index: number, field: string, value: string) => {    setPassengers((prev: any[]) => prev.map((p: any, i: number) => (i === index ? { ...p, [field]: value } : p)));
-    setErrors((e: Record<string, string>) => ({ ...e, [`p${index}_${field}`]: "" }));
-  };
-
   const validate = () => {
     const errs: Record<string, string> = {};
+    if (!contactInfo.name) errs.contact_name = "Name is required";
     if (!contactInfo.email) errs.contact_email = "Email is required";
     if (!contactInfo.phone) errs.contact_phone = "Phone is required";
-    passengers.forEach((p: any, i: number) => {
-      if (!p.name) errs[`p${i}_name`] = "Name is required";
-    });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -109,18 +94,18 @@ export function PassengerDetails() {
         trip_id: state.trip_id,
         operator_id: state.operator_id,
         operator_name: state.operator || "Unknown Operator",
-        seat_numbers: passengers.map((p: any) => p.seat),
-        passenger_details: passengers.map((p: any) => ({
-          name: p.name,
+        seat_numbers: seatNumbers,
+        passenger_details: seatNumbers.map((seat: string) => ({
+          name: contactInfo.name,
           age: 30, // Mock age
-          gender: p.gender,
-          seat: p.seat
+          gender: "male",
+          seat
         })),
-        boarding_point: state.origin || "Dhaka",
-        dropping_point: state.destination || "Chittagong",
+        boarding_point: state.boardingPoint || state.origin || "Dhaka",
+        dropping_point: state.droppingPoint || state.destination || "Chittagong",
         journey_date: jDate,
         departure_time: depTime,
-        total_fare: state.totalFare || passengers.length * 850 + 20,
+        total_fare: state.totalFare || seatNumbers.length * 850 + 20,
         idempotency_key: crypto.randomUUID()
       };
 
@@ -185,6 +170,21 @@ export function PassengerDetails() {
               <p className="text-sm text-surface-500 mb-5">We'll send your e-ticket and updates to this contact.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
+                    <input
+                      type="text"
+                      value={contactInfo.name}
+                      onChange={(e) => { setContactInfo((c) => ({ ...c, name: e.target.value })); setErrors((er) => ({ ...er, contact_name: "" })); }}
+                      placeholder="As per NID / Passport"
+                      className={`input-premium !pl-10 ${errors.contact_name ? "!border-red-400" : ""}`}
+                      id="contact-name"
+                    />
+                  </div>
+                  {errors.contact_name && <p className="text-red-500 text-xs mt-1">{errors.contact_name}</p>}
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
                   <div className="relative">
@@ -217,58 +217,6 @@ export function PassengerDetails() {
                 </div>
               </div>
             </div>
-
-            {/* Passenger Cards */}
-            {passengers.map((p: any, i: number) => (
-              <div key={i} className="card-premium p-6 animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }} id={`passenger-card-${i}`}>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-                    <User className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-surface-900">Passenger {i + 1}</h3>
-                    <span className="text-xs badge badge-info">Seat {p.seat}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
-                    <input
-                      type="text"
-                      value={p.name}
-                      onChange={(e) => updatePassenger(i, "name", e.target.value)}
-                      placeholder="As per NID / Passport"
-                      className={`input-premium ${errors[`p${i}_name`] ? "!border-red-400" : ""}`}
-                      id={`passenger-name-${i}`}
-                    />
-                    {errors[`p${i}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`p${i}_name`]}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Phone (Optional)</label>
-                    <input
-                      type="tel"
-                      value={p.phone}
-                      onChange={(e) => updatePassenger(i, "phone", e.target.value)}
-                      placeholder="+880..."
-                      className="input-premium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Gender</label>
-                    <select
-                      value={p.gender}
-                      onChange={(e) => updatePassenger(i, "gender", e.target.value)}
-                      className="input-premium"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* Sidebar */}
@@ -301,11 +249,11 @@ export function PassengerDetails() {
                 <div className="border-t border-surface-200 mt-4 pt-4 space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-surface-500">Seats</span>
-                    <span className="font-medium text-surface-900">{passengers.map((p: any) => p.seat).join(", ")}</span>
+                    <span className="font-medium text-surface-900">{seatNumbers.join(", ")}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Subtotal</span>
-                    <span className="font-medium text-surface-900">৳ {(state.totalFare - 20) || passengers.length * 850}</span>
+                    <span className="font-medium text-surface-900">৳ {(state.totalFare - 20) || seatNumbers.length * 850}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-surface-500">Service fee</span>
@@ -313,7 +261,7 @@ export function PassengerDetails() {
                   </div>
                   <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
                     <span className="font-bold text-surface-900">Total</span>
-                    <span className="font-extrabold text-brand-600">৳ {state.totalFare || passengers.length * 850 + 20}</span>
+                    <span className="font-extrabold text-brand-600">৳ {state.totalFare || seatNumbers.length * 850 + 20}</span>
                   </div>
                 </div>
               </div>
