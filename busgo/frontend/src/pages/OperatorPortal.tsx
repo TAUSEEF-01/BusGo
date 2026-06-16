@@ -5,13 +5,14 @@ import { useAuthStore } from "../stores/authStore";
 import {
   LayoutDashboard, Bus, Ticket, BarChart3, Settings, LogOut,
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
-  Calendar, ChevronRight, Menu, X, Bell, MapPin, ArrowRight, Clock,
+  Calendar, ChevronRight, Menu, X, MapPin, ArrowRight, Clock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { ManageTrips } from "./ManageTrips";
 import { OperatorBookings } from "./OperatorBookings";
 import { OperatorAnalytics } from "./OperatorAnalytics";
+import { NotificationBell } from "../notifications/NotificationBell";
 
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
@@ -663,10 +664,7 @@ export function OperatorPortal() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* <button className="relative p-2 hover:bg-surface-100 rounded-lg text-surface-500" id="notifications">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-brand-500" />
-              </button> */}
+              <NotificationBell scrolled={true} isHome={false} />
               
               {/* Profile Dropdown */}
               <div className="relative">
