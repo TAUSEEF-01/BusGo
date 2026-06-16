@@ -78,6 +78,14 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
 
     response_data = {
         "booking_id": str(booking.id),
+        "user_id": str(booking.user_id),
+        "trip_id": str(booking.trip_id),
+        "operator_id": str(booking.operator_id) if booking.operator_id else None,
+        "boarding_point": booking.boarding_point,
+        "dropping_point": booking.dropping_point,
+        "journey_date": booking.journey_date.isoformat() if booking.journey_date else None,
+        "departure_time": booking.departure_time.isoformat() if booking.departure_time else None,
+        "seat_numbers": booking.seat_numbers,
         "expires_at": expires_at.isoformat(),
         "total_fare": float(booking.total_fare - booking.discount_amount)
     }
@@ -239,6 +247,17 @@ async def cancel_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), p
 
     await db.commit()
 
-    await KafkaProducerClient.publish("booking.cancelled", {"booking_id": str(booking.id), "trip_id": str(booking.trip_id)})
+    await KafkaProducerClient.publish("booking.cancelled", {
+        "booking_id": str(booking.id),
+        "user_id": str(booking.user_id),
+        "trip_id": str(booking.trip_id),
+        "operator_id": str(booking.operator_id) if booking.operator_id else None,
+        "boarding_point": booking.boarding_point,
+        "dropping_point": booking.dropping_point,
+        "journey_date": booking.journey_date.isoformat() if booking.journey_date else None,
+        "departure_time": booking.departure_time.isoformat() if booking.departure_time else None,
+        "seat_numbers": booking.seat_numbers,
+        "total_fare": float(booking.total_fare),
+    })
 
     return BaseResponse(success=True, message="Booking cancelled successfully")

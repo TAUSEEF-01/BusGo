@@ -19,6 +19,7 @@ import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
 import { OperatorPortal } from "./pages/OperatorPortal";
 import { Profile } from "./pages/Profile";
+import { NotificationsPage } from "./notifications/NotificationsPage";
 
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -90,6 +91,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

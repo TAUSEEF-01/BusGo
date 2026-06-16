@@ -4,6 +4,7 @@ import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
+import { NotificationBell } from "../notifications/NotificationBell";
 
 export function AdminPortal() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -604,6 +605,7 @@ export function AdminPortal() {
             <Menu className="w-5 h-5" />
           </button>
           <div className="ml-auto flex items-center gap-4 relative">
+            <NotificationBell scrolled={true} isHome={false} />
             <button 
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 hover:bg-surface-50 p-1 pr-2 rounded-full transition-colors"
