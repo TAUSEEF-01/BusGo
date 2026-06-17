@@ -35,6 +35,7 @@ interface RecentSearch {
   destination: string;
   date: string;
   tripType: string;
+  returnDate?: string;
   savedAt: number;
 }
 
@@ -252,15 +253,24 @@ export function Home() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (origin && destination && date) {
-      const search: RecentSearch = { origin, destination, date, tripType: tripType === "round-way" ? "Round Way" : "One Way", savedAt: Date.now() };
+      const search: RecentSearch = { 
+        origin, 
+        destination, 
+        date, 
+        tripType: tripType === "round-way" ? "Round Way" : "One Way", 
+        returnDate: tripType === "round-way" ? returnDate : undefined,
+        savedAt: Date.now() 
+      };
       saveRecentSearch(search);
       setRecentSearches(getRecentSearches());
-      navigate(`/search?origin=${origin}&destination=${destination}&date=${date}`);
+      const returnParam = tripType === "round-way" && returnDate ? `&returnDate=${returnDate}&tripType=round-way` : "";
+      navigate(`/search?origin=${origin}&destination=${destination}&date=${date}${returnParam}`);
     }
   };
 
   const handleRecentClick = (s: RecentSearch) => {
-    navigate(`/search?origin=${s.origin}&destination=${s.destination}&date=${s.date}`);
+    const returnParam = s.returnDate && s.tripType === "Round Way" ? `&returnDate=${s.returnDate}&tripType=round-way` : "";
+    navigate(`/search?origin=${s.origin}&destination=${s.destination}&date=${s.date}${returnParam}`);
   };
 
   const dismissNotice = (id: string) => {

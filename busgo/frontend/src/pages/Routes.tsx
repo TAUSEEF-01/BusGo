@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import {
   ArrowRight, Clock, Bus, Star, Wifi, Snowflake, Zap, Search,
   MapPin, Calendar, Users, Filter, X, SlidersHorizontal, ChevronDown,
@@ -16,7 +16,7 @@ function saveRecentSearch(origin: string, destination: string, date: string) {
   const filtered = existing.filter(
     (s: any) => !(s.origin === origin && s.destination === destination)
   );
-  const updated = [{ origin, destination, date, tripType: "Round Way", savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+  const updated = [{ origin, destination, date, tripType: "One Way", savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENT_SEARCHES);
   localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
 }
 
@@ -82,15 +82,28 @@ const getOperatorRating = (name: string) => {
 
 export function Routes() {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const state = location.state || {};
+
+  const initialOrigin = params.get("origin") || "";
+  const initialDestination = params.get("destination") || "";
+  const initialDate = params.get("date") || "";
+  const initialTripType = params.get("tripType") || state.tripType || "one-way";
+  const initialReturnDate = params.get("returnDate") || state.returnDate || "";
+  const isReturnStep = params.get("isReturnStep") === "true" || !!state.outboundSeats;
+
   const [trips, setTrips] = useState<Trip[]>([]);
   const [filteredTrips, setFilteredTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedOperators, setSelectedOperators] = useState<string[]>([]);
-  const [filterOrigin, setFilterOrigin] = useState("");
-  const [filterDestination, setFilterDestination] = useState("");
+  const [filterOrigin, setFilterOrigin] = useState(initialOrigin);
+  const [filterDestination, setFilterDestination] = useState(initialDestination);
   const [selectedBusTypes, setSelectedBusTypes] = useState<string[]>([]);
-  const [filterDate, setFilterDate] = useState("");
+  const [filterDate, setFilterDate] = useState(initialDate);
+  const [tripType, setTripType] = useState<"one-way" | "round-way">(initialTripType as "one-way" | "round-way");
+  const [filterReturnDate, setFilterReturnDate] = useState(initialReturnDate);
   
   // Price boundaries
   const [maxPrice, setMaxPrice] = useState<number>(3000);
@@ -104,7 +117,7 @@ export function Routes() {
 
   useEffect(() => {
     applyFilters();
-  }, [searchTerm, selectedOperators, filterOrigin, filterDestination, selectedBusTypes, filterDate, priceRange, sortBy, trips]);
+  }, [searchTerm, selectedOperators, filterOrigin, filterDestination, selectedBusTypes, filterDate, priceRange, sortBy, trips, tripType, filterReturnDate]);
 
   const fetchAllTrips = async () => {
     setLoading(true);
@@ -299,9 +312,27 @@ export function Routes() {
     <div className="min-h-screen bg-surface-50" id="routes-page">
       {/* Search Bar Panel */}
       <div className="bg-white border-b border-surface-200 py-4 px-6 shadow-elevation-1">
+        {/* Trip type toggle */}
+        <div className="max-w-7xl mx-auto flex gap-2 mb-3.5">
+          <button
+            type="button"
+            onClick={() => setTripType("one-way")}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${tripType === "one-way" ? "bg-brand-600 text-white shadow-sm" : "bg-surface-100 text-surface-600 hover:bg-surface-200"}`}
+          >
+            One Way
+          </button>
+          <button
+            type="button"
+            onClick={() => setTripType("round-way")}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${tripType === "round-way" ? "bg-brand-600 text-white shadow-sm" : "bg-surface-100 text-surface-600 hover:bg-surface-200"}`}
+          >
+            Round Way
+          </button>
+        </div>
+
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
           {/* Search Input */}
-          <div className="lg:col-span-4">
+          <div className={tripType === "round-way" ? "lg:col-span-3" : "lg:col-span-4"}>
             <label className="block text-xs font-bold text-surface-700 mb-1">Search</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" />
@@ -317,7 +348,7 @@ export function Routes() {
           </div>
 
           {/* From Dropdown */}
-          <div className="lg:col-span-3">
+          <div className={tripType === "round-way" ? "lg:col-span-2" : "lg:col-span-3"}>
             <label className="block text-xs font-bold text-surface-700 mb-1">From</label>
             <select
               value={filterOrigin}
@@ -336,7 +367,7 @@ export function Routes() {
           </div>
 
           {/* To Dropdown */}
-          <div className="lg:col-span-3">
+          <div className={tripType === "round-way" ? "lg:col-span-2" : "lg:col-span-3"}>
             <label className="block text-xs font-bold text-surface-700 mb-1">To</label>
             <select
               value={filterDestination}
@@ -356,7 +387,7 @@ export function Routes() {
 
           {/* Date Input */}
           <div className="lg:col-span-2">
-            <label className="block text-xs font-bold text-surface-700 mb-1">Date</label>
+            <label className="block text-xs font-bold text-surface-700 mb-1">{tripType === "round-way" ? "Journey Date" : "Date"}</label>
             <div className="relative">
               <input
                 type="date"
@@ -367,6 +398,23 @@ export function Routes() {
               />
             </div>
           </div>
+
+          {/* Return Date Input */}
+          {tripType === "round-way" && (
+            <div className="lg:col-span-3">
+              <label className="block text-xs font-bold text-surface-700 mb-1">Return Date</label>
+              <div className="relative">
+                <input
+                  type="date"
+                  value={filterReturnDate}
+                  min={filterDate || new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setFilterReturnDate(e.target.value)}
+                  className="w-full pl-4 pr-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 cursor-pointer"
+                  id="filter-return-date"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Active Filters Display */}
@@ -438,6 +486,35 @@ export function Routes() {
           </div>
         )}
       </div>
+
+      {/* Round Trip Steps Banner */}
+      {tripType === "round-way" && (
+        <div className="bg-brand-50 border-b border-brand-100 py-3 px-6 shadow-sm animate-fade-in">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center bg-brand-600 text-white font-extrabold rounded-full w-6 h-6 text-xs">
+                {isReturnStep ? "2" : "1"}
+              </span>
+              <span className="font-bold text-brand-900 text-sm md:text-base">
+                {isReturnStep
+                  ? `Select Return Bus: ${filterOrigin || "Origin"} → ${filterDestination || "Destination"} (${filterDate ? formatDate(filterDate) : "set date"})`
+                  : `Select Outbound Bus: ${filterOrigin || "Origin"} → ${filterDestination || "Destination"} (${filterDate ? formatDate(filterDate) : "set date"})`
+                }
+              </span>
+            </div>
+            {isReturnStep && state.outboundTrip && (
+              <div className="flex flex-wrap items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-brand-200 text-xs text-brand-850 shadow-sm animate-scale-in">
+                <span className="font-bold text-brand-700">Outbound Bus:</span>
+                <span className="font-semibold text-surface-900">{state.outboundTrip.operator_name || state.outboundTrip.operator}</span>
+                <span className="text-surface-300">|</span>
+                <span>Seats: <strong className="font-mono text-brand-600">{state.outboundSeats?.join(", ")}</strong></span>
+                <span className="text-surface-300">|</span>
+                <span>Date: <strong>{state.outboundDate}</strong></span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Grid Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -666,19 +743,30 @@ export function Routes() {
                             </div>
                             <button
                               onClick={() => {
-                                saveRecentSearch(
-                                  trip.origin_city,
-                                  trip.destination_city,
-                                  new Date(trip.departure_datetime).toISOString().split("T")[0]
-                                );
+                                const isoDate = new Date(trip.departure_datetime).toISOString().split("T")[0];
+                                saveRecentSearch(trip.origin_city, trip.destination_city, isoDate);
                                 navigate(`/booking/select-seats/${trip.trip_id}`, {
                                   state: {
                                     origin: trip.origin_city,
                                     destination: trip.destination_city,
-                                    date: formatDate(trip.departure_datetime),
+                                    date: isoDate,
                                     price: trip.fare_amount,
                                     operator: trip.operator_name,
+                                    operator_id: (trip as any).operator_id,
                                     departureTime: departure,
+                                    tripType,
+                                    returnDate: filterReturnDate,
+                                    isReturnStep,
+                                    ...(isReturnStep && {
+                                      outboundTrip: state.outboundTrip,
+                                      outboundSeats: state.outboundSeats,
+                                      outboundBoardingPoint: state.outboundBoardingPoint,
+                                      outboundDroppingPoint: state.outboundDroppingPoint,
+                                      outboundDate: state.outboundDate,
+                                      outboundTotal: state.outboundTotal,
+                                      originalOrigin: state.originalOrigin,
+                                      originalDestination: state.originalDestination,
+                                    }),
                                   },
                                 });
                               }}

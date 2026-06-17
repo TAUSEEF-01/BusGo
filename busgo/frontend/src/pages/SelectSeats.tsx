@@ -53,6 +53,9 @@ export function SelectSeats() {
   const selected = seats.filter((s) => s.status === "selected");
   const pricePerSeat = state.price || tripDetails?.fare_amount || 850;
 
+  const isRoundTrip = state.tripType === "round-way";
+  const isReturnStep = !!state.outboundSeats;
+
   const boardingPoints: RoutePoint[] = tripDetails?.boarding_points || [];
   const droppingPoints: RoutePoint[] = tripDetails?.dropping_points || [];
   const selectedBoarding = boardingPoints.find((p) => p.name === boardingPoint);
@@ -124,8 +127,12 @@ export function SelectSeats() {
       const isSelecting = target.status !== "selected";
       if (isSelecting) {
         const selectedCount = prev.filter((s) => s.status === "selected").length;
-        if (selectedCount >= MAX_SEATS) {
-          toast.error(`Maximum ${MAX_SEATS} seats can be selected.`);
+        const limit = state.outboundSeats ? state.outboundSeats.length : MAX_SEATS;
+        if (selectedCount >= limit) {
+          toast.error(state.outboundSeats 
+            ? `Please select exactly ${limit} seats to match your outbound journey.`
+            : `Maximum ${MAX_SEATS} seats can be selected.`
+          );
           return prev;
         }
       }
@@ -190,7 +197,11 @@ export function SelectSeats() {
               {/* Max seats notice */}
               <div className="flex items-center justify-center mb-6 p-3 bg-amber-50 rounded-xl border border-amber-200">
                 <Info className="h-4 w-4 text-amber-600 mr-2 flex-shrink-0" />
-                <span className="text-sm font-medium text-amber-700">Maximum {MAX_SEATS} seats can be selected.</span>
+                <span className="text-sm font-medium text-amber-700">
+                  {state.outboundSeats 
+                    ? `Please select exactly ${state.outboundSeats.length} seats to match your outbound journey.`
+                    : `Maximum ${MAX_SEATS} seats can be selected.`}
+                </span>
               </div>
 
               {/* Bus Container */}
@@ -347,6 +358,16 @@ export function SelectSeats() {
                 {selected.length > 0 ? (
                   <>
                     <div className="space-y-2 mb-4">
+                      {/* Outbound leg summary when on return step */}
+                      {isReturnStep && state.outboundSeats && (
+                        <div className="mb-2 p-3 bg-brand-50 rounded-xl border border-brand-100">
+                          <p className="text-xs font-bold text-brand-700 mb-1.5">Outbound Leg</p>
+                          <div className="flex justify-between text-xs">
+                            <span className="text-surface-500">Seats: {(state.outboundSeats as string[]).join(", ")}</span>
+                            <span className="font-semibold text-surface-900">৳ {state.outboundTotal}</span>
+                          </div>
+                        </div>
+                      )}
                       {selected.map((s) => (
                         <div key={s.id} className="flex items-center justify-between py-2 px-3 bg-blue-50 rounded-lg">
                           <span className="text-sm font-semibold text-blue-700">Seat {s.id}</span>
@@ -361,18 +382,46 @@ export function SelectSeats() {
                     </div>
 
                     <div className="border-t border-surface-200 pt-3 mb-4">
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-surface-500">Subtotal ({selected.length} seats)</span>
-                        <span className="font-semibold text-surface-900">৳ {selected.length * pricePerSeat}</span>
-                      </div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-surface-500">Service fee</span>
-                        <span className="font-semibold text-surface-900">৳ 20</span>
-                      </div>
-                      <div className="flex justify-between text-base mt-3 pt-3 border-t border-surface-200">
-                        <span className="font-bold text-surface-900">Total</span>
-                        <span className="font-extrabold text-brand-600 text-lg">৳ {selected.length * pricePerSeat + 20}</span>
-                      </div>
+                      {isReturnStep ? (
+                        <>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-surface-500">Outbound total</span>
+                            <span className="font-semibold text-surface-900">৳ {state.outboundTotal}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-surface-500">Return ({selected.length} seats)</span>
+                            <span className="font-semibold text-surface-900">৳ {selected.length * pricePerSeat}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-surface-500">Service fee</span>
+                            <span className="font-semibold text-surface-900">৳ 20</span>
+                          </div>
+                          <div className="flex justify-between text-base mt-3 pt-3 border-t border-surface-200">
+                            <span className="font-bold text-surface-900">Round Trip Total</span>
+                            <span className="font-extrabold text-brand-600 text-lg">৳ {state.outboundTotal + selected.length * pricePerSeat + 20}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-surface-500">Subtotal ({selected.length} seats)</span>
+                            <span className="font-semibold text-surface-900">৳ {selected.length * pricePerSeat}</span>
+                          </div>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="text-surface-500">Service fee</span>
+                            <span className="font-semibold text-surface-900">৳ 20</span>
+                          </div>
+                          {isRoundTrip && (
+                            <div className="mt-2 p-2 bg-amber-50 rounded-lg border border-amber-100">
+                              <p className="text-xs text-amber-700 font-medium">Return leg fare added in next step.</p>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-base mt-3 pt-3 border-t border-surface-200">
+                            <span className="font-bold text-surface-900">Total</span>
+                            <span className="font-extrabold text-brand-600 text-lg">৳ {selected.length * pricePerSeat + 20}</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -393,27 +442,76 @@ export function SelectSeats() {
                       toast.error("Please select a dropping point.");
                       return;
                     }
-                    navigate("/booking/passengers", {
-                      state: {
+
+                    const jDate = state.date || (tripDetails?.departure_datetime ? tripDetails.departure_datetime.split('T')[0] : "2026-05-01");
+                    const depTime = state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM");
+
+                    if (isRoundTrip && !isReturnStep) {
+                      if (!state.returnDate) {
+                        toast.error("Please set a return date before selecting outbound seats.");
+                        return;
+                      }
+                      // Navigate to return search
+                      const outboundSeatsArr = selected.map((s) => s.id);
+                      navigate(`/search?origin=${encodeURIComponent(state.destination || tripDetails?.destination_city || "Chittagong")}&destination=${encodeURIComponent(state.origin || tripDetails?.origin_city || "Dhaka")}&date=${state.returnDate}&tripType=round-way&isReturnStep=true`, {
+                        state: {
+                          ...state,
+                          outboundTrip: tripDetails,
+                          outboundSeats: outboundSeatsArr,
+                          outboundBoardingPoint: boardingPoint || undefined,
+                          outboundDroppingPoint: droppingPoint || undefined,
+                          outboundDate: jDate,
+                          outboundPricePerSeat: pricePerSeat,
+                          outboundTotal: selected.length * pricePerSeat + 20,
+                          originalOrigin: state.origin || tripDetails?.origin_city || "Dhaka",
+                          originalDestination: state.destination || tripDetails?.destination_city || "Chittagong",
+                          tripType: "round-way",
+                          returnDate: state.returnDate,
+                        }
+                      });
+                    } else {
+                      // Normal flow or final step of round trip
+                      const returnLegFare = selected.length * pricePerSeat + 20;
+                      const combinedFare = isReturnStep ? state.outboundTotal + returnLegFare : returnLegFare;
+                      const requestState: any = {
                         trip_id: trip_id,
                         operator_id: state.operator_id || tripDetails?.operator_id,
                         seats: selected.map((s) => s.id),
-                        totalFare: selected.length * pricePerSeat + 20,
+                        totalFare: combinedFare,
                         origin: state.origin || tripDetails?.origin_city || "Dhaka",
                         destination: state.destination || tripDetails?.destination_city || "Chittagong",
                         boardingPoint: boardingPoint || undefined,
                         droppingPoint: droppingPoint || undefined,
-                        date: state.date || (tripDetails?.departure_datetime ? tripDetails.departure_datetime.split('T')[0] : "2026-05-01"),
-                        departureTime: state.departureTime || (tripDetails?.departure_datetime ? new Date(tripDetails.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM"),
+                        date: jDate,
+                        departureTime: depTime,
                         operator: state.operator || tripDetails?.operator_name || "Greenline Paribahan"
-                      },
-                    });
+                      };
+
+                      if (isReturnStep) {
+                        requestState.outboundTrip = state.outboundTrip;
+                        requestState.outboundSeats = state.outboundSeats;
+                        requestState.outboundBoardingPoint = state.outboundBoardingPoint;
+                        requestState.outboundDroppingPoint = state.outboundDroppingPoint;
+                        requestState.outboundDate = state.outboundDate;
+                        requestState.outboundTotal = state.outboundTotal;
+                        requestState.tripType = "round-way";
+                        requestState.isRoundTrip = true;
+                      }
+
+                      navigate("/booking/passengers", {
+                        state: requestState
+                      });
+                    }
                   }}
-                  disabled={selected.length === 0}
+                  disabled={selected.length === 0 || (isReturnStep && selected.length !== state.outboundSeats.length)}
                   className="btn-primary w-full flex items-center justify-center gap-2 !py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   id="continue-to-passengers"
                 >
-                  Continue <ArrowRight className="h-4 w-4" />
+                  {isRoundTrip && !isReturnStep ? (
+                    <>Select Return Bus <ArrowRight className="h-4 w-4" /></>
+                  ) : (
+                    <>Continue <ArrowRight className="h-4 w-4" /></>
+                  )}
                 </button>
               </div>
 
