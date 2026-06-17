@@ -6,12 +6,14 @@ import {
   LayoutDashboard, Bus, Ticket, BarChart3, Settings, LogOut,
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
   Calendar, ChevronRight, Menu, X, Bell, MapPin, ArrowRight, Clock,
+  BadgePercent,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { ManageTrips } from "./ManageTrips";
 import { OperatorBookings } from "./OperatorBookings";
 import { OperatorAnalytics } from "./OperatorAnalytics";
+import { OperatorDeals } from "./OperatorDeals";
 
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
@@ -28,6 +30,7 @@ const NAV_ITEMS = [
   { to: "/operator/trips", label: "Manage Trips", icon: Bus },
   { to: "/operator/bookings", label: "Bookings", icon: Ticket },
   { to: "/operator/analytics", label: "Analytics", icon: BarChart3 },
+  { to: "/operator/deals", label: "Deals", icon: BadgePercent },
   { to: "/operator/settings", label: "Settings", icon: Settings },
 ];
 
@@ -734,6 +737,7 @@ export function OperatorPortal() {
             <Route path="/trips" element={<ManageTrips />} />
             <Route path="/bookings" element={<OperatorBookings />} />
             <Route path="/analytics" element={<OperatorAnalytics />} />
+            <Route path="/deals" element={<OperatorDeals />} />
             <Route path="/settings" element={<OperatorSettings />} />
           </Routes>
         </main>

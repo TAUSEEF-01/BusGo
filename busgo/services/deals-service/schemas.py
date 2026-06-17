@@ -16,6 +16,9 @@ class PromoCodeBase(BaseModel):
     max_uses: int
     applicable_operators: List[str] = []
     is_active: bool = True
+    operator_id: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
 
 
 class PromoCodeCreate(PromoCodeBase):
@@ -36,6 +39,29 @@ class PromoCodeResponse(PromoCodeBase):
         orm_mode = True
 
 
+class FlashSaleCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    discount_percentage: int
+    start_time: datetime
+    end_time: datetime
+    applicable_trips: List[str] = []
+    applicable_routes: List[str] = []
+    operator_id: Optional[str] = None
+    is_active: bool = True
+
+
+class FlashSaleUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    discount_percentage: Optional[int] = None
+    start_time: Optional[datetime] = None
+    end_time: Optional[datetime] = None
+    is_active: Optional[bool] = None
+    applicable_trips: Optional[List[str]] = None
+    applicable_routes: Optional[List[str]] = None
+
+
 class FlashSaleResponse(BaseModel):
     id: UUID
     name: str
@@ -44,6 +70,9 @@ class FlashSaleResponse(BaseModel):
     end_time: datetime
     applicable_trips: List[str]
     is_active: bool
+    description: Optional[str] = None
+    operator_id: Optional[str] = None
+    applicable_routes: List[str] = []
 
     class Config:
         orm_mode = True
