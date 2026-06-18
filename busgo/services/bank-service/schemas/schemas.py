@@ -28,6 +28,8 @@ class VerifyDebitRequest(BaseModel):
     amount: Decimal
     method: str  # PaymentMethod value, e.g. BKASH / NAGAD / CARD / INTERNET_BANKING
     reference: Optional[str] = None  # booking_id
+    mobile_number: Optional[str] = None  # required for BKASH / NAGAD
+    pin: Optional[str] = None  # required for BKASH / NAGAD
 
 
 class VerifyDebitResponse(BaseModel):

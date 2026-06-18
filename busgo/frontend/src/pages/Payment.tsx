@@ -180,6 +180,7 @@ export function Payment() {
           trip_id: tripId,
           amount: outboundTotalVal,
           method: METHOD_ENUM[method],
+          ...(method === "bkash" || method === "nagad" ? { mobile_number: phone, pin } : {}),
         });
 
         if (!initResOutbound.data.success) {
@@ -208,6 +209,7 @@ export function Payment() {
           trip_id: returnTripId,
           amount: returnTotalVal,
           method: METHOD_ENUM[method],
+          ...(method === "bkash" || method === "nagad" ? { mobile_number: phone, pin } : {}),
         });
 
         if (!initResReturn.data.success) {
@@ -241,6 +243,7 @@ export function Payment() {
           trip_id: tripId,
           amount: total,
           method: METHOD_ENUM[method],
+          ...(method === "bkash" || method === "nagad" ? { mobile_number: phone, pin } : {}),
         });
 
         if (!initRes.data.success) {
@@ -448,6 +451,12 @@ export function Payment() {
               <form onSubmit={handlePay} className="space-y-5">
                 {(method === "bkash" || method === "nagad") && (
                   <div className="space-y-4 animate-fade-in">
+                    {activeAccount && (
+                      <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                        Your registered {method === "bkash" ? "bKash" : "Nagad"} number is{" "}
+                        <span className="font-mono font-bold">{activeAccount.account_number}</span>. Default PIN is <span className="font-mono font-bold">1234</span>.
+                      </div>
+                    )}
                     <div>
                       <label className="block text-sm font-semibold text-surface-700 mb-1.5">
                         {method === "bkash" ? "bKash" : "Nagad"} Number

@@ -66,6 +66,8 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         amount=float(req.amount),
         method=method_value,
         reference=str(req.booking_id),
+        mobile_number=req.mobile_number,
+        pin=req.pin,
     )
     if not bank_result.get("success"):
         await KafkaProducerClient.publish("audit.log", {

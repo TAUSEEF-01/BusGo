@@ -5,7 +5,14 @@ from typing import Optional, Dict, Any
 
 class BankClient:
     @staticmethod
-    async def verify_debit(user_id: str, amount: float, method: str, reference: Optional[str]) -> Dict[str, Any]:
+    async def verify_debit(
+        user_id: str,
+        amount: float,
+        method: str,
+        reference: Optional[str],
+        mobile_number: Optional[str] = None,
+        pin: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Ask the bank-service to verify balance and debit the funding account.
         Returns the VerifyDebitResponse dict, or a failure dict if unreachable."""
         payload = {
@@ -13,6 +20,8 @@ class BankClient:
             "amount": amount,
             "method": method,
             "reference": reference,
+            "mobile_number": mobile_number,
+            "pin": pin,
         }
         async with httpx.AsyncClient() as client:
             try:

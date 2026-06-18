@@ -25,6 +25,11 @@ async def startup():
     global kafka_consumer
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(
+            __import__("sqlalchemy", fromlist=["text"]).text(
+                "ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS pin VARCHAR(64) DEFAULT '1234'"
+            )
+        )
     # Kafka is best-effort: account auto-provisioning also self-heals on first
     # balance fetch, so a Kafka outage must not take the HTTP API down.
     try:

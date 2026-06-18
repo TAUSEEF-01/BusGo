@@ -60,6 +60,7 @@ async def provision_accounts(db: AsyncSession, user_id: str, phone: str | None =
             provider="bKash",
             account_number=_mobile_account_number(phone),
             balance=_random_balance(),
+            pin="1234",
         ))
         created = True
 

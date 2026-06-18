@@ -19,6 +19,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.base_response import BaseResponse
+from shared.enums import AccountType
 
 router = APIRouter(tags=["bank"])
 
@@ -65,6 +66,27 @@ async def verify_debit(req: VerifyDebitRequest, db: AsyncSession = Depends(get_d
         return BaseResponse(success=False, data=VerifyDebitResponse(
             success=False, message="No funding account found for this method"
         ))
+
+    # Validate credentials for mobile wallet payments.
+    if acct_type == AccountType.MOBILE:
+        if not req.mobile_number:
+            return BaseResponse(success=False, data=VerifyDebitResponse(
+                success=False, message="Mobile number is required for this payment method"
+            ))
+        entered = "".join(c for c in req.mobile_number if c.isdigit())
+        stored = "".join(c for c in (account.account_number or "") if c.isdigit())
+        if entered[-11:] != stored[-11:]:
+            return BaseResponse(success=False, data=VerifyDebitResponse(
+                success=False, message="Mobile number does not match the registered account"
+            ))
+        if not req.pin:
+            return BaseResponse(success=False, data=VerifyDebitResponse(
+                success=False, message="PIN is required for this payment method"
+            ))
+        if req.pin != (account.pin or "1234"):
+            return BaseResponse(success=False, data=VerifyDebitResponse(
+                success=False, message="Incorrect PIN"
+            ))
 
     amount = Decimal(req.amount)
     if account.balance < amount:

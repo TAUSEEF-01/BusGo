@@ -23,6 +23,7 @@ class BankAccount(Base):
     # Display label for the provider, e.g. "BusGo Bank" or "bKash"
     provider = Column(String, nullable=False)
     account_number = Column(String, unique=True, index=True, nullable=False)
+    pin = Column(String, nullable=True, default="1234")
     balance = Column(Numeric(12, 2), nullable=False, default=0)
     currency = Column(String, nullable=False, default="BDT")
 
