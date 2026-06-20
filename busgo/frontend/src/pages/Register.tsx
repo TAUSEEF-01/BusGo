@@ -19,6 +19,7 @@ export function Register() {
     confirmPassword: "",
     name: "",
     phone: "",
+    gender: "",
     role: "CUSTOMER",
     agreedToTerms: false,
   });
@@ -288,6 +289,25 @@ export function Register() {
                   </div>
                   {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-surface-700 mb-2">Gender <span className="text-surface-400 font-normal">(optional)</span></label>
+                  <div className="flex gap-3">
+                    {["Male", "Female", "Other"].map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => set("gender", form.gender === g ? "" : g)}
+                        className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
+                          form.gender === g
+                            ? "border-brand-600 bg-brand-50 text-brand-700"
+                            : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -309,6 +329,12 @@ export function Register() {
                       <span className="text-surface-500">Phone</span>
                       <span className="font-medium text-surface-900">{form.phone}</span>
                     </div>
+                    {form.gender && (
+                      <div className="flex justify-between py-2 border-b border-surface-100">
+                        <span className="text-surface-500">Gender</span>
+                        <span className="font-medium text-surface-900">{form.gender}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between py-2">
                       <span className="text-surface-500">Register as</span>
                       <span className="font-bold text-brand-600 uppercase tracking-wider">{form.role}</span>

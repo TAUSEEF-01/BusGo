@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Numeric, Enum, Integer, Boolean, JSON
+from sqlalchemy import Column, String, DateTime, Numeric, Enum, Integer, Boolean, JSON, Text
 from sqlalchemy.dialects.postgresql import UUID
 from datetime import datetime
 import uuid
@@ -26,6 +26,9 @@ class PromoCode(Base):
     current_uses = Column(Integer, default=0)
     applicable_operators = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
+    operator_id = Column(String(255), nullable=True, index=True)
+    title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
 
 
 class FlashSale(Base):
@@ -38,3 +41,6 @@ class FlashSale(Base):
     end_time = Column(DateTime, nullable=False)
     applicable_trips = Column(JSON, default=list)
     is_active = Column(Boolean, default=True)
+    operator_id = Column(String(255), nullable=True, index=True)
+    description = Column(Text, nullable=True)
+    applicable_routes = Column(JSON, default=list, nullable=True)

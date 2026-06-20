@@ -17,7 +17,7 @@ services:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: postgres
-      POSTGRES_MULTIPLE_DATABASES: auth_db,search_db,inventory_db,booking_db,payment_db,ticket_db,notification_db,cancellation_db,operator_db,deals_db,admin_db,audit_db
+      POSTGRES_MULTIPLE_DATABASES: auth_db,search_db,inventory_db,booking_db,payment_db,bank_db,ticket_db,notification_db,cancellation_db,operator_db,deals_db,admin_db,audit_db
     ports:
       - "${POSTGRES_PORT:-8086}:5432"
     volumes:
@@ -167,6 +167,8 @@ services:
       SERVICE_DB: booking_db
       INVENTORY_SERVICE_URL: http://inventory-service:8000
       DEALS_SERVICE_URL: http://deals-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      BANK_SERVICE_URL: http://bank-service:8000
       ROOT_PATH: /api/bookings
 
   payment-service:
@@ -187,6 +189,26 @@ services:
       SERVICE_NAME: payment-service
       SERVICE_DB: payment_db
       ROOT_PATH: /api/payments
+      BANK_SERVICE_URL: http://bank-service:8000
+
+  bank-service:
+    <<: *service-defaults
+    build:
+      context: ../services/bank-service
+    ports:
+      - "${BANK_SERVICE_PORT:-8111}:8000"
+    volumes:
+      - ../services/bank-service:/app
+      - ..\shared:/app/shared
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres.wtldkwqnfynxfqyqvehy:BusGoLet'sGo@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: supersecretkey
+      ENVIRONMENT: development
+      SERVICE_NAME: bank-service
+      SERVICE_DB: bank_db
+      ROOT_PATH: /api/bank
 
   ticket-service:
     <<: *service-defaults

@@ -21,6 +21,13 @@ class RegisterRequest(BaseModel):
             raise ValueError("Cannot register as ADMIN")
         return v
 
+class CreateAdminRequest(BaseModel):
+    phone: str
+    full_name: str
+    password: str
+    email: EmailStr
+
+
 class VerifyOTPRequest(BaseModel):
     phone: str
     otp_code: str

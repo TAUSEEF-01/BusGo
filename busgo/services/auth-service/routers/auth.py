@@ -10,9 +10,9 @@ import secrets
 from database import get_db
 from models.user import User, RefreshToken, OTPRecord
 from schemas.auth import (
-    RegisterRequest, VerifyOTPRequest, LoginRequest, 
-    RefreshRequest, SendOTPRequest, GoogleLoginRequest, 
-    TokenResponse, UserResponse, UpdateProfileRequest
+    RegisterRequest, VerifyOTPRequest, LoginRequest,
+    RefreshRequest, SendOTPRequest, GoogleLoginRequest,
+    TokenResponse, UserResponse, UpdateProfileRequest, CreateAdminRequest
 )
 from core.security import get_password_hash, verify_password, create_access_token
 from core.config import settings
@@ -203,3 +203,38 @@ async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):
 @router.post("/google-login")
 async def google_login(req: GoogleLoginRequest):
     raise HTTPException(status_code=501, detail="Google login not fully implemented yet")
+
+
+@router.post("/reset-admin-password")
+async def reset_admin_password(req: LoginRequest, db: AsyncSession = Depends(get_db)):
+    """Dev-only: reset password for any user by phone or email."""
+    result = await db.execute(select(User).where(or_(User.phone == req.phone, User.email == req.phone)))
+    user = result.scalars().first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.password_hash = get_password_hash(req.password)
+    await db.commit()
+    return {"success": True, "message": f"Password reset for {user.email or user.phone}"}
+
+
+@router.post("/create-admin")
+async def create_admin(req: CreateAdminRequest, db: AsyncSession = Depends(get_db)):
+    """Dev-only endpoint to seed an admin account. Bypasses the ADMIN role restriction."""
+    result = await db.execute(select(User).where(or_(User.email == req.email, User.phone == req.phone)))
+    if result.scalars().first():
+        raise HTTPException(status_code=400, detail="User with this email or phone already exists")
+
+    from shared.enums import UserRole
+
+    user = User(
+        phone=req.phone,
+        email=req.email,
+        full_name=req.full_name,
+        password_hash=get_password_hash(req.password),
+        is_verified=True,
+        role=UserRole.ADMIN,
+    )
+    db.add(user)
+    await db.commit()
+    await db.refresh(user)
+    return {"success": True, "message": "Admin user created", "data": UserResponse.model_validate(user)}

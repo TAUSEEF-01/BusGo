@@ -103,6 +103,7 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
         return []
     
     operator_names = {}
+    trip_routes = {}
     import httpx
     import logging
     
@@ -121,25 +122,45 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
     except Exception as e:
         logging.error(f"Error fetching all operators via HTTP: {e}")
 
-    # Fallback to fetching individual operator if not found in list
-    for b in bookings:
-        b_op_id = str(b.operator_id)
-        if b_op_id not in operator_names:
-            try:
-                async with httpx.AsyncClient() as client:
+    # Fallback to fetching individual operator if not found in list, and fetch trip details
+    async with httpx.AsyncClient() as client:
+        for b in bookings:
+            b_op_id = str(b.operator_id)
+            if b_op_id not in operator_names:
+                try:
                     res = await client.get(f"http://operator-service:8000/operators/{b_op_id}", timeout=3.0)
                     if res.status_code == 200:
                         op_data = res.json().get("data", {})
                         op_name = op_data.get("name")
                         if op_name:
                             operator_names[b_op_id] = op_name
-            except Exception as e:
-                logging.error(f"Error fetching operator {b_op_id} via HTTP: {e}")
+                except Exception as e:
+                    logging.error(f"Error fetching operator {b_op_id} via HTTP: {e}")
+            
+            b_trip_id = str(b.trip_id)
+            if b_trip_id not in trip_routes:
+                try:
+                    res = await client.get(f"http://operator-service:8000/trips/{b_trip_id}", timeout=3.0)
+                    if res.status_code == 200:
+                        trip_data = res.json().get("data", {})
+                        origin = trip_data.get("origin_city")
+                        dest = trip_data.get("destination_city")
+                        if origin and dest:
+                            trip_routes[b_trip_id] = (origin, dest)
+                except Exception as e:
+                    logging.error(f"Error fetching trip {b_trip_id} details via HTTP: {e}")
             
     response_data = []
     for b in bookings:
         resp = BookingResponse.model_validate(b)
         resp.operator_name = operator_names.get(b.operator_id, operator_names.get(str(b.operator_id), "Unknown Operator"))
+        route_info = trip_routes.get(str(b.trip_id))
+        if route_info:
+            resp.origin_city = route_info[0]
+            resp.destination_city = route_info[1]
+        else:
+            resp.origin_city = "Dhaka"
+            resp.destination_city = "Destination"
         response_data.append(resp)
     return response_data
 
@@ -216,34 +237,88 @@ async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(..
     
     return BaseResponse(success=True, message="Booking confirmed")
 
+CANCELLATION_WINDOW_HOURS = 1
+REFUND_PERCENTAGE = 0.80  # 80% refund, 20% cancellation fee
+
+
+@router.get("/{booking_id}/cancellation-info")
+async def cancellation_info(booking_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    """Returns whether cancellation is still allowed and the expected refund amount."""
+    query = select(Booking).where(Booking.id == booking_id, Booking.user_id == payload.get("user_id"))
+    result = await db.execute(query)
+    booking = result.scalars().first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.status != BookingStatus.CONFIRMED:
+        return BaseResponse(success=True, data={
+            "cancellable": False,
+            "reason": f"Booking is {booking.status}",
+            "refund_amount": 0,
+            "window_expires_at": None,
+        })
+
+    payment_completed_at = await ExternalServices.get_payment_completed_at(str(booking.payment_id))
+    if not payment_completed_at:
+        return BaseResponse(success=True, data={
+            "cancellable": False,
+            "reason": "Payment record not found",
+            "refund_amount": 0,
+            "window_expires_at": None,
+        })
+
+    window_expires_at = payment_completed_at + timedelta(hours=CANCELLATION_WINDOW_HOURS)
+    now = datetime.now(timezone.utc)
+    cancellable = now < window_expires_at
+    refund_amount = float(booking.total_fare) * REFUND_PERCENTAGE if cancellable else 0
+
+    return BaseResponse(success=True, data={
+        "cancellable": cancellable,
+        "reason": None if cancellable else f"Cancellation window of {CANCELLATION_WINDOW_HOURS}h has expired",
+        "refund_amount": round(refund_amount, 2),
+        "window_expires_at": window_expires_at.isoformat(),
+        "refund_percentage": int(REFUND_PERCENTAGE * 100),
+    })
+
+
 @router.post("/{booking_id}/cancel")
 async def cancel_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     query = select(Booking).where(Booking.id == booking_id, Booking.user_id == payload.get("user_id"))
     result = await db.execute(query)
     booking = result.scalars().first()
-    
+
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-    
+
     if booking.status in [BookingStatus.CANCELLED, BookingStatus.REFUNDED, BookingStatus.EXPIRED]:
-        raise HTTPException(status_code=400, detail=f"Cannot cancel booking in {booking.status} status")
-        
-    # Cancellation rules go here (time checks etc)
+        raise HTTPException(status_code=400, detail=f"Booking is already {booking.status}")
+
+    if booking.status != BookingStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Only confirmed bookings can be cancelled")
+
+    # Enforce 1-hour cancellation window from payment time
+    payment_completed_at = await ExternalServices.get_payment_completed_at(str(booking.payment_id))
+    if payment_completed_at:
+        window_expires_at = payment_completed_at + timedelta(hours=CANCELLATION_WINDOW_HOURS)
+        if datetime.now(timezone.utc) >= window_expires_at:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cancellation window has expired. Tickets can only be cancelled within {CANCELLATION_WINDOW_HOURS} hour of payment."
+            )
+
+    refund_amount = round(float(booking.total_fare) * REFUND_PERCENTAGE, 2)
 
     old_status = booking.status
     booking.status = BookingStatus.CANCELLED
-    
     history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=booking.status, reason="User Cancelled")
     db.add(history)
-    
-    # Release seats in inventory service
+
+    # Release seats
     try:
         await ExternalServices.unbook_seats(str(booking.trip_id), booking.seat_numbers, str(booking.id))
     except Exception as e:
         import logging
         logging.error(f"Failed to unbook seats on cancellation: {str(e)}")
-        # We still proceed with cancellation in booking service even if inventory release fails
-        # A separate cleanup task or event consumer should eventually sync it.
 
     await db.commit()
 
@@ -259,5 +334,28 @@ async def cancel_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), p
         "seat_numbers": booking.seat_numbers,
         "total_fare": float(booking.total_fare),
     })
+    # Credit refund back to user's account via bank-service
+    refund_credited = False
+    if payment_completed_at and refund_amount > 0:
+        try:
+            refund_credited = await ExternalServices.credit_refund(
+                user_id=str(booking.user_id),
+                amount=refund_amount,
+                payment_id=str(booking.payment_id),
+                booking_id=str(booking.id),
+            )
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to credit refund for booking {booking.id}: {str(e)}")
 
-    return BaseResponse(success=True, message="Booking cancelled successfully")
+    await KafkaProducerClient.publish("booking.cancelled", {
+        "booking_id": str(booking.id),
+        "trip_id": str(booking.trip_id),
+        "refund_amount": refund_amount,
+    })
+
+    return BaseResponse(success=True, data={
+        "refund_amount": refund_amount,
+        "refund_credited": refund_credited,
+        "message": f"Booking cancelled. ৳{refund_amount} refunded to your account." if refund_credited else "Booking cancelled. Refund will be processed shortly.",
+    })

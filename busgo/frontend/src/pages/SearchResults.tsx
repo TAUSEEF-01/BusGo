@@ -1,11 +1,24 @@
 import { useState, useEffect } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowRight, Clock, Bus, Star, Wifi, Snowflake, Zap, Filter,
   SlidersHorizontal, MapPin, Calendar, ChevronDown, Users, X, AlertCircle,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
+
+const RECENT_SEARCHES_KEY = "busgo_recent_searches";
+const MAX_RECENT_SEARCHES = 4;
+
+function saveRecentSearch(origin: string, destination: string, date: string) {
+  if (!origin || !destination) return;
+  const existing = JSON.parse(localStorage.getItem(RECENT_SEARCHES_KEY) || "[]");
+  const filtered = existing.filter(
+    (s: any) => !(s.origin === origin && s.destination === destination)
+  );
+  const updated = [{ origin, destination, date, tripType: "One Way", savedAt: Date.now() }, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+  localStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+}
 
 /* ─── Types ───────────────────────────────────────── */
 interface Trip {
@@ -39,9 +52,15 @@ const SORT_OPTIONS = [
 export function SearchResults() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state || {};
   const origin = params.get("origin") || "Dhaka";
   const destination = params.get("destination") || "Chittagong";
   const date = params.get("date") || "2026-05-01";
+
+  const tripType = params.get("tripType") || state.tripType || "one-way";
+  const returnDate = params.get("returnDate") || state.returnDate || "";
+  const isReturnStep = params.get("isReturnStep") === "true" || !!state.outboundSeats;
 
   const [sortBy, setSortBy] = useState("price-asc");
   const [busType, setBusType] = useState<string[]>([]);
@@ -162,6 +181,35 @@ export function SearchResults() {
           </div>
         </div>
       </div>
+
+      {/* Round Trip Steps Banner */}
+      {tripType === "round-way" && (
+        <div className="bg-brand-50 border-b border-brand-100 py-3 px-6 shadow-sm animate-fade-in">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center bg-brand-600 text-white font-extrabold rounded-full w-6 h-6 text-xs">
+                {isReturnStep ? "2" : "1"}
+              </span>
+              <span className="font-bold text-brand-900 text-sm md:text-base">
+                {isReturnStep 
+                  ? `Select Return Bus: ${origin} → ${destination} (${formatDate(date)})`
+                  : `Select Outbound Bus: ${origin} → ${destination} (${formatDate(date)})`
+                }
+              </span>
+            </div>
+            {isReturnStep && state.outboundTrip && (
+              <div className="flex flex-wrap items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-brand-200 text-xs text-brand-850 shadow-sm animate-scale-in">
+                <span className="font-bold text-brand-700">Outbound Bus:</span>
+                <span className="font-semibold text-surface-900">{state.outboundTrip.operator_name || state.outboundTrip.operator}</span>
+                <span className="text-surface-300">|</span>
+                <span>Seats: <strong className="font-mono text-brand-600">{state.outboundSeats?.join(", ")}</strong></span>
+                <span className="text-surface-300">|</span>
+                <span>Date: <strong>{state.outboundDate}</strong></span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex gap-6">
@@ -348,20 +396,31 @@ export function SearchResults() {
                           <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 sm:gap-3 sm:min-w-[140px] border-t sm:border-t-0 sm:border-l border-surface-100 pt-4 sm:pt-0 sm:pl-6">
                             <div className="text-right">
                               <p className="text-2xl font-extrabold text-brand-600">৳ {trip.fare_amount}</p>
-                              <p className="text-xs text-surface-400">per seat</p>
+                              {tripType === "round-way" && !isReturnStep ? (
+                                <p className="text-xs text-amber-600 font-semibold">per seat · +return fare</p>
+                              ) : (
+                                <p className="text-xs text-surface-400">per seat</p>
+                              )}
                             </div>
                             <button
-                              onClick={() => navigate(`/booking/select-seats/${trip.trip_id}`, {
-                                state: {
-                                  origin: trip.origin_city,
-                                  destination: trip.destination_city,
-                                  date,
-                                  price: trip.fare_amount,
-                                  operator: trip.operator_name,
-                                  operator_id: trip.operator_id,
-                                  departureTime: departure
-                                }
-                              })}
+                              onClick={() => {
+                                saveRecentSearch(trip.origin_city, trip.destination_city, date);
+                                navigate(`/booking/select-seats/${trip.trip_id}`, {
+                                  state: {
+                                    ...state,
+                                    origin: trip.origin_city,
+                                    destination: trip.destination_city,
+                                    date,
+                                    price: trip.fare_amount,
+                                    operator: trip.operator_name,
+                                    operator_id: trip.operator_id,
+                                    departureTime: departure,
+                                    tripType,
+                                    returnDate,
+                                    isReturnStep
+                                  }
+                                });
+                              }}
                               className="btn-primary !py-2.5 !px-5 !text-sm flex items-center gap-1.5"
                               id={`select-${trip.trip_id}`}
                             >

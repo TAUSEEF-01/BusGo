@@ -39,6 +39,13 @@ services:
           - /api/payments
           - /api/payment
         strip_path: true
+  - name: bank-service
+    url: http://bank-service:8000
+    routes:
+      - name: bank-route
+        paths:
+          - /api/bank
+        strip_path: true
   - name: ticket-service
     url: http://ticket-service:8000
     routes:

@@ -13,6 +13,8 @@ class InitiateRequest(BaseModel):
     trip_id: UUID
     amount: float
     method: PaymentMethod
+    mobile_number: Optional[str] = None  # required for BKASH / NAGAD
+    pin: Optional[str] = None  # required for BKASH / NAGAD
 
 class InitiateResponse(BaseModel):
     payment_id: UUID

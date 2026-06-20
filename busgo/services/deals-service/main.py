@@ -1,19 +1,33 @@
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from datetime import datetime
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 from database import engine, Base, get_db
 from models import PromoCode, FlashSale, DiscountType
 from schemas import (
-    PromoCodeCreate, PromoCodeUpdate, PromoCodeResponse, 
-    FlashSaleResponse, ValidatePromoRequest, ValidatePromoResponse,
+    PromoCodeCreate, PromoCodeUpdate, PromoCodeResponse,
+    FlashSaleCreate, FlashSaleUpdate, FlashSaleResponse,
+    ValidatePromoRequest, ValidatePromoResponse,
     ApplyPromoRequest
 )
 from redis_client import has_user_used_promo, mark_promo_used
 import os
 
 Base.metadata.create_all(bind=engine)
+
+from sqlalchemy import text
+with engine.connect() as conn:
+    for stmt in [
+        "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS operator_id VARCHAR(255)",
+        "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS title VARCHAR(255)",
+        "ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS description TEXT",
+        "ALTER TABLE flash_sales ADD COLUMN IF NOT EXISTS operator_id VARCHAR(255)",
+        "ALTER TABLE flash_sales ADD COLUMN IF NOT EXISTS description TEXT",
+        "ALTER TABLE flash_sales ADD COLUMN IF NOT EXISTS applicable_routes JSON",
+    ]:
+        conn.execute(text(stmt))
+    conn.commit()
 
 app = FastAPI(title='Deals Service', root_path=os.environ.get('ROOT_PATH', ''))
 
@@ -89,8 +103,11 @@ def get_active_flash_sales(db: Session = Depends(get_db)):
     return sales
 
 @app.get('/promos/', response_model=List[PromoCodeResponse])
-def admin_list_promos(db: Session = Depends(get_db)):
-    return db.query(PromoCode).all()
+def list_promos(operator_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    q = db.query(PromoCode)
+    if operator_id:
+        q = q.filter(PromoCode.operator_id == operator_id)
+    return q.all()
 
 @app.post('/promos/', response_model=PromoCodeResponse)
 def admin_create_promo(promo_data: PromoCodeCreate, db: Session = Depends(get_db)):
@@ -119,8 +136,44 @@ def admin_delete_promo(id: UUID, db: Session = Depends(get_db)):
     promo = db.query(PromoCode).filter(PromoCode.id == id).first()
     if not promo:
         raise HTTPException(status_code=404, detail='Promo not found')
-    
+
     db.delete(promo)
     db.commit()
     return {'status': 'success', 'message': 'Promo deleted'}
+
+@app.get('/flash-sales', response_model=List[FlashSaleResponse])
+@app.get('/flash-sales/', response_model=List[FlashSaleResponse])
+def list_flash_sales(operator_id: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    q = db.query(FlashSale)
+    if operator_id:
+        q = q.filter(FlashSale.operator_id == operator_id)
+    return q.all()
+
+@app.post('/flash-sales/', response_model=FlashSaleResponse)
+def create_flash_sale(data: FlashSaleCreate, db: Session = Depends(get_db)):
+    sale = FlashSale(**data.dict())
+    db.add(sale)
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+@app.put('/flash-sales/{id}', response_model=FlashSaleResponse)
+def update_flash_sale(id: UUID, data: FlashSaleUpdate, db: Session = Depends(get_db)):
+    sale = db.query(FlashSale).filter(FlashSale.id == id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail='Flash sale not found')
+    for key, value in data.dict(exclude_unset=True).items():
+        setattr(sale, key, value)
+    db.commit()
+    db.refresh(sale)
+    return sale
+
+@app.delete('/flash-sales/{id}')
+def delete_flash_sale(id: UUID, db: Session = Depends(get_db)):
+    sale = db.query(FlashSale).filter(FlashSale.id == id).first()
+    if not sale:
+        raise HTTPException(status_code=404, detail='Flash sale not found')
+    db.delete(sale)
+    db.commit()
+    return {'status': 'success'}
 

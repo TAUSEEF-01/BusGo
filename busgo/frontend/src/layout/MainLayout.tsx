@@ -16,6 +16,7 @@ import {
   Shield,
   Clock,
   ChevronDown,
+  BadgePercent,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { NotificationBell } from "../notifications/NotificationBell";
@@ -72,6 +73,7 @@ function Navbar() {
   const navLinks = [
     { to: "/", label: "Home", icon: Home },
     { to: "/routes", label: "Routes", icon: MapPin },
+    { to: "/deals", label: "Deals", icon: BadgePercent },
     ...(isAuthenticated ? [{ to: "/my-bookings", label: "My Bookings", icon: Ticket }] : []),
   ];
 
@@ -348,7 +350,7 @@ function Footer() {
     ],
     support: [
       { label: "Help Center", to: "/" },
-      { label: "Safety", to: "/" },
+      { label: "Deals & Offers", to: "/deals" },
       { label: "Cancellation", to: "/" },
       { label: "Report Issue", to: "/" },
     ],

@@ -36,32 +36,17 @@ export function PassengerDetails() {
     }
   }, [location.state]);
 
-  const [contactInfo, setContactInfo] = useState({ email: "", phone: "" });
-  const [passengers, setPassengers] = useState(
-    state.seats ? state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" }))
-    : [{ seat: "A3", name: "", phone: "", gender: "male" }]
-  );
-
-  useEffect(() => {
-    if (state.seats && passengers.length !== state.seats.length) {
-      setPassengers(state.seats.map((seat: string) => ({ seat, name: "", phone: "", gender: "male" })));
-    }
-  }, [state.seats]);
+  const [contactInfo, setContactInfo] = useState({ name: "", email: "", phone: "" });
+  const seatNumbers: string[] = state.seats || ["A3"];
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const updatePassenger = (index: number, field: string, value: string) => {    setPassengers((prev: any[]) => prev.map((p: any, i: number) => (i === index ? { ...p, [field]: value } : p)));
-    setErrors((e: Record<string, string>) => ({ ...e, [`p${index}_${field}`]: "" }));
-  };
-
   const validate = () => {
     const errs: Record<string, string> = {};
+    if (!contactInfo.name) errs.contact_name = "Name is required";
     if (!contactInfo.email) errs.contact_email = "Email is required";
     if (!contactInfo.phone) errs.contact_phone = "Phone is required";
-    passengers.forEach((p: any, i: number) => {
-      if (!p.name) errs[`p${i}_name`] = "Name is required";
-    });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -105,37 +90,133 @@ export function PassengerDetails() {
         // Fallback
       }
 
-      const requestData = {
-        trip_id: state.trip_id,
-        operator_id: state.operator_id,
-        operator_name: state.operator || "Unknown Operator",
-        seat_numbers: passengers.map((p: any) => p.seat),
-        passenger_details: passengers.map((p: any) => ({
-          name: p.name,
-          age: 30, // Mock age
-          gender: p.gender,
-          seat: p.seat
-        })),
-        boarding_point: state.origin || "Dhaka",
-        dropping_point: state.destination || "Chittagong",
-        journey_date: jDate,
-        departure_time: depTime,
-        total_fare: state.totalFare || passengers.length * 850 + 20,
-        idempotency_key: crypto.randomUUID()
-      };
+      if (state.isRoundTrip && state.outboundTrip) {
+        // Round trip sequential bookings
+        let outboundDepTime = "08:00:00";
+        try {
+          const timeStr = state.outboundTrip.departure_time || (state.outboundTrip.departure_datetime ? new Date(state.outboundTrip.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM");
+          const [time, modifier] = timeStr.split(' ');
+          let [hours, minutes] = time.split(':');
+          if (hours === '12') hours = '00';
+          if (modifier === 'PM') hours = parseInt(hours, 10) + 12;
+          outboundDepTime = `${hours.toString().padStart(2, '0')}:${minutes}:00`;
+        } catch (e) {}
 
-      console.log("Creating booking with data:", requestData);
-      const response = await apiClient.post("/api/bookings/", requestData);
-      console.log("Booking response:", response.data);
-      
-      if (response.data.success) {
-        toast.success("Seats locked! Proceed to payment.");
+        let outboundJDate = "2026-05-01";
+        try {
+          const d = new Date(state.outboundDate);
+          outboundJDate = d.toISOString().split('T')[0];
+        } catch (e) {}
+
+        const outboundRequestData = {
+          trip_id: state.outboundTrip.trip_id || state.outboundTrip.id,
+          operator_id: state.outboundTrip.operator_id,
+          operator_name: state.outboundTrip.operator_name || state.outboundTrip.operator || "Unknown Operator",
+          seat_numbers: state.outboundSeats,
+          passenger_details: state.outboundSeats.map((seat: string) => ({
+            name: contactInfo.name,
+            age: 30,
+            gender: "male",
+            seat
+          })),
+          boarding_point: state.outboundBoardingPoint || state.originalOrigin || "Dhaka",
+          dropping_point: state.outboundDroppingPoint || state.originalDestination || "Chittagong",
+          journey_date: outboundJDate,
+          departure_time: outboundDepTime,
+          total_fare: state.outboundTotal,
+          idempotency_key: crypto.randomUUID()
+        };
+
+        const returnRequestData = {
+          trip_id: state.trip_id,
+          operator_id: state.operator_id,
+          operator_name: state.operator || "Unknown Operator",
+          seat_numbers: seatNumbers,
+          passenger_details: seatNumbers.map((seat: string) => ({
+            name: contactInfo.name,
+            age: 30,
+            gender: "male",
+            seat
+          })),
+          boarding_point: state.boardingPoint || state.origin || "Dhaka",
+          dropping_point: state.droppingPoint || state.destination || "Chittagong",
+          journey_date: jDate,
+          departure_time: depTime,
+          total_fare: state.totalFare || seatNumbers.length * 850 + 20,
+          idempotency_key: crypto.randomUUID()
+        };
+
+        console.log("Creating outbound booking:", outboundRequestData);
+        const outboundResponse = await apiClient.post("/api/bookings/", outboundRequestData);
+        console.log("Outbound booking response:", outboundResponse.data);
+
+        if (!outboundResponse.data.success) {
+          toast.error(outboundResponse.data.message || "Failed to create outbound booking");
+          setIsSubmitting(false);
+          return;
+        }
+
+        console.log("Creating return booking:", returnRequestData);
+        const returnResponse = await apiClient.post("/api/bookings/", returnRequestData);
+        console.log("Return booking response:", returnResponse.data);
+
+        if (!returnResponse.data.success) {
+          toast.error(returnResponse.data.message || "Failed to create return booking");
+          setIsSubmitting(false);
+          return;
+        }
+
+        toast.success("Seats locked for both journeys! Proceed to payment.");
         sessionStorage.removeItem("pending_booking");
-        navigate(`/booking/payment/${response.data.data.booking_id}`, {
-          state: { totalFare: requestData.total_fare }
+        navigate(`/booking/payment/${outboundResponse.data.data.booking_id}`, {
+          state: {
+            totalFare: Number(outboundRequestData.total_fare) + Number(returnRequestData.total_fare),
+            return_booking_id: returnResponse.data.data.booking_id,
+            outboundTotal: outboundRequestData.total_fare,
+            returnTotal: returnRequestData.total_fare,
+            isRoundTrip: true,
+            outboundTrip: state.outboundTrip,
+            outboundSeats: state.outboundSeats,
+            outboundDate: state.outboundDate,
+            returnTrip: { operator_name: state.operator, origin_city: state.origin, destination_city: state.destination },
+            returnSeats: seatNumbers,
+            returnDate: state.date,
+          }
         });
       } else {
-        toast.error(response.data.message || "Failed to create booking");
+        // One way booking
+        const requestData = {
+          trip_id: state.trip_id,
+          operator_id: state.operator_id,
+          operator_name: state.operator || "Unknown Operator",
+          seat_numbers: seatNumbers,
+          passenger_details: seatNumbers.map((seat: string) => ({
+            name: contactInfo.name,
+            age: 30, // Mock age
+            gender: "male",
+            seat
+          })),
+          boarding_point: state.boardingPoint || state.origin || "Dhaka",
+          dropping_point: state.droppingPoint || state.destination || "Chittagong",
+          journey_date: jDate,
+          departure_time: depTime,
+          total_fare: state.totalFare || seatNumbers.length * 850 + 20,
+          idempotency_key: crypto.randomUUID()
+        };
+
+        console.log("Creating booking with data:", requestData);
+        const response = await apiClient.post("/api/bookings/", requestData);
+        console.log("Booking response:", response.data);
+        
+        if (response.data.success) {
+          toast.success("Seats locked! Proceed to payment.");
+          sessionStorage.removeItem("pending_booking");
+          navigate(`/booking/payment/${response.data.data.booking_id}`, {
+            state: { totalFare: requestData.total_fare }
+          });
+        } else {
+          toast.error(response.data.message || "Failed to create booking");
+        }
       }
     } catch (err: any) {
       console.error("Booking error:", err);
@@ -185,6 +266,21 @@ export function PassengerDetails() {
               <p className="text-sm text-surface-500 mb-5">We'll send your e-ticket and updates to this contact.</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
+                    <input
+                      type="text"
+                      value={contactInfo.name}
+                      onChange={(e) => { setContactInfo((c) => ({ ...c, name: e.target.value })); setErrors((er) => ({ ...er, contact_name: "" })); }}
+                      placeholder="As per NID / Passport"
+                      className={`input-premium !pl-10 ${errors.contact_name ? "!border-red-400" : ""}`}
+                      id="contact-name"
+                    />
+                  </div>
+                  {errors.contact_name && <p className="text-red-500 text-xs mt-1">{errors.contact_name}</p>}
+                </div>
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
                   <div className="relative">
@@ -217,58 +313,6 @@ export function PassengerDetails() {
                 </div>
               </div>
             </div>
-
-            {/* Passenger Cards */}
-            {passengers.map((p: any, i: number) => (
-              <div key={i} className="card-premium p-6 animate-fade-in-up" style={{ animationDelay: `${i * 100}ms` }} id={`passenger-card-${i}`}>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 flex items-center justify-center">
-                    <User className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-surface-900">Passenger {i + 1}</h3>
-                    <span className="text-xs badge badge-info">Seat {p.seat}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
-                    <input
-                      type="text"
-                      value={p.name}
-                      onChange={(e) => updatePassenger(i, "name", e.target.value)}
-                      placeholder="As per NID / Passport"
-                      className={`input-premium ${errors[`p${i}_name`] ? "!border-red-400" : ""}`}
-                      id={`passenger-name-${i}`}
-                    />
-                    {errors[`p${i}_name`] && <p className="text-red-500 text-xs mt-1">{errors[`p${i}_name`]}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Phone (Optional)</label>
-                    <input
-                      type="tel"
-                      value={p.phone}
-                      onChange={(e) => updatePassenger(i, "phone", e.target.value)}
-                      placeholder="+880..."
-                      className="input-premium"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-surface-700 mb-1.5">Gender</label>
-                    <select
-                      value={p.gender}
-                      onChange={(e) => updatePassenger(i, "gender", e.target.value)}
-                      className="input-premium"
-                    >
-                      <option value="male">Male</option>
-                      <option value="female">Female</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* Sidebar */}
@@ -277,45 +321,117 @@ export function PassengerDetails() {
               <div className="card-premium p-6">
                 <h3 className="font-bold text-surface-900 mb-4">Trip Summary</h3>
 
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
-                      <MapPin className="h-4 w-4 text-surface-500" />
+                {state.isRoundTrip && state.outboundTrip ? (
+                  <div className="space-y-4">
+                    {/* Outbound Leg */}
+                    <div className="border-b border-surface-100 pb-3">
+                      <span className="text-[10px] font-bold text-brand-600 uppercase tracking-wider block mb-1">Outbound Journey</span>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center flex-shrink-0"><MapPin className="h-3.5 w-3.5 text-surface-500" /></div>
+                          <div>
+                            <p className="font-semibold text-surface-900">{state.originalOrigin || "Dhaka"} → {state.originalDestination || "Chittagong"}</p>
+                            <p className="text-xs text-surface-500">{state.outboundTrip.operator_name || state.outboundTrip.operator}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center flex-shrink-0"><Clock className="h-3.5 w-3.5 text-surface-500" /></div>
+                          <div>
+                            <p className="font-semibold text-surface-900">{state.outboundTrip.departure_time || (state.outboundTrip.departure_datetime ? new Date(state.outboundTrip.departure_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "08:00 AM")}</p>
+                            <p className="text-xs text-surface-500">{state.outboundDate}</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-xs mt-1.5 pt-1.5 border-t border-dashed border-surface-100">
+                          <span className="text-surface-500">Seats ({state.outboundSeats?.length}):</span>
+                          <span className="font-mono font-bold text-surface-900">{state.outboundSeats?.join(", ")}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold text-surface-900">{state.origin || "Dhaka"} → {state.destination || "Chittagong"}</p>
-                      <p className="text-xs text-surface-500">{state.operator || "Greenline Paribahan"}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
-                      <Clock className="h-4 w-4 text-surface-500" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-surface-900">{state.departureTime || "08:00 AM"}</p>
-                      <p className="text-xs text-surface-500">{state.date || "May 1, 2026"}</p>
-                    </div>
-                  </div>
-                </div>
 
-                <div className="border-t border-surface-200 mt-4 pt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-surface-500">Seats</span>
-                    <span className="font-medium text-surface-900">{passengers.map((p: any) => p.seat).join(", ")}</span>
+                    {/* Return Leg */}
+                    <div className="pb-2">
+                      <span className="text-[10px] font-bold text-brand-600 uppercase tracking-wider block mb-1">Return Journey</span>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center flex-shrink-0"><MapPin className="h-3.5 w-3.5 text-surface-500" /></div>
+                          <div>
+                            <p className="font-semibold text-surface-900">{state.origin || "Chittagong"} → {state.destination || "Dhaka"}</p>
+                            <p className="text-xs text-surface-500">{state.operator || "Greenline Paribahan"}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-lg bg-surface-100 flex items-center justify-center flex-shrink-0"><Clock className="h-3.5 w-3.5 text-surface-500" /></div>
+                          <div>
+                            <p className="font-semibold text-surface-900">{state.departureTime || "08:00 AM"}</p>
+                            <p className="text-xs text-surface-500">{state.date || "May 1, 2026"}</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-between text-xs mt-1.5 pt-1.5 border-t border-dashed border-surface-100">
+                          <span className="text-surface-500">Seats ({seatNumbers.length}):</span>
+                          <span className="font-mono font-bold text-surface-900">{seatNumbers.join(", ")}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Price Breakdown */}
+                    <div className="border-t border-surface-200 pt-3.5 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Outbound Total</span>
+                        <span className="font-medium text-surface-900">৳ {state.outboundTotal}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Return Total</span>
+                        <span className="font-medium text-surface-900">৳ {state.totalFare || seatNumbers.length * 850 + 20}</span>
+                      </div>
+                      <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
+                        <span className="font-bold text-surface-900">Total Fare</span>
+                        <span className="font-extrabold text-brand-600 text-lg">৳ {(Number(state.outboundTotal) + Number(state.totalFare || seatNumbers.length * 850 + 20)).toLocaleString()}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-surface-500">Subtotal</span>
-                    <span className="font-medium text-surface-900">৳ {(state.totalFare - 20) || passengers.length * 850}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-surface-500">Service fee</span>
-                    <span className="font-medium text-surface-900">৳ 20</span>
-                  </div>
-                  <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
-                    <span className="font-bold text-surface-900">Total</span>
-                    <span className="font-extrabold text-brand-600">৳ {state.totalFare || passengers.length * 850 + 20}</span>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="space-y-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
+                          <MapPin className="h-4 w-4 text-surface-500" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-surface-900">{state.origin || "Dhaka"} → {state.destination || "Chittagong"}</p>
+                          <p className="text-xs text-surface-500">{state.operator || "Greenline Paribahan"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-surface-100 flex items-center justify-center">
+                          <Clock className="h-4 w-4 text-surface-500" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-surface-900">{state.departureTime || "08:00 AM"}</p>
+                          <p className="text-xs text-surface-500">{state.date || "May 1, 2026"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-surface-200 mt-4 pt-4 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Seats</span>
+                        <span className="font-medium text-surface-900">{seatNumbers.join(", ")}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Subtotal</span>
+                        <span className="font-medium text-surface-900">৳ {(state.totalFare - 20) || seatNumbers.length * 850}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-surface-500">Service fee</span>
+                        <span className="font-medium text-surface-900">৳ 20</span>
+                      </div>
+                      <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
+                        <span className="font-bold text-surface-900">Total</span>
+                        <span className="font-extrabold text-brand-600">৳ {state.totalFare || seatNumbers.length * 850 + 20}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <button 

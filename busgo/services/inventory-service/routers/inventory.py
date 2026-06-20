@@ -105,13 +105,29 @@ async def lock_seats(trip_id: UUID, req: LockRequest, db: AsyncSession = Depends
     if len(seats) != len(req.seat_numbers):
         raise HTTPException(status_code=400, detail="One or more seats not found")
         
+    now = datetime.now(timezone.utc)
     for seat in seats:
         if seat.status == SeatStatus.BOOKED:
             raise SeatAlreadyLocked(f"Seat {seat.seat_number} is already booked")
-            
+        # Clear stale DB lock: expired TTL or Redis key already gone
+        if seat.status == SeatStatus.LOCKED:
+            redis_owner = await RedisInventoryService.get_seat_lock(str(trip_id), seat.seat_number)
+            lock_expired = seat.lock_expires_at and seat.lock_expires_at.replace(tzinfo=timezone.utc) < now
+            if redis_owner is None or lock_expired:
+                seat.status = SeatStatus.AVAILABLE
+                seat.locked_by_booking_id = None
+                seat.lock_expires_at = None
+                await RedisInventoryService.unlock_seat(str(trip_id), seat.seat_number)
+    await db.commit()
+
     # Try locking in Redis
     locked_seats = []
     for sn in req.seat_numbers:
+        existing = await RedisInventoryService.get_seat_lock(str(trip_id), sn)
+        if existing == str(req.booking_id):
+            # Already locked by this booking (retry) — count as success
+            locked_seats.append(sn)
+            continue
         success = await RedisInventoryService.lock_seat(str(trip_id), sn, str(req.booking_id))
         if success:
             locked_seats.append(sn)
@@ -119,7 +135,7 @@ async def lock_seats(trip_id: UUID, req: LockRequest, db: AsyncSession = Depends
             # Rollback locks if failing midway
             for lsn in locked_seats:
                 await RedisInventoryService.unlock_seat(str(trip_id), lsn)
-            raise SeatAlreadyLocked(f"Seat {sn} is already locked")
+            raise SeatAlreadyLocked(f"Seat {sn} is already locked by another booking")
             
     expires_at = datetime.now(timezone.utc) + timedelta(seconds=RedisInventoryService.LOCK_TTL)
     
@@ -159,18 +175,19 @@ async def confirm_seats(trip_id: UUID, req: ConfirmRequest, db: AsyncSession = D
     result = await db.execute(select(SeatInventory).where(
         SeatInventory.trip_id == trip_id,
         SeatInventory.seat_number.in_(req.seat_numbers),
-        SeatInventory.locked_by_booking_id == req.booking_id
     ))
     seats = result.scalars().all()
-    
+
     if len(seats) != len(req.seat_numbers):
         raise HTTPException(status_code=400, detail="Invalid seat confirmation request")
-    
+
     for seat in seats:
         seat.status = SeatStatus.BOOKED
         seat.booked_by_user_id = req.user_id
+        seat.locked_by_booking_id = req.booking_id
+        seat.lock_expires_at = None
         await RedisInventoryService.unlock_seat(str(trip_id), seat.seat_number)
-        
+
     await db.commit()
     return BaseResponse(success=True, message="Seats confirmed")
 
