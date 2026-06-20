@@ -1,15 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
-import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard, ChevronLeft, ArrowRight, Clock, MapPin, Calendar, Ticket, Landmark, Wallet, Search, Check, RefreshCw, Megaphone, Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
+import { Users, Bus, Map, DollarSign, Activity, Settings, TrendingUp, AlertCircle, Menu, X, Loader2, LogOut, ChevronDown, History, CreditCard, ChevronLeft, ArrowRight, Clock, MapPin, Calendar, Ticket, Landmark, Wallet, Search, Check, RefreshCw, Megaphone, Plus, Pencil, Trash2, Eye, EyeOff, Bell } from "lucide-react";
 import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { NotificationBell } from "../notifications/NotificationBell";
+import { AdminNotifications } from "./AdminNotifications";
 
 export function AdminPortal() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const validTabs = ["Dashboard", "Operators", "Routes", "Users", "User History", "Transactions", "Bank", "Notices", "Settings"];
+  const validTabs = ["Dashboard", "Operators", "Routes", "Users", "User History", "Transactions", "Bank", "Notices", "Notifications", "Settings"];
   const hashTab = decodeURIComponent(window.location.hash.replace("#", ""));
   const [activeTab, setActiveTab] = useState(validTabs.includes(hashTab) ? hashTab : "Dashboard");
   const [loading, setLoading] = useState(true);
@@ -120,6 +121,18 @@ export function AdminPortal() {
     window.location.hash = encodeURIComponent(activeTab);
   }, [activeTab]);
 
+  // React to hash changes (e.g. the notification bell links to #Notifications
+  // while the admin portal is already mounted).
+  useEffect(() => {
+    const onHashChange = () => {
+      const tab = decodeURIComponent(window.location.hash.replace("#", ""));
+      if (validTabs.includes(tab)) setActiveTab(tab);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchTabData = useCallback(async (tab: string) => {
     if (tab === "Dashboard" || tab === "Finance" || tab === "Settings") return;
     setTabLoading(true);
@@ -167,6 +180,9 @@ export function AdminPortal() {
       } else if (tab === "Notices") {
         const res = await apiClient.get('/api/admin/notices');
         if (res.data.success) setAdminNotices(res.data.data);
+      } else if (tab === "Notifications") {
+        const usersRes = await apiClient.get('/api/admin/users');
+        if (usersRes.data.success) setUsers(usersRes.data.data);
       }
     } catch (error) {
       console.error(`Failed to fetch ${tab}:`, error);
@@ -202,6 +218,7 @@ export function AdminPortal() {
     { id: "Transactions", icon: CreditCard, label: "Transactions" },
     { id: "Bank", icon: Landmark, label: "Bank" },
     { id: "Notices", icon: Megaphone, label: "Notices" },
+    { id: "Notifications", icon: Bell, label: "Notifications" },
   ];
 
   const renderUserDetails = () => {
@@ -811,7 +828,7 @@ export function AdminPortal() {
                 renderOperatorDetails()
               ) : (
                 <>
-                  {activeTab !== "Finance" && activeTab !== "Settings" && (
+                  {activeTab !== "Finance" && activeTab !== "Settings" && activeTab !== "Notifications" && (
                     <div className="mb-6 flex justify-between items-center">
                       <div>
                         <h1 className="text-2xl font-bold text-surface-900">{activeTab} Management</h1>
@@ -820,7 +837,15 @@ export function AdminPortal() {
                     </div>
                   )}
 
-                  {tabLoading ? (
+                  {activeTab === "Notifications" ? (
+                    tabLoading ? (
+                      <div className="flex justify-center items-center py-20">
+                        <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
+                      </div>
+                    ) : (
+                      <AdminNotifications allUsers={users} />
+                    )
+                  ) : tabLoading ? (
                     <div className="flex justify-center items-center py-20">
                       <Loader2 className="w-8 h-8 animate-spin text-brand-600" />
                     </div>

@@ -217,6 +217,30 @@ async def reset_admin_password(req: LoginRequest, db: AsyncSession = Depends(get
     return {"success": True, "message": f"Password reset for {user.email or user.phone}"}
 
 
+@router.post("/users/lookup")
+async def lookup_users(body: dict, db: AsyncSession = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return id, full_name, email, phone for a list of user UUIDs. Available to any authenticated user."""
+    import uuid as _uuid
+    raw_ids = body.get("user_ids") or []
+    parsed = []
+    for uid in raw_ids:
+        try:
+            parsed.append(_uuid.UUID(str(uid)))
+        except (ValueError, AttributeError):
+            pass
+    if not parsed:
+        return {"success": True, "data": []}
+    result = await db.execute(select(User).where(User.id.in_(parsed)))
+    users = result.scalars().all()
+    return {
+        "success": True,
+        "data": [
+            {"id": str(u.id), "full_name": u.full_name, "email": u.email or "", "phone": u.phone}
+            for u in users
+        ],
+    }
+
+
 @router.post("/create-admin")
 async def create_admin(req: CreateAdminRequest, db: AsyncSession = Depends(get_db)):
     """Dev-only endpoint to seed an admin account. Bypasses the ADMIN role restriction."""

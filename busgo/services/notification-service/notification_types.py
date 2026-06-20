@@ -32,6 +32,7 @@ class OperatorNotificationType(str, enum.Enum):
     DAILY_BOOKING_SUMMARY  = "DAILY_BOOKING_SUMMARY"
     REVENUE_SUMMARY        = "REVENUE_SUMMARY"
     ROUTE_UPDATE_CONFIRMED = "ROUTE_UPDATE_CONFIRMED"
+    OPERATOR_TO_USER       = "OPERATOR_TO_USER"
 
 
 class AdminNotificationType(str, enum.Enum):
@@ -42,6 +43,7 @@ class AdminNotificationType(str, enum.Enum):
     WEEKLY_REVENUE_REPORT    = "WEEKLY_REVENUE_REPORT"
     USER_COMPLAINT           = "USER_COMPLAINT"
     BOOKING_ANOMALY          = "BOOKING_ANOMALY"
+    ADMIN_BROADCAST          = "ADMIN_BROADCAST"
 
 
 # Combined enum for the DB column (all values in one flat enum)
@@ -61,6 +63,7 @@ class NotificationType(str, enum.Enum):
     DAILY_BOOKING_SUMMARY   = "DAILY_BOOKING_SUMMARY"
     REVENUE_SUMMARY         = "REVENUE_SUMMARY"
     ROUTE_UPDATE_CONFIRMED  = "ROUTE_UPDATE_CONFIRMED"
+    OPERATOR_TO_USER        = "OPERATOR_TO_USER"   # operator-initiated message to passengers
 
     # Admin
     NEW_OPERATOR_REGISTERED = "NEW_OPERATOR_REGISTERED"
@@ -70,6 +73,7 @@ class NotificationType(str, enum.Enum):
     WEEKLY_REVENUE_REPORT   = "WEEKLY_REVENUE_REPORT"
     USER_COMPLAINT          = "USER_COMPLAINT"
     BOOKING_ANOMALY         = "BOOKING_ANOMALY"
+    ADMIN_BROADCAST         = "ADMIN_BROADCAST"    # admin-initiated broadcast to users/operators
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +156,12 @@ NOTIFICATION_META: dict = {
         "color": "purple",
         "role": "OPERATOR",
     },
+    "OPERATOR_TO_USER": {
+        "title": "Message from Operator",
+        "icon": "megaphone",
+        "color": "blue",
+        "role": "CUSTOMER",
+    },
 
     # --- Admin ---
     "NEW_OPERATOR_REGISTERED": {
@@ -195,6 +205,12 @@ NOTIFICATION_META: dict = {
         "icon": "zap",
         "color": "yellow",
         "role": "ADMIN",
+    },
+    "ADMIN_BROADCAST": {
+        "title": "Platform Announcement",
+        "icon": "megaphone",
+        "color": "brand",
+        "role": "CUSTOMER",
     },
 }
 

@@ -575,3 +575,141 @@ def clear_all_notifications(
         db.delete(n)
     db.commit()
     return {"success": True, "data": {"deleted_count": count}}
+
+
+@router.post("/send")
+def send_notification_to_users(
+    payload: dict,
+    db:   Session = Depends(get_db),
+    user: dict    = Depends(get_current_user),
+):
+    """
+    Operator or Admin sends an in-app notification to a list of users.
+
+    Body:
+        user_ids  : list[str]   – target user UUIDs
+        type      : str         – NotificationType value (default OPERATOR_TO_USER)
+        title     : str         – notification title
+        message   : str         – notification body
+        metadata  : dict        – optional extra data (delay_minutes, trip_id, etc.)
+    """
+    if user["role"] not in ("OPERATOR", "ADMIN"):
+        raise HTTPException(status_code=403, detail="Only operators and admins can send notifications")
+
+    user_ids  = payload.get("user_ids") or []
+    notif_type_str = payload.get("type", "OPERATOR_TO_USER")
+    title     = (payload.get("title") or "").strip()
+    message   = (payload.get("message") or "").strip()
+    metadata  = payload.get("metadata") or {}
+
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="user_ids list is required")
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+
+    try:
+        nt = NotificationType(notif_type_str)
+    except ValueError:
+        nt = NotificationType.OPERATOR_TO_USER
+
+    now = datetime.utcnow()
+    created = 0
+    for uid in user_ids:
+        try:
+            UUID(str(uid))
+        except (ValueError, AttributeError):
+            continue
+        if str(uid) == str(user["user_id"]):
+            continue  # operator cannot send to themselves
+        n = InAppNotification(
+            user_id=uid,
+            role="CUSTOMER",
+            type=nt,
+            title=title,
+            message=message,
+            meta_data={**metadata, "sent_by": user["user_id"], "sender_role": user["role"]},
+            is_read=False,
+            created_at=now,
+        )
+        db.add(n)
+        created += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {"success": True, "data": {"sent_count": created}}
+
+
+@router.post("/admin/broadcast")
+def admin_broadcast(
+    payload: dict,
+    db:   Session = Depends(get_db),
+    user: dict    = Depends(get_current_user),
+):
+    """
+    Admin broadcasts a notification to a list of users or operators.
+
+    Body:
+        user_ids     : list[str]           – target user UUIDs
+        target_role  : str                 – CUSTOMER | OPERATOR (role label on the notification)
+        type         : str                 – NotificationType value (default ADMIN_BROADCAST)
+        title        : str                 – notification title
+        message      : str                 – notification body
+        metadata     : dict                – optional extra data
+    """
+    if user["role"] != "ADMIN":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    user_ids        = payload.get("user_ids") or []
+    target_role     = payload.get("target_role", "CUSTOMER").upper()
+    notif_type_str  = payload.get("type", "ADMIN_BROADCAST")
+    title           = (payload.get("title") or "").strip()
+    message         = (payload.get("message") or "").strip()
+    metadata        = payload.get("metadata") or {}
+
+    if not user_ids:
+        raise HTTPException(status_code=400, detail="user_ids list is required")
+    if not message:
+        raise HTTPException(status_code=400, detail="message is required")
+    if not title:
+        raise HTTPException(status_code=400, detail="title is required")
+    if target_role not in ("CUSTOMER", "OPERATOR"):
+        raise HTTPException(status_code=400, detail="target_role must be CUSTOMER or OPERATOR")
+
+    try:
+        nt = NotificationType(notif_type_str)
+    except ValueError:
+        nt = NotificationType.ADMIN_BROADCAST
+
+    now = datetime.utcnow()
+    created = 0
+    for uid in user_ids:
+        try:
+            UUID(str(uid))
+        except (ValueError, AttributeError):
+            continue
+        n = InAppNotification(
+            user_id=uid,
+            role=target_role,
+            type=nt,
+            title=title,
+            message=message,
+            meta_data={**metadata, "sent_by": user["user_id"], "broadcast": True},
+            is_read=False,
+            created_at=now,
+        )
+        db.add(n)
+        created += 1
+
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {"success": True, "data": {"sent_count": created}}

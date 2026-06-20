@@ -14,6 +14,15 @@ import { Link } from "react-router-dom";
 import { Bell, CheckCheck, ArrowRight } from "lucide-react";
 import { useNotificationStore } from "./notificationStore";
 import { NotificationCard } from "./NotificationCard";
+import { useAuthStore } from "../stores/authStore";
+
+/** Route to the notification hub appropriate for the current role. */
+function notificationsPathForRole(role?: string): string {
+  const r = role?.toUpperCase();
+  if (r === "OPERATOR") return "/operator/notifications";
+  if (r === "ADMIN") return "/admin#Notifications";
+  return "/notifications";
+}
 
 interface NotificationBellProps {
   /** Whether the navbar has scrolled (affects color scheme) */
@@ -24,6 +33,9 @@ interface NotificationBellProps {
 export function NotificationBell({ scrolled, isHome }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const role = useAuthStore((s) => s.user?.role);
+  const viewAllPath = notificationsPathForRole(role);
 
   const {
     notifications,
@@ -161,7 +173,7 @@ export function NotificationBell({ scrolled, isHome }: NotificationBellProps) {
 
             {/* Footer */}
             <Link
-              to="/notifications"
+              to={viewAllPath}
               onClick={() => setOpen(false)}
               className="
                 flex items-center justify-center gap-1.5

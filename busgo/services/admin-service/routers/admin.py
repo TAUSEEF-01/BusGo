@@ -74,8 +74,8 @@ async def get_dashboard_stats():
     # Total Bookings
     total_bookings = await query_db("booking_db", "SELECT COUNT(id) FROM bookings")
     
-    # Total Revenue (sum of total_fare for non-cancelled/refunded bookings)
-    total_revenue = await query_db("booking_db", "SELECT COALESCE(SUM(total_fare), 0) FROM bookings WHERE status NOT IN ('CANCELLED', 'REFUNDED')")
+    # Total Revenue (sum of total_fare for confirmed/completed bookings only)
+    total_revenue = await query_db("booking_db", "SELECT COALESCE(SUM(total_fare), 0) FROM bookings WHERE status IN ('CONFIRMED', 'COMPLETED')")
     
     # Active Operators
     # If operator_db doesn't exist or is empty, we fallback.

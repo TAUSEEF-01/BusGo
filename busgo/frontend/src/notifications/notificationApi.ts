@@ -23,19 +23,20 @@ export type NotificationType =
   | "BUS_DELAYED"
   | "REFUND_INITIATED"
   | "REFUND_COMPLETED"
-  // Operator
+  // Operator-sent to customers
+  | "OPERATOR_TO_USER"
+  // Operator system
   | "NEW_BOOKING_ALERT"
   | "DAILY_BOOKING_SUMMARY"
   | "REVENUE_SUMMARY"
-  | "ROUTE_UPDATE_CONFIRMED"
   // Admin
   | "NEW_OPERATOR_REGISTERED"
   | "NEW_USER_REGISTERED"
   | "SYSTEM_ALERT"
   | "DAILY_PLATFORM_SUMMARY"
   | "WEEKLY_REVENUE_REPORT"
-  | "USER_COMPLAINT"
-  | "BOOKING_ANOMALY";
+  // Admin broadcast
+  | "ADMIN_BROADCAST";
 
 export interface Notification {
   id: string;
@@ -130,17 +131,16 @@ const ROLE_PRIORITY_MAP: Record<NotificationType, NotificationPriority> = {
   BUS_DELAYED: "critical",
   REFUND_INITIATED: "medium",
   REFUND_COMPLETED: "low",
+  OPERATOR_TO_USER: "high",
   NEW_BOOKING_ALERT: "high",
   DAILY_BOOKING_SUMMARY: "low",
   REVENUE_SUMMARY: "low",
-  ROUTE_UPDATE_CONFIRMED: "medium",
   NEW_OPERATOR_REGISTERED: "medium",
   NEW_USER_REGISTERED: "low",
   SYSTEM_ALERT: "critical",
   DAILY_PLATFORM_SUMMARY: "low",
   WEEKLY_REVENUE_REPORT: "low",
-  USER_COMPLAINT: "high",
-  BOOKING_ANOMALY: "critical",
+  ADMIN_BROADCAST: "high",
 };
 
 export const NOTIFICATION_META: Record<NotificationType, NotificationMeta> = {
@@ -153,12 +153,12 @@ export const NOTIFICATION_META: Record<NotificationType, NotificationMeta> = {
   BUS_DELAYED:          { label: "Bus Delayed",          icon: "🚌", color: "text-yellow-700",  bg: "bg-yellow-50",   border: "border-yellow-200"  },
   REFUND_INITIATED:     { label: "Refund Initiated",     icon: "🔄", color: "text-teal-700",    bg: "bg-teal-50",     border: "border-teal-200"    },
   REFUND_COMPLETED:     { label: "Refund Completed",     icon: "💰", color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200" },
+  OPERATOR_TO_USER:     { label: "Operator Message",     icon: "📢", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200"    },
 
   // Operator
   NEW_BOOKING_ALERT:    { label: "New Booking",          icon: "📥", color: "text-blue-700",    bg: "bg-blue-50",     border: "border-blue-200"    },
   DAILY_BOOKING_SUMMARY:{ label: "Daily Summary",        icon: "📊", color: "text-indigo-700",  bg: "bg-indigo-50",   border: "border-indigo-200"  },
   REVENUE_SUMMARY:      { label: "Revenue Summary",      icon: "💹", color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200" },
-  ROUTE_UPDATE_CONFIRMED:{ label: "Route Confirmed",     icon: "🗺️", color: "text-purple-700",  bg: "bg-purple-50",   border: "border-purple-200"  },
 
   // Admin
   NEW_OPERATOR_REGISTERED:{ label: "New Operator",       icon: "🏢", color: "text-brand-700",   bg: "bg-brand-50",    border: "border-brand-200"   },
@@ -166,8 +166,7 @@ export const NOTIFICATION_META: Record<NotificationType, NotificationMeta> = {
   SYSTEM_ALERT:         { label: "System Alert",         icon: "⚠️", color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200"     },
   DAILY_PLATFORM_SUMMARY:{ label: "Platform Summary",    icon: "📈", color: "text-indigo-700",  bg: "bg-indigo-50",   border: "border-indigo-200"  },
   WEEKLY_REVENUE_REPORT:{ label: "Revenue Report",       icon: "💰", color: "text-emerald-700", bg: "bg-emerald-50",  border: "border-emerald-200" },
-  USER_COMPLAINT:       { label: "User Complaint",       icon: "📋", color: "text-red-700",     bg: "bg-red-50",      border: "border-red-200"     },
-  BOOKING_ANOMALY:      { label: "Booking Anomaly",      icon: "⚡", color: "text-yellow-700",  bg: "bg-yellow-50",   border: "border-yellow-200"  },
+  ADMIN_BROADCAST:      { label: "Platform Announcement",icon: "📣", color: "text-brand-700",   bg: "bg-brand-50",    border: "border-brand-200"   },
 };
 
 export function getNotificationMeta(type: NotificationType): NotificationMeta {
@@ -270,6 +269,41 @@ export function getNotificationHighlights(notification: Notification): string[] 
 
 export function getNotificationSummary(notification: Notification): string {
   return getNotificationHighlights(notification).join(" · ");
+}
+
+// ─── Send notification API calls ─────────────────────────────────────────────
+
+export interface SendNotificationPayload {
+  user_ids: string[];
+  type: NotificationType;
+  title: string;
+  message: string;
+  metadata?: Record<string, any>;
+}
+
+export interface AdminBroadcastPayload {
+  user_ids: string[];
+  target_role: "CUSTOMER" | "OPERATOR";
+  type: NotificationType;
+  title: string;
+  message: string;
+  metadata?: Record<string, any>;
+}
+
+/** Operator or Admin sends a notification to a specific list of users. */
+export async function sendNotificationToUsers(
+  payload: SendNotificationPayload
+): Promise<{ sent_count: number }> {
+  const res = await apiClient.post(`${BASE}/send`, payload);
+  return res.data.data;
+}
+
+/** Admin broadcasts a notification to a list of users or operators. */
+export async function sendAdminBroadcast(
+  payload: AdminBroadcastPayload
+): Promise<{ sent_count: number }> {
+  const res = await apiClient.post(`${BASE}/admin/broadcast`, payload);
+  return res.data.data;
 }
 
 /** Human-readable relative time (e.g. "2 hours ago") */

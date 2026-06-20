@@ -42,8 +42,9 @@ const CUSTOMER_TABS: Tab[] = [
   { id: "all",       label: "All",             icon: Bell,      types: "all" },
   { id: "unread",    label: "Unread",          icon: Bell,      types: "unread" },
   { id: "bookings",  label: "Bookings",        icon: Package,   types: ["BOOKING_CONFIRMED", "BOOKING_CANCELLED", "TICKET_ISSUED"] },
-  { id: "travel",    label: "Travel Updates",  icon: Bus,       types: ["SCHEDULE_CHANGED", "BUS_DELAYED", "DEPARTURE_REMINDER"] },
+  { id: "travel",    label: "Travel Updates",  icon: Bus,       types: ["SCHEDULE_CHANGED", "BUS_DELAYED", "DEPARTURE_REMINDER", "OPERATOR_TO_USER"] },
   { id: "payments",  label: "Payments",        icon: TrendingUp,types: ["REFUND_INITIATED", "REFUND_COMPLETED"] },
+  { id: "platform",  label: "Announcements",   icon: Shield,    types: ["ADMIN_BROADCAST"] },
 ];
 
 const OPERATOR_TABS: Tab[] = [
@@ -51,14 +52,13 @@ const OPERATOR_TABS: Tab[] = [
   { id: "unread",    label: "Unread",          icon: Bell,      types: "unread" },
   { id: "bookings",  label: "Bookings",        icon: Package,   types: ["NEW_BOOKING_ALERT", "BOOKING_CANCELLED"] },
   { id: "summaries", label: "Summaries",       icon: TrendingUp,types: ["DAILY_BOOKING_SUMMARY", "REVENUE_SUMMARY"] },
-  { id: "routes",    label: "Routes",          icon: Bus,       types: ["ROUTE_UPDATE_CONFIRMED"] },
 ];
 
 const ADMIN_TABS: Tab[] = [
   { id: "all",       label: "All",             icon: Bell,      types: "all" },
   { id: "unread",    label: "Unread",          icon: Bell,      types: "unread" },
-  { id: "users",     label: "Users",           icon: Package,   types: ["NEW_OPERATOR_REGISTERED", "NEW_USER_REGISTERED", "USER_COMPLAINT"] },
-  { id: "platform",  label: "Platform",        icon: TrendingUp,types: ["DAILY_PLATFORM_SUMMARY", "WEEKLY_REVENUE_REPORT", "BOOKING_ANOMALY"] },
+  { id: "users",     label: "Users",           icon: Package,   types: ["NEW_OPERATOR_REGISTERED", "NEW_USER_REGISTERED"] },
+  { id: "platform",  label: "Platform",        icon: TrendingUp,types: ["DAILY_PLATFORM_SUMMARY", "WEEKLY_REVENUE_REPORT"] },
   { id: "system",    label: "System",          icon: Shield,    types: ["SYSTEM_ALERT"] },
 ];
 
@@ -95,7 +95,7 @@ function EmptyState({ role, tabId }: { role: string; tabId: string }) {
 
 // ─── Main page component ──────────────────────────────────────────────────────
 
-export function NotificationsPage() {
+export function NotificationsPage({ embedded = false }: { embedded?: boolean } = {}) {
   const user = useAuthStore((s) => s.user);
   const role = user?.role?.toUpperCase() ?? "CUSTOMER";
 
@@ -151,7 +151,7 @@ export function NotificationsPage() {
     ? [
         { label: "Bookings", value: (breakdown.NEW_BOOKING_ALERT ?? 0) + (breakdown.BOOKING_CANCELLED ?? 0), hint: "booking flow" },
         { label: "Revenue", value: breakdown.REVENUE_SUMMARY ?? 0, hint: "earnings" },
-        { label: "Route updates", value: breakdown.ROUTE_UPDATE_CONFIRMED ?? 0, hint: "service changes" },
+        { label: "Summaries", value: breakdown.DAILY_BOOKING_SUMMARY ?? 0, hint: "daily digest" },
       ]
     : role === "ADMIN"
       ? [
@@ -160,7 +160,7 @@ export function NotificationsPage() {
           { label: "User events", value: (breakdown.NEW_USER_REGISTERED ?? 0) + (breakdown.NEW_OPERATOR_REGISTERED ?? 0), hint: "account activity" },
         ]
       : [
-          { label: "Trip alerts", value: (breakdown.BUS_DELAYED ?? 0) + (breakdown.SCHEDULE_CHANGED ?? 0) + (breakdown.DEPARTURE_REMINDER ?? 0), hint: "timing changes" },
+          { label: "Trip alerts", value: (breakdown.BUS_DELAYED ?? 0) + (breakdown.SCHEDULE_CHANGED ?? 0) + (breakdown.DEPARTURE_REMINDER ?? 0) + (breakdown.OPERATOR_TO_USER ?? 0), hint: "timing changes" },
           { label: "Bookings", value: (breakdown.BOOKING_CONFIRMED ?? 0) + (breakdown.BOOKING_CANCELLED ?? 0) + (breakdown.TICKET_ISSUED ?? 0), hint: "ticket flow" },
           { label: "Payments", value: (breakdown.REFUND_INITIATED ?? 0) + (breakdown.REFUND_COMPLETED ?? 0), hint: "refunds" },
         ];
@@ -169,8 +169,8 @@ export function NotificationsPage() {
   const recentImportant = notifications.find((n) => getNotificationPriority(n.type) === "critical" || getNotificationPriority(n.type) === "high");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface-50 via-white to-brand-50/20">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+    <div className={embedded ? "" : "min-h-screen bg-gradient-to-br from-surface-50 via-white to-brand-50/20"}>
+      <div className={embedded ? "max-w-3xl mx-auto" : "max-w-3xl mx-auto px-4 sm:px-6 py-8"}>
 
         {/* ── Page header ──────────────────────────────────────────────────── */}
         <div className="mb-8">
