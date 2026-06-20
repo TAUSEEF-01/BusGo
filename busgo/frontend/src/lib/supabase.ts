@@ -1,20 +1,45 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Session, User } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+type SupabaseAuthLike = {
+  getSession: () => Promise<{ data: { session: Session | null }; error: null }>
+  getUser: () => Promise<{ data: { user: User | null }; error: null }>
+  refreshSession: () => Promise<{ data: { session: Session | null }; error: null }>
+  signOut: () => Promise<{ error: null }>
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+type SupabaseLike = {
+  auth: SupabaseAuthLike
+}
+
+const createSupabaseFallback = (): SupabaseLike => ({
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true,
-    storage: window.localStorage,
+    getSession: async () => ({ data: { session: null }, error: null }),
+    getUser: async () => ({ data: { user: null }, error: null }),
+    refreshSession: async () => ({ data: { session: null }, error: null }),
+    signOut: async () => ({ error: null }),
   },
 })
+
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey)
+
+if (!hasSupabaseConfig) {
+  console.warn('Supabase environment variables are missing; auth will fall back to local session handling.')
+}
+
+export const supabase: SupabaseLike = hasSupabaseConfig
+  ? (createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+      },
+    }) as unknown as SupabaseLike)
+  : createSupabaseFallback()
 
 // Helper function to get the current session
 export const getSession = async () => {

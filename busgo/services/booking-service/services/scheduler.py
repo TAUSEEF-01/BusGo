@@ -29,7 +29,15 @@ async def expire_stale_bookings():
             
             await KafkaProducerClient.publish("seat.lock.expired", {
                 "booking_id": str(booking.id),
-                "trip_id": str(booking.trip_id)
+                "user_id": str(booking.user_id),
+                "trip_id": str(booking.trip_id),
+                "operator_id": str(booking.operator_id) if booking.operator_id else None,
+                "boarding_point": booking.boarding_point,
+                "dropping_point": booking.dropping_point,
+                "journey_date": booking.journey_date.isoformat() if booking.journey_date else None,
+                "departure_time": booking.departure_time.isoformat() if booking.departure_time else None,
+                "seat_numbers": booking.seat_numbers,
+                "total_fare": float(booking.total_fare),
             })
             await KafkaProducerClient.publish("audit.log", {
                 "event": "booking.expired", "booking_id": str(booking.id), "timestamp": now.isoformat()

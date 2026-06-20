@@ -19,6 +19,7 @@ import {
   BadgePercent,
 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { NotificationBell } from "../notifications/NotificationBell";
 
 export function MainLayout() {
   return (
@@ -119,7 +120,11 @@ function Navbar() {
             {/* Right Side */}
             <div className="hidden md:flex items-center gap-3">
               {isAuthenticated ? (
-                <div className="relative">
+                <>
+                  {/* Notification Bell */}
+                  <NotificationBell scrolled={scrolled} isHome={isHome} />
+
+                  <div className="relative">
                   <button
                     id="profile-button"
                     onClick={() => setProfileOpen(!profileOpen)}
@@ -177,7 +182,8 @@ function Navbar() {
                       </div>
                     </>
                   )}
-                </div>
+                  </div>
+                </>
               ) : (
                 <>
                   <Link
