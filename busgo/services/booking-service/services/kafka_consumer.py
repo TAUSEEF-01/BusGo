@@ -17,10 +17,10 @@ from shared.kafka_producer import KafkaProducerClient
 class BookingKafkaConsumer:
     def __init__(self):
         self.consumer = AIOKafkaConsumer(
-            "payment.completed", "seat.lock.expired",
+            "payment.completed", "seat.lock.expired", "payment.failed",
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="booking-service-group",
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            value_deserializer=lambda m: json.loads(m.decode('utf-8-sig'))
         )
 
     async def start(self):
@@ -31,11 +31,12 @@ class BookingKafkaConsumer:
         await self.consumer.stop()
 
     async def consume(self):
-        try:
-            async for msg in self.consumer:
+        # Per-message error handling so one bad message can't kill the consumer.
+        async for msg in self.consumer:
+            try:
                 await self.process_message(msg.topic, msg.value)
-        except Exception as e:
-            print(f"Consumer error: {e}")
+            except Exception as e:
+                print(f"Error processing {msg.topic} message: {e}")
 
     async def process_message(self, topic: str, message: dict):
         booking_id = message.get("booking_id")
@@ -75,4 +76,18 @@ class BookingKafkaConsumer:
                     
                     await KafkaProducerClient.publish("audit.log", {
                         "event": "booking.expired", "booking_id": str(booking.id), "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+
+            elif topic == "payment.failed":
+                # Payment definitively failed → the held seats have been released
+                # by inventory, so this booking is dead. Mark it terminal (only if
+                # it never got confirmed) so it can't be paid for later.
+                if booking.status in (BookingStatus.SEAT_LOCKED, BookingStatus.PAYMENT_PENDING):
+                    booking.status = BookingStatus.EXPIRED
+                    history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=BookingStatus.EXPIRED, reason=f"Payment failed ({message.get('reason', 'unknown')}) - seats released")
+                    db.add(history)
+                    await db.commit()
+
+                    await KafkaProducerClient.publish("audit.log", {
+                        "event": "booking.payment_failed", "booking_id": str(booking.id), "timestamp": datetime.now(timezone.utc).isoformat()
                     })

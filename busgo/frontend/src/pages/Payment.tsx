@@ -336,23 +336,33 @@ export function Payment() {
       const detail = err.response?.data?.detail;
 
       let errMsg = "Payment processing failed. Please try again.";
+      // On a definitive payment failure the backend releases the held seats
+      // immediately (so other users aren't blocked) and the booking is voided.
+      // Retrying the same booking would no longer hold those seats, so send the
+      // user back to re-select.
+      let seatsReleased = false;
 
       if (status === 402) {
         errMsg = typeof detail === "string" ? detail : "Insufficient balance to complete this payment.";
-        apiClient.get("/api/bank/accounts/my").then((r) => {
-          if (r.data.success) setAccounts(r.data.data.map((a: any) => ({ ...a, balance: Number(a.balance) })));
-        }).catch(() => {});
+        seatsReleased = true;
       } else if (status === 400) {
         errMsg = typeof detail === "string" ? detail : "Invalid payment request. Please try again.";
       } else if (status === 403) {
-        errMsg = "Too many payment attempts. Please contact support.";
+        errMsg = "Too many payment attempts — your seats have been released.";
+        seatsReleased = true;
       } else if (status && status >= 500) {
         errMsg = typeof detail === "string" && detail.length < 125 && !detail.includes("sqlalchemy") && !detail.includes("asyncpg")
           ? detail
-          : "Something went wrong on our end. Please try again in a moment.";
+          : "Something went wrong on our end. Your account was not charged.";
+        seatsReleased = true;
       }
 
-      toast.error(errMsg);
+      if (seatsReleased) {
+        toast.error(`${errMsg} Your seats have been released — please search and book again.`);
+        setTimeout(() => navigate("/"), 2500);
+      } else {
+        toast.error(errMsg);
+      }
     } finally {
       setLoading(false);
     }

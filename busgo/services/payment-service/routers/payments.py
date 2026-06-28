@@ -57,6 +57,10 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         await KafkaProducerClient.publish("audit.log", {
             "event": "fraud.detected", "user_id": user_id, "reason": "Max payment attempts exceeded", "trip_id": trip_id
         })
+        # Definitive failure: release the held seats so other users aren't blocked.
+        await KafkaProducerClient.publish("payment.failed", {
+            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "max_attempts_exceeded"
+        })
         raise HTTPException(status_code=403, detail="Maximum payment attempts exceeded for this trip")
 
     # Verify funds and debit the user's bank/mobile account via bank-service.
@@ -73,6 +77,11 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         await KafkaProducerClient.publish("audit.log", {
             "event": "payment.declined", "user_id": user_id,
             "reason": bank_result.get("message"), "booking_id": str(req.booking_id)
+        })
+        # Payment declined (insufficient balance / bad PIN): free the held seats
+        # immediately so they're available to other users right away.
+        await KafkaProducerClient.publish("payment.failed", {
+            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "payment_declined"
         })
         raise HTTPException(status_code=402, detail=bank_result.get("message", "Insufficient balance"))
 
@@ -98,6 +107,10 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
             method=method_value,
             reference=str(req.booking_id),
         )
+        # Release the held seats since this payment could not be recorded.
+        await KafkaProducerClient.publish("payment.failed", {
+            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "payment_record_failed"
+        })
         raise HTTPException(status_code=500, detail="Payment could not be processed. Your account has not been charged. Please try again.")
 
     redirect_url = MockGateway.get_redirect_url(str(payment.id), req.method)
@@ -137,6 +150,10 @@ async def payment_callback(gateway: str, payment_id: UUID, req: CallbackRequest,
         payment.status = PaymentStatus.FAILED
         payment.gateway_response = req.response_data
         await db.commit()
+        # Gateway declined: release the held seats immediately for other users.
+        await KafkaProducerClient.publish("payment.failed", {
+            "booking_id": str(payment.booking_id), "trip_id": str(payment.trip_id), "reason": "gateway_failed"
+        })
         return BaseResponse(success=False, message="Payment failed")
 
 @router.get("/my", response_model=BaseResponse[List[PaymentResponse]])

@@ -181,6 +181,22 @@ async def confirm_seats(trip_id: UUID, req: ConfirmRequest, db: AsyncSession = D
     if len(seats) != len(req.seat_numbers):
         raise HTTPException(status_code=400, detail="Invalid seat confirmation request")
 
+    # Ownership check: only confirm seats this booking actually holds. This
+    # guards against a double-booking race — e.g. if seats were released after a
+    # failed payment and grabbed by another user, an old retry must not be able
+    # to steal them back.
+    for seat in seats:
+        # Idempotent: already booked by this same booking → fine.
+        if seat.status == SeatStatus.BOOKED and str(seat.locked_by_booking_id) == str(req.booking_id):
+            continue
+        # Booked by someone else → conflict.
+        if seat.status == SeatStatus.BOOKED:
+            raise SeatAlreadyLocked(f"Seat {seat.seat_number} has already been booked by another user")
+        # Locked by a different booking in Redis → conflict.
+        redis_owner = await RedisInventoryService.get_seat_lock(str(trip_id), seat.seat_number)
+        if redis_owner is not None and redis_owner != str(req.booking_id):
+            raise SeatAlreadyLocked(f"Seat {seat.seat_number} is held by another booking")
+
     for seat in seats:
         seat.status = SeatStatus.BOOKED
         seat.booked_by_user_id = req.user_id

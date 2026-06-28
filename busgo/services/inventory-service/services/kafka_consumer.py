@@ -10,10 +10,10 @@ from services.redis_svc import RedisInventoryService
 class InventoryKafkaConsumer:
     def __init__(self):
         self.consumer = AIOKafkaConsumer(
-            "seat.lock.expired", "booking.cancelled", "ticket.issued",
+            "seat.lock.expired", "booking.cancelled", "ticket.issued", "payment.failed",
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="inventory-service-group",
-            value_deserializer=lambda m: json.loads(m.decode('utf-8'))
+            value_deserializer=lambda m: json.loads(m.decode('utf-8-sig'))
         )
 
     async def start(self):
@@ -24,11 +24,13 @@ class InventoryKafkaConsumer:
         await self.consumer.stop()
 
     async def consume(self):
-        try:
-            async for msg in self.consumer:
+        # Per-message error handling: a single malformed/failed message must not
+        # kill the whole consumer (which would silently stop all seat releases).
+        async for msg in self.consumer:
+            try:
                 await self.process_message(msg.topic, msg.value)
-        except Exception as e:
-            print(f"Consumer error: {e}")
+            except Exception as e:
+                print(f"Error processing {msg.topic} message: {e}")
 
     async def process_message(self, topic: str, message: dict):
         booking_id = message.get("booking_id")
@@ -50,11 +52,15 @@ class InventoryKafkaConsumer:
                     user_id = message.get("user_id")
                     if user_id:
                         seat.booked_by_user_id = user_id
-                elif topic == "booking.cancelled" or topic == "seat.lock.expired":
-                    seat.status = SeatStatus.AVAILABLE
-                    seat.locked_by_booking_id = None
-                    seat.lock_expires_at = None
-                    seat.booked_by_user_id = None
+                elif topic in ("booking.cancelled", "seat.lock.expired", "payment.failed"):
+                    # Free the seat immediately so other users don't have to wait
+                    # for the lock window to expire. Only release seats that are
+                    # still held (not already BOOKED for a completed payment).
+                    if seat.status != SeatStatus.BOOKED or topic == "booking.cancelled":
+                        seat.status = SeatStatus.AVAILABLE
+                        seat.locked_by_booking_id = None
+                        seat.lock_expires_at = None
+                        seat.booked_by_user_id = None
                 
                 await RedisInventoryService.unlock_seat(str(seat.trip_id), seat.seat_number)
 
