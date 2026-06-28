@@ -4,6 +4,8 @@ from routers.bank import router as bank_router
 from models.base import Base
 from database import engine
 from services.kafka_consumer import BankKafkaConsumer
+from shared.observability import setup_observability
+from shared.health import create_health_router, sqlalchemy_async_check, redis_check
 import os
 
 app = FastAPI(title="Bank Service", root_path=os.environ.get("ROOT_PATH", ""))
@@ -17,7 +19,14 @@ app.add_middleware(
     allow_credentials=True,
 )
 
+SERVICE_NAME = os.environ.get("SERVICE_NAME", "bank-service")
+setup_observability(app, SERVICE_NAME)
+
 app.include_router(bank_router)
+app.include_router(create_health_router(SERVICE_NAME, {
+    "database": sqlalchemy_async_check(engine),
+    "redis": redis_check(os.environ.get("REDIS_URL")),
+}))
 
 
 @app.on_event("startup")

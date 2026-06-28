@@ -10,6 +10,9 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
+from shared.observability import setup_observability
+from shared.health import create_health_router, sqlalchemy_async_check, redis_check
+
 app = FastAPI(title="Booking Service", root_path=os.environ.get("ROOT_PATH", ""))
 kafka_consumer = None
 
@@ -21,7 +24,14 @@ app.add_middleware(
     allow_credentials=True,
 )
 
+SERVICE_NAME = os.environ.get("SERVICE_NAME", "booking-service")
+setup_observability(app, SERVICE_NAME)
+
 app.include_router(bookings_router)
+app.include_router(create_health_router(SERVICE_NAME, {
+    "database": sqlalchemy_async_check(engine),
+    "redis": redis_check(os.environ.get("REDIS_URL")),
+}))
 
 @app.on_event("startup")
 async def startup():

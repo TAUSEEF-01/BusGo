@@ -12,3 +12,10 @@ python-jose
 psycopg2-binary>=2.9.9
 
 kafka-python
+
+# --- platform: resilience + observability ---
+redis
+httpx
+tenacity
+prometheus-fastapi-instrumentator
+python-json-logger

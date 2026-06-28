@@ -12,6 +12,8 @@ from schemas import (
     ApplyPromoRequest
 )
 from redis_client import has_user_used_promo, mark_promo_used
+from shared.observability import setup_observability
+from shared.health import create_health_router, sqlalchemy_sync_check, redis_check
 import os
 
 Base.metadata.create_all(bind=engine)
@@ -31,9 +33,12 @@ with engine.connect() as conn:
 
 app = FastAPI(title='Deals Service', root_path=os.environ.get('ROOT_PATH', ''))
 
-@app.get('/health')
-def health_check():
-    return {'status': 'ok'}
+SERVICE_NAME = os.environ.get("SERVICE_NAME", "deals-service")
+setup_observability(app, SERVICE_NAME)
+app.include_router(create_health_router(SERVICE_NAME, {
+    "database": sqlalchemy_sync_check(engine),
+    "redis": redis_check(os.environ.get("REDIS_URL")),
+}))
 
 @app.post('/validate-promo', response_model=ValidatePromoResponse)
 def validate_promo(req: ValidatePromoRequest, db: Session = Depends(get_db)):

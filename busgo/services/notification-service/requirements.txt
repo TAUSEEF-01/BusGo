@@ -14,3 +14,10 @@ jinja2
 
 psycopg2-binary>=2.9.9
 requests
+
+# --- platform: resilience + observability ---
+redis
+httpx
+tenacity
+prometheus-fastapi-instrumentator
+python-json-logger

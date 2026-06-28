@@ -1,6 +1,9 @@
-import httpx
 from core.config import settings
 from typing import Optional, Dict, Any
+from shared.http_client import ResilientClient
+
+# Resilient client: retries/backoff, circuit breaking, correlation propagation.
+_client = ResilientClient()
 
 
 class BankClient:
@@ -23,19 +26,18 @@ class BankClient:
             "mobile_number": mobile_number,
             "pin": pin,
         }
-        async with httpx.AsyncClient() as client:
-            try:
-                res = await client.post(
-                    f"{settings.BANK_SERVICE_URL}/verify-debit",
-                    json=payload,
-                    timeout=8.0,
-                )
-                if res.status_code == 200:
-                    body = res.json()
-                    return body.get("data", {"success": False, "message": "Malformed bank response"})
-                return {"success": False, "message": f"Bank service error ({res.status_code})"}
-            except Exception as e:
-                return {"success": False, "message": f"Bank service unreachable: {e}"}
+        try:
+            res = await _client.post(
+                f"{settings.BANK_SERVICE_URL}/verify-debit",
+                json=payload,
+                timeout=8.0,
+            )
+            if res.status_code == 200:
+                body = res.json()
+                return body.get("data", {"success": False, "message": "Malformed bank response"})
+            return {"success": False, "message": f"Bank service error ({res.status_code})"}
+        except Exception as e:
+            return {"success": False, "message": f"Bank service unreachable: {e}"}
 
     @staticmethod
     async def rollback_debit(user_id: str, amount: float, method: str, reference: Optional[str]) -> bool:
@@ -47,13 +49,12 @@ class BankClient:
             "reference": reference,
             "description": "Payment rollback — transaction failed after debit",
         }
-        async with httpx.AsyncClient() as client:
-            try:
-                res = await client.post(
-                    f"{settings.BANK_SERVICE_URL}/credit",
-                    json=payload,
-                    timeout=8.0,
-                )
-                return res.status_code == 200 and res.json().get("success", False)
-            except Exception:
-                return False
+        try:
+            res = await _client.post(
+                f"{settings.BANK_SERVICE_URL}/credit",
+                json=payload,
+                timeout=8.0,
+            )
+            return res.status_code == 200 and res.json().get("success", False)
+        except Exception:
+            return False

@@ -16,3 +16,9 @@ redis
 psycopg2-binary>=2.9.9
 
 kafka-python
+
+# --- platform: resilience + observability ---
+httpx
+tenacity
+prometheus-fastapi-instrumentator
+python-json-logger
