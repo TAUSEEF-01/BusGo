@@ -217,8 +217,11 @@ plugins:
       credentials: true
   - name: rate-limiting
     config:
-      minute: 100
+      # Per-client-IP cap. 300/min is high enough for normal browsing and load
+      # tests, while still demonstrably rejecting abusive bursts with HTTP 429.
+      minute: 300
       policy: local
+      limit_by: ip
   - name: request-transformer
     config:
       add:

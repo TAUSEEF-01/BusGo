@@ -1,0 +1,36 @@
+{
+  "kong_proxy_url": "http://localhost:18085",
+  "kong_admin_url": "http://localhost:18089",
+  "prometheus_url": "http://localhost:8514",
+  "services": [
+    { "name": "auth-service",        "prefix": "/api/auth",          "replicas": 3, "upstream": "auth-upstream" },
+    { "name": "search-service",      "prefix": "/api/search",        "replicas": 3, "upstream": "search-upstream" },
+    { "name": "booking-service",     "prefix": "/api/bookings",      "replicas": 3, "upstream": "booking-upstream" },
+    { "name": "inventory-service",   "prefix": "/api/inventory",     "replicas": 1, "upstream": "inventory-upstream" },
+    { "name": "payment-service",     "prefix": "/api/payments",      "replicas": 1, "upstream": "payment-upstream" },
+    { "name": "bank-service",        "prefix": "/api/bank",          "replicas": 1, "upstream": "bank-upstream" },
+    { "name": "ticket-service",      "prefix": "/api/tickets",       "replicas": 1, "upstream": "ticket-upstream" },
+    { "name": "notification-service","prefix": "/api/notifications", "replicas": 1, "upstream": "notification-upstream" },
+    { "name": "cancellation-service","prefix": "/api/cancellations", "replicas": 1, "upstream": "cancellation-upstream" },
+    { "name": "operator-service",    "prefix": "/api/operators",     "replicas": 1, "upstream": "operator-upstream" },
+    { "name": "deals-service",       "prefix": "/api/deals",         "replicas": 1, "upstream": "deals-upstream" },
+    { "name": "admin-service",       "prefix": "/api/admin",         "replicas": 1, "upstream": "admin-upstream" },
+    { "name": "audit-service",       "prefix": "/api/audit",         "replicas": 1, "upstream": "audit-upstream" }
+  ],
+  "smoke_endpoints": [
+    { "service": "deals-service",    "method": "GET", "path": "/api/deals/promos/",        "expect": 200, "desc": "list active promo codes" },
+    { "service": "deals-service",    "method": "GET", "path": "/api/deals/flash-sales/",    "expect": 200, "desc": "list flash sales" },
+    { "service": "operator-service", "method": "GET", "path": "/api/operators/operators/", "expect": 200, "desc": "list operators" },
+    { "service": "operator-service", "method": "GET", "path": "/api/operators/trips/",      "expect": 200, "desc": "list trips" },
+    { "service": "search-service",   "method": "GET", "path": "/api/search/cities",         "expect": 200, "desc": "list searchable cities" }
+  ],
+  "load_balancing": {
+    "targets": ["auth-service", "search-service", "booking-service"],
+    "requests": 45,
+    "concurrency": 10
+  },
+  "seat_concurrency": {
+    "users": 8,
+    "note": "Number of users that simultaneously try to grab the SAME seat. Exactly one must win (HTTP 200); the rest must be rejected (HTTP 409)."
+  }
+}

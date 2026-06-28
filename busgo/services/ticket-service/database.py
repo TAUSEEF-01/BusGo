@@ -5,6 +5,7 @@ DATABASE_URL = get_database_url(async_driver=True)
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,
+    pool_pre_ping=True,
     connect_args=get_db_connect_args(DATABASE_URL, async_driver=True),
 )
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

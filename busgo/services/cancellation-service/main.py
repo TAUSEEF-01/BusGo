@@ -20,11 +20,13 @@ app.add_middleware(
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "cancellation-service")
 setup_observability(app, SERVICE_NAME)
 
-app.include_router(cancellation.router)
+# Health router first so /health isn't shadowed by cancellation.router's greedy
+# "/{id}" route (which would return 422 and fail Kong's active health checks).
 app.include_router(create_health_router(SERVICE_NAME, {
     "database": sqlalchemy_sync_check(engine),
     "redis": redis_check(os.environ.get("REDIS_URL")),
 }))
+app.include_router(cancellation.router)
 
 @app.on_event('startup')
 def startup():

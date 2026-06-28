@@ -15,12 +15,19 @@ Readiness checks may be plain or async callables; both are supported. These
 endpoints also back Kong's active health checks (see infrastructure/kong/kong.yml).
 """
 import inspect
+import socket
 from typing import Awaitable, Callable, Dict, Union
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 Check = Callable[[], Union[None, Awaitable[None]]]
+
+# Container hostname (Docker sets this to the container ID). Including it in the
+# /health response makes load balancing across replicas directly observable from
+# the HTTP response — the load-balancing tests count how many distinct instances
+# answered a burst of requests.
+INSTANCE_ID = socket.gethostname()
 
 
 def create_health_router(service_name: str, readiness_checks: Dict[str, Check] | None = None) -> APIRouter:
@@ -29,7 +36,7 @@ def create_health_router(service_name: str, readiness_checks: Dict[str, Check] |
 
     @router.get("/health")
     async def health():  # liveness
-        return {"status": "ok", "service": service_name}
+        return {"status": "ok", "service": service_name, "instance": INSTANCE_ID}
 
     @router.get("/health/ready")
     async def ready():  # readiness
