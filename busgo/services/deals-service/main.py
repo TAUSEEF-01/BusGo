@@ -86,16 +86,30 @@ def validate_promo(req: ValidatePromoRequest, db: Session = Depends(get_db)):
 
 @app.post('/apply-promo')
 def apply_promo(req: ApplyPromoRequest, db: Session = Depends(get_db)):
+    """Mark a promo as consumed: enforce one-use-per-user and decrement the
+    promo's remaining uses (current_uses goes up, so max_uses - current_uses
+    drops). Idempotent per user — a second call by the same user is a no-op so
+    a retried payment can't double-decrement the counter."""
     code_upper = req.code.upper()
     promo = db.query(PromoCode).filter(PromoCode.code == code_upper).first()
     if not promo:
         raise HTTPException(status_code=400, detail='Invalid promo code')
-    
+
+    user_id = str(req.user_id)
+
+    # One use per user: if they've already redeemed it, don't decrement again.
+    if has_user_used_promo(code_upper, user_id):
+        return {'status': 'success', 'message': 'Promo already applied', 'already_used': True}
+
+    if promo.current_uses >= promo.max_uses:
+        raise HTTPException(status_code=400, detail='Promo code usage limit reached')
+
     promo.current_uses += 1
     db.commit()
-    
-    mark_promo_used(code_upper, str(req.user_id))
-    return {'status': 'success', 'message': 'Promo applied'}
+
+    mark_promo_used(code_upper, user_id)
+    remaining = max(0, promo.max_uses - promo.current_uses)
+    return {'status': 'success', 'message': 'Promo applied', 'remaining_uses': remaining}
 
 @app.get('/flash-sales/active', response_model=List[FlashSaleResponse])
 def get_active_flash_sales(db: Session = Depends(get_db)):

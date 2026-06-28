@@ -57,8 +57,18 @@ export function Payment() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [tripId, setTripId] = useState<string | null>(state.trip_id || null);
-  const [total, setTotal] = useState<number>(state.totalFare || 0);
+  const [grossTotal, setGrossTotal] = useState<number>(state.totalFare || 0);
+  const [discount, setDiscount] = useState<number>(0);
   const [returnBookingData, setReturnBookingData] = useState<any>(null);
+
+  // Promo code state
+  const [promoInput, setPromoInput] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  // Fare actually charged for the (outbound) booking after any discount.
+  const total = Math.max(0, grossTotal - discount);
 
   const returnBookingId = state.return_booking_id;
   const outboundTotalVal = Number(state.outboundTotal || total);
@@ -96,7 +106,15 @@ export function Payment() {
         if (res.data.success) {
           const b = res.data.data;
           if (b.trip_id) setTripId(b.trip_id);
-          if (!state.isRoundTrip && b.total_fare) setTotal(Number(b.total_fare));
+          if (!state.isRoundTrip && b.total_fare) {
+            setGrossTotal(Number(b.total_fare));
+            // Reflect any discount already persisted on the booking.
+            setDiscount(Number(b.discount_amount || 0));
+            if (b.promo_code) {
+              setAppliedPromo(b.promo_code);
+              setPromoInput(b.promo_code);
+            }
+          }
         }
       } catch (err) {
         console.error("Failed to load booking", err);
@@ -138,6 +156,53 @@ export function Payment() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleApplyPromo = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) {
+      setPromoError("Enter a promo code");
+      return;
+    }
+    if (!booking_id) return;
+    setPromoLoading(true);
+    setPromoError(null);
+    try {
+      const res = await apiClient.post(`/api/bookings/${booking_id}/apply-promo`, { promo_code: code });
+      if (res.data.success) {
+        const d = res.data.data;
+        setDiscount(Number(d.discount_amount || 0));
+        setGrossTotal(Number(d.total_fare || grossTotal));
+        setAppliedPromo(d.promo_code || code);
+        toast.success(`Promo applied! You saved ৳${Number(d.discount_amount || 0).toLocaleString()}`);
+      } else {
+        setPromoError(res.data.message || "Could not apply promo code");
+      }
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setPromoError(typeof detail === "string" ? detail : "Invalid or expired promo code");
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = async () => {
+    if (!booking_id) return;
+    setPromoLoading(true);
+    setPromoError(null);
+    try {
+      const res = await apiClient.delete(`/api/bookings/${booking_id}/apply-promo`);
+      if (res.data.success) {
+        setDiscount(0);
+        setAppliedPromo(null);
+        setPromoInput("");
+        toast.success("Promo removed");
+      }
+    } catch (err) {
+      console.error("Failed to remove promo", err);
+    } finally {
+      setPromoLoading(false);
+    }
   };
 
   const handlePay = async (e: React.FormEvent) => {
@@ -655,9 +720,58 @@ export function Payment() {
                       </div>
                     </div>
 
-                    <div className="border-t border-surface-200 pt-4 space-y-2 text-sm">
-                      <div className="flex justify-between"><span className="text-surface-500">Seats</span><span className="font-medium">৳ {(total - 20) || 0}</span></div>
+                    {/* Promo Code */}
+                    <div className="border-t border-surface-200 pt-4">
+                      <label className="block text-sm font-semibold text-surface-700 mb-1.5">Promo Code</label>
+                      {appliedPromo ? (
+                        <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <CheckCircle className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+                            <span className="font-mono font-bold text-emerald-800 truncate">{appliedPromo}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemovePromo}
+                            disabled={promoLoading}
+                            className="text-xs font-semibold text-red-600 hover:text-red-700 disabled:opacity-50"
+                            id="remove-promo"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={promoInput}
+                            onChange={(e) => { setPromoInput(e.target.value.toUpperCase()); setPromoError(null); }}
+                            placeholder="Enter code"
+                            className="input-premium flex-1 !py-2 uppercase font-mono tracking-wide"
+                            id="promo-input"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyPromo}
+                            disabled={promoLoading}
+                            className="px-4 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 whitespace-nowrap"
+                            id="apply-promo"
+                          >
+                            {promoLoading ? "..." : "Apply"}
+                          </button>
+                        </div>
+                      )}
+                      {promoError && <p className="text-red-500 text-xs mt-1.5">{promoError}</p>}
+                    </div>
+
+                    <div className="border-t border-surface-200 pt-4 mt-4 space-y-2 text-sm">
+                      <div className="flex justify-between"><span className="text-surface-500">Seats</span><span className="font-medium">৳ {(grossTotal - 20) || 0}</span></div>
                       <div className="flex justify-between"><span className="text-surface-500">Service fee</span><span className="font-medium">৳ 20</span></div>
+                      {discount > 0 && (
+                        <div className="flex justify-between text-emerald-600">
+                          <span className="font-medium">Promo discount</span>
+                          <span className="font-bold">− ৳ {discount.toLocaleString()}</span>
+                        </div>
+                      )}
                       <div className="flex justify-between pt-3 border-t border-surface-200 text-base">
                         <span className="font-bold text-surface-900">Total</span>
                         <span className="font-extrabold text-brand-600">৳ {total.toLocaleString()}</span>

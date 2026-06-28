@@ -10,9 +10,16 @@ _client = ResilientClient()
 
 class ExternalServices:
     @staticmethod
-    async def validate_promo(promo_code: str, fare_amount: float, trip_id: str, user_id: str) -> float:
-        # returns discount amount
-        if not promo_code: return 0.0
+    async def validate_promo(promo_code: str, fare_amount: float, trip_id: str, user_id: str) -> dict:
+        """Validate a promo against deals-service and return its outcome.
+
+        Returns {"valid": bool, "discount_amount": float, "message": str}.
+        deals-service returns the ValidatePromoResponse at the top level (it is
+        NOT wrapped in a {"data": ...} envelope), so we read the fields directly.
+        """
+        result = {"valid": False, "discount_amount": 0.0, "message": "No promo applied"}
+        if not promo_code:
+            return result
         try:
             res = await _client.post(
                 f"{settings.DEALS_SERVICE_URL}/validate-promo",
@@ -25,10 +32,34 @@ class ExternalServices:
                 timeout=5.0
             )
             if res.status_code == 200:
-                return res.json().get("data", {}).get("discount_amount", 0.0)
-        except Exception:
-            pass
-        return 0.0
+                body = res.json()
+                # Support both raw and {"data": ...}-wrapped shapes defensively.
+                data = body.get("data", body) if isinstance(body, dict) else {}
+                return {
+                    "valid": bool(data.get("valid", False)),
+                    "discount_amount": float(data.get("discount_amount", 0.0) or 0.0),
+                    "message": data.get("message", ""),
+                }
+        except Exception as e:
+            logging.error(f"Promo validation failed for code {promo_code}: {e}")
+        return result
+
+    @staticmethod
+    async def consume_promo(promo_code: str, user_id: str) -> bool:
+        """Mark a promo as used by this user (one-use enforcement + decrement the
+        promo's remaining-uses counter). Called once payment is confirmed."""
+        if not promo_code:
+            return False
+        try:
+            res = await _client.post(
+                f"{settings.DEALS_SERVICE_URL}/apply-promo",
+                json={"code": promo_code, "user_id": user_id},
+                timeout=5.0,
+            )
+            return res.status_code == 200
+        except Exception as e:
+            logging.error(f"Failed to consume promo {promo_code} for user {user_id}: {e}")
+            return False
 
     @staticmethod
     async def lock_seats(trip_id: str, seat_numbers: list, booking_id: str, user_id: str):

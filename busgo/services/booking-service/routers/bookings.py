@@ -8,7 +8,7 @@ import uuid
 
 from database import get_db
 from models.models import Booking, BookingStatusHistory
-from schemas.schemas import BookingCreate, BookingResponse
+from schemas.schemas import BookingCreate, BookingResponse, ApplyPromoRequest
 from api.deps import get_current_user_payload
 from services.redis_svc import RedisIdempotencyService
 from services.external import ExternalServices
@@ -31,8 +31,9 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
 
     user_id = payload.get("user_id")
 
-    # 2. Promo Validation
-    discount = await ExternalServices.validate_promo(req.promo_code, req.total_fare, str(req.trip_id), str(user_id))
+    # 2. Promo Validation (only honour a valid promo's discount)
+    promo_result = await ExternalServices.validate_promo(req.promo_code, req.total_fare, str(req.trip_id), str(user_id))
+    discount = promo_result["discount_amount"] if promo_result.get("valid") else 0.0
     
     # 3. Create Booking Record
     booking_id = uuid.uuid4()
@@ -97,6 +98,65 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
     await KafkaProducerClient.publish("audit.log", {"event": "booking.created", "booking_id": str(booking.id), "timestamp": datetime.now(timezone.utc).isoformat()})
 
     return BaseResponse(success=True, data=response_data, message="Booking created successfully")
+
+@router.post("/{booking_id}/apply-promo", response_model=BaseResponse)
+async def apply_promo_to_booking(booking_id: UUID, req: ApplyPromoRequest, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    """Validate a promo code against this booking and persist the discount so the
+    amount due (and the payment-service fraud check) reflect the reduced fare.
+    The promo is only *consumed* (counter decremented) on successful payment."""
+    user_id = payload.get("user_id")
+    query = select(Booking).where(Booking.id == booking_id, Booking.user_id == user_id)
+    result = await db.execute(query)
+    booking = result.scalars().first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if booking.status != BookingStatus.SEAT_LOCKED:
+        raise HTTPException(status_code=400, detail="Promo can only be applied before payment")
+
+    promo_result = await ExternalServices.validate_promo(
+        req.promo_code, float(booking.total_fare), str(booking.trip_id), str(user_id)
+    )
+    if not promo_result.get("valid"):
+        raise HTTPException(status_code=400, detail=promo_result.get("message") or "Invalid promo code")
+
+    discount = float(promo_result["discount_amount"])
+    booking.discount_amount = discount
+    booking.promo_code = req.promo_code.upper()
+    await db.commit()
+
+    final_fare = float(booking.total_fare) - discount
+    return BaseResponse(success=True, data={
+        "booking_id": str(booking.id),
+        "promo_code": booking.promo_code,
+        "total_fare": float(booking.total_fare),
+        "discount_amount": discount,
+        "final_fare": max(0.0, final_fare),
+    }, message="Promo applied successfully")
+
+
+@router.delete("/{booking_id}/apply-promo", response_model=BaseResponse)
+async def remove_promo_from_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    """Remove a previously applied (but not yet paid) promo from a booking."""
+    user_id = payload.get("user_id")
+    query = select(Booking).where(Booking.id == booking_id, Booking.user_id == user_id)
+    result = await db.execute(query)
+    booking = result.scalars().first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    if booking.status != BookingStatus.SEAT_LOCKED:
+        raise HTTPException(status_code=400, detail="Promo can only be changed before payment")
+
+    booking.discount_amount = 0.0
+    booking.promo_code = None
+    await db.commit()
+    return BaseResponse(success=True, data={
+        "booking_id": str(booking.id),
+        "total_fare": float(booking.total_fare),
+        "discount_amount": 0.0,
+        "final_fare": float(booking.total_fare),
+    }, message="Promo removed")
+
 
 async def enrich_bookings_with_operator_names(bookings: List[Booking], db: AsyncSession) -> List[BookingResponse]:
     if not bookings:
@@ -216,6 +276,16 @@ async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(..
     history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=booking.status, reason="Payment Configuration Endpoint")
     db.add(history)
     await db.commit()
+
+    # Consume the promo now that payment is confirmed: enforces one-use-per-user
+    # and decrements the promo's remaining uses. Idempotent in deals-service, so
+    # a duplicate confirm won't double-decrement.
+    if booking.promo_code:
+        try:
+            await ExternalServices.consume_promo(booking.promo_code, str(booking.user_id))
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to consume promo for booking {booking.id}: {e}")
 
     # Confirm seats in inventory service so they show as BOOKED
     try:

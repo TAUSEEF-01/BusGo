@@ -53,3 +53,6 @@ class BookingResponse(BaseModel):
 class BookingStatusChange(BaseModel):
     status: BookingStatus
     reason: Optional[str] = None
+
+class ApplyPromoRequest(BaseModel):
+    promo_code: str
