@@ -13,3 +13,7 @@ class RedisSearchService:
     @staticmethod
     async def set(key: str, value: dict, ttl: int):
         await redis_client.setex(key, ttl, json.dumps(value))
+
+    @staticmethod
+    async def delete(key: str):
+        await redis_client.delete(key)

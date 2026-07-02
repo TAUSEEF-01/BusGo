@@ -6,5 +6,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/2")
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
     INVENTORY_SERVICE_URL: str = os.getenv("INVENTORY_SERVICE_URL", "https://busgo-nhbi.onrender.com/api/inventory")
+    OPERATOR_SERVICE_URL: str = os.getenv("OPERATOR_SERVICE_URL", "http://operator-service:8000")
 
 settings = Settings()

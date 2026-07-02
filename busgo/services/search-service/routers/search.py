@@ -4,13 +4,40 @@ from schemas.schemas import SearchResult
 from services.es_svc import ESService
 from services.redis_svc import RedisSearchService
 from services.inventory_client import InventoryClient
+from core.config import settings
 import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.base_response import BaseResponse
+from shared.http_client import ResilientClient
 
 router = APIRouter(tags=["search"])
+
+_op_client = ResilientClient()
+
+
+@router.post("/reindex")
+async def reindex_trips():
+    """Re-seed the Elasticsearch trip index from operator-service.
+
+    Trips normally enter ES via `trip.created` Kafka events, so trips that
+    already existed (or that were lost when ES was recreated without a volume)
+    are missing. This pulls every trip from operator-service and (re)indexes it.
+    """
+    try:
+        data = await _op_client.get_json(f"{settings.OPERATOR_SERVICE_URL}/trips/?limit=1000", timeout=15.0)
+        trips = data.get("data", []) if isinstance(data, dict) else []
+    except Exception as e:
+        return BaseResponse(success=False, message=f"Failed to fetch trips from operator-service: {e}")
+
+    indexed = await ESService.bulk_index_trips(trips)
+    # Drop the cached city list so /cities recomputes from the fresh index.
+    try:
+        await RedisSearchService.delete("search:cities")
+    except Exception:
+        pass
+    return BaseResponse(success=True, data={"indexed": indexed}, message=f"Re-indexed {indexed} trips into Elasticsearch")
 
 @router.get("/buses")
 async def search_buses(

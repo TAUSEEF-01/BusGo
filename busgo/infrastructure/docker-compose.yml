@@ -139,6 +139,7 @@ services:
       ENVIRONMENT: development
       SERVICE_NAME: search-service
       SERVICE_DB: search_db
+      OPERATOR_SERVICE_URL: http://operator-service:8000
       ROOT_PATH: /api/search
 
   inventory-service:

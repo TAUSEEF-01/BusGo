@@ -34,6 +34,24 @@ class ESService:
         await es_client.index(index=cls.INDEX_NAME, id=trip_data['trip_id'], document=trip_data)
 
     @classmethod
+    async def bulk_index_trips(cls, trips: list) -> int:
+        """Index many trips at once. Ensures the index exists first. Returns the
+        number indexed. Used to re-seed ES after the index is lost (ES has no
+        persistent volume, so a stack recreate empties it)."""
+        await cls.init_index()
+        indexed = 0
+        for t in trips:
+            trip_id = t.get("trip_id") or t.get("id")
+            if not trip_id:
+                continue
+            t["trip_id"] = str(trip_id)
+            await es_client.index(index=cls.INDEX_NAME, id=t["trip_id"], document=t)
+            indexed += 1
+        if indexed:
+            await es_client.indices.refresh(index=cls.INDEX_NAME)
+        return indexed
+
+    @classmethod
     async def update_trip(cls, trip_id: str, update_data: dict):
         await es_client.update(index=cls.INDEX_NAME, id=trip_id, doc=update_data)
         
