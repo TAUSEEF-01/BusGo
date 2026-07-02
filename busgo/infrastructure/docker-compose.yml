@@ -183,6 +183,9 @@ services:
       DEALS_SERVICE_URL: http://deals-service:8000
       PAYMENT_SERVICE_URL: http://payment-service:8000
       BANK_SERVICE_URL: http://bank-service:8000
+      NOTIFICATION_SERVICE_URL: http://notification-service:8000
+      OPERATOR_SERVICE_URL: http://operator-service:8000
+      AUTH_SERVICE_URL: http://auth-service:8000
       ROOT_PATH: /api/bookings
 
   payment-service:

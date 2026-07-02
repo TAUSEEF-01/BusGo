@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -38,6 +38,27 @@ class Booking(Base):
     expires_at = Column(DateTime(timezone=True), nullable=False)
 
     history = relationship("BookingStatusHistory", back_populates="booking", cascade="all, delete")
+
+class TravelRecord(Base):
+    """A simple per-user travel record — one row per confirmed journey.
+
+    This is the lightweight "model" that tracks where each user travels. It is
+    populated whenever a booking is confirmed and is the data the re-marketing
+    algorithm reads to find users likely to be interested in an under-filled
+    trip. Unique on (user_id, trip_id) so re-processing a booking is idempotent.
+    """
+    __tablename__ = "travel_records"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    trip_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    operator_id = Column(UUID(as_uuid=True), index=True, nullable=True)
+    origin = Column(String, index=True, nullable=False)
+    destination = Column(String, index=True, nullable=False)
+    journey_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (UniqueConstraint("user_id", "trip_id", name="uq_travel_user_trip"),)
+
 
 class BookingStatusHistory(Base):
     __tablename__ = "booking_status_history"

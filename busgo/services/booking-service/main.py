@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers.bookings import router as bookings_router
+from routers.marketing import router as marketing_router
 from models.base import Base
 from database import engine
 from services.scheduler import scheduler
@@ -34,6 +35,7 @@ app.include_router(create_health_router(SERVICE_NAME, {
     "database": sqlalchemy_async_check(engine),
     "redis": redis_check(os.environ.get("REDIS_URL")),
 }))
+app.include_router(marketing_router)
 app.include_router(bookings_router)
 
 @app.on_event("startup")

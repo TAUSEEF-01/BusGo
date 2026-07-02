@@ -10,5 +10,8 @@ class Settings(BaseSettings):
     DEALS_SERVICE_URL: str = os.getenv("DEALS_SERVICE_URL", "https://busgo-nhbi.onrender.com/api/deals")
     PAYMENT_SERVICE_URL: str = os.getenv("PAYMENT_SERVICE_URL", "http://payment-service:8000")
     BANK_SERVICE_URL: str = os.getenv("BANK_SERVICE_URL", "http://bank-service:8000")
+    NOTIFICATION_SERVICE_URL: str = os.getenv("NOTIFICATION_SERVICE_URL", "http://notification-service:8000")
+    OPERATOR_SERVICE_URL: str = os.getenv("OPERATOR_SERVICE_URL", "http://operator-service:8000")
+    AUTH_SERVICE_URL: str = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8000")
 
 settings = Settings()

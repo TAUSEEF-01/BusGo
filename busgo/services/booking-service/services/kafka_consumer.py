@@ -54,11 +54,15 @@ class BookingKafkaConsumer:
                 if booking.status == BookingStatus.PAYMENT_PENDING or booking.status == BookingStatus.SEAT_LOCKED:
                     booking.status = BookingStatus.CONFIRMED
                     booking.payment_id = message.get("payment_id")
-                    
+
                     history = BookingStatusHistory(booking_id=booking.id, from_status=old_status, to_status=booking.status, reason="Payment Completed")
                     db.add(history)
                     await db.commit()
-                    
+
+                    # Track the journey in the user's travel record (idempotent).
+                    from services.travel_records import record_travel
+                    await record_travel(db, booking)
+
                     # Publish ticket.issued
                     await KafkaProducerClient.publish("ticket.issued", {
                         "booking_id": str(booking.id),

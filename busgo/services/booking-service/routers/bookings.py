@@ -12,6 +12,7 @@ from schemas.schemas import BookingCreate, BookingResponse, ApplyPromoRequest
 from api.deps import get_current_user_payload
 from services.redis_svc import RedisIdempotencyService
 from services.external import ExternalServices
+from services.travel_records import record_travel
 
 import sys
 import os
@@ -286,6 +287,9 @@ async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(..
         except Exception as e:
             import logging
             logging.error(f"Failed to consume promo for booking {booking.id}: {e}")
+
+    # Track this journey in the user's travel record (drives re-marketing).
+    await record_travel(db, booking)
 
     # Confirm seats in inventory service so they show as BOOKED
     try:
