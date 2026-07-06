@@ -214,7 +214,7 @@ services:
     build:
       context: ../services/bank-service
     ports:
-      - "${BANK_SERVICE_PORT:-8111}:8000"
+      - "${BANK_SERVICE_PORT:-8113}:8000"
     volumes:
       - ../services/bank-service:/app
       - ..\shared:/app/shared
