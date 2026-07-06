@@ -102,6 +102,9 @@ cd "$PROJECT_DIR/busgo/infrastructure"
 
 # Build and start everything
 sudo docker compose down || true
+echo "Building frontend first to avoid network/CPU contention..."
+sudo docker compose build frontend
+echo "Building and starting all other services..."
 sudo docker compose up --build -d
 
 echo ""
