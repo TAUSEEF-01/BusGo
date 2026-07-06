@@ -16,6 +16,20 @@ echo "  JAABO - Server Setup & Deployment ($DOMAIN)"
 echo "=================================================="
 echo ""
 
+# ----- Step 0: Configure Swap Space -----
+echo "[0/6] Configuring swap space to prevent memory starvation..."
+if ! grep -q "swapfile" /etc/fstab; then
+    echo "  Creating 4GB swap file..."
+    sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+    echo "  Swap space configured successfully."
+else
+    echo "  Swap space already configured."
+fi
+
 # ----- Step 1: Install Docker -----
 echo "[1/6] Installing Docker..."
 if command -v docker &> /dev/null; then

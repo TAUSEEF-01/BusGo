@@ -1,4 +1,4 @@
-﻿x-service-defaults: &service-defaults
+x-service-defaults: &service-defaults
   restart: unless-stopped
   depends_on:
     redis:
@@ -104,7 +104,7 @@ services:
     # Replicated for load balancing; reachable only via Kong (no host port so
     # replicas don't collide). Scale others the same way with --scale.
     deploy:
-      replicas: 3
+      replicas: 1
     volumes:
       - ../services/auth-service:/app
       - ../shared:/app/shared
@@ -125,7 +125,7 @@ services:
     build:
       context: ../services/search-service
     deploy:
-      replicas: 3
+      replicas: 1
     volumes:
       - ../services/search-service:/app
       - ../shared:/app/shared
@@ -166,7 +166,7 @@ services:
     build:
       context: ../services/booking-service
     deploy:
-      replicas: 3
+      replicas: 1
     volumes:
       - ../services/booking-service:/app
       - ../shared:/app/shared
