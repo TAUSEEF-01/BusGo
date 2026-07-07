@@ -125,7 +125,7 @@ sudo docker compose up --build -d
 echo "[7/7] Creating Kafka topics to avoid startup race conditions..."
 echo "Waiting for Kafka container to be ready..."
 for i in {1..30}; do
-    if sudo docker exec infrastructure-kafka-1 kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; then
+    if sudo docker exec infrastructure-kafka-1 kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; then
         echo "  Kafka is ready."
         break
     fi
@@ -147,7 +147,7 @@ topics=(
 
 for topic in "${topics[@]}"; do
     echo "  Creating topic: $topic"
-    sudo docker exec infrastructure-kafka-1 kafka-topics --create --if-not-exists --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --topic "$topic" || true
+    sudo docker exec infrastructure-kafka-1 kafka-topics --create --if-not-exists --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --topic "$topic" || true
 done
 
 # Restart all services that might have crashed waiting for topics
