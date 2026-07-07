@@ -32,7 +32,10 @@ def get_db_connect_args(url: str, *, async_driver: bool = True) -> dict:
     if async_driver:
         connect_args["statement_cache_size"] = 0
         
-    is_local = any(host in url for host in ["localhost", "127.0.0.1", "postgres", "::1"])
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+    is_local = any(host in hostname for host in ["localhost", "127.0.0.1", "postgres", "::1"])
     db_ssl = os.getenv("DB_SSL", "true").lower() == "true"
     
     if not is_local:
