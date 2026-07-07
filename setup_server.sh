@@ -111,7 +111,7 @@ echo "[5/6] Securing with HTTPS..."
 sudo certbot --nginx -d $DOMAIN --non-interactive --agree-tos --register-unsafely-without-email || true
 
 # ----- Step 6: Build and Deploy -----
-echo "[6/6] Building and deploying with Docker Compose..."
+echo "[6/7] Building and deploying with Docker Compose..."
 cd "$PROJECT_DIR/busgo/infrastructure"
 
 # Build and start everything
@@ -120,6 +120,39 @@ echo "Building frontend first to avoid network/CPU contention..."
 sudo docker compose build frontend
 echo "Building and starting all other services..."
 sudo docker compose up --build -d
+
+# ----- Step 7: Create Kafka Topics -----
+echo "[7/7] Creating Kafka topics to avoid startup race conditions..."
+echo "Waiting for Kafka container to be ready..."
+for i in {1..30}; do
+    if sudo docker exec infrastructure-kafka-1 kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; then
+        echo "  Kafka is ready."
+        break
+    fi
+    echo -n "."
+    sleep 2
+done
+
+topics=(
+    "trip.created"
+    "trip.updated"
+    "trip.cancelled"
+    "booking.cancelled"
+    "seat.lock.expired"
+    "payment.failed"
+    "ticket.issued"
+    "payment.completed"
+    "audit.log"
+)
+
+for topic in "${topics[@]}"; do
+    echo "  Creating topic: $topic"
+    sudo docker exec infrastructure-kafka-1 kafka-topics --create --if-not-exists --bootstrap-server localhost:9092 --partitions 1 --replication-factor 1 --topic "$topic" || true
+done
+
+# Restart all services that might have crashed waiting for topics
+echo "  Restarting services to pick up Kafka topics..."
+sudo docker compose restart search-service payment-service inventory-service ticket-service booking-service bank-service || true
 
 echo ""
 echo "=================================================="
