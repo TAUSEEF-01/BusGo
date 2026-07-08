@@ -43,10 +43,15 @@ Why this showcases microservices (the teacher's point):
 | Payment | **One payment for the whole journey.** payment-service `InitiateRequest` gets optional `journey_id`; fraud check validates against the journey's total. |
 | Tickets | Unchanged ticket-service: booking-service publishes `ticket.issued` **once per leg** → one ticket per leg (exactly what a passenger needs when changing buses). |
 | Failure handling | Reuse existing events. `payment.failed` / `seat.lock.expired` consumers learn to resolve a **journey id** to its legs. |
-| Frontend | Search results show itinerary cards; per-leg seat selection stepper; journey payment mode (mirrors the existing round-trip mode); MyBookings groups legs. |
+| **Operator-provided transit** | Operators are transit **providers**, not bystanders. **operator-service** gains a `transit_routes` table: an operator publishes a curated connection ("Dhaka→Sylhet via Comilla", optionally with a combined-fare discount). transit-service returns these as **operator-guaranteed itineraries ranked above auto-discovered ones**. |
+| **Operator opt-in control** | New `allow_transit` boolean on `trips` (default true). Auto-discovery may only use a trip as a connecting leg if its operator allows it. Curated transit routes are unaffected (the operator created them deliberately). |
+| Operator visibility | Operator portal gets a **Transit Routes** management page (CRUD) and the bookings view flags **transit-leg passengers** ("continues to X") so counters/drivers know a passenger is connecting. |
+| Frontend | Search results show itinerary cards (operator-provided ones badged and ranked first); per-leg seat selection stepper; journey payment mode (mirrors the existing round-trip mode); MyBookings groups legs. |
 
 **Terminology used everywhere:** a *journey* = ordered list of *legs*; each leg
-= one existing trip. A direct trip is a 1-leg journey.
+= one existing trip. A direct trip is a 1-leg journey. An itinerary has a
+`source`: `"operator"` (curated by an operator via a transit route) or
+`"auto"` (discovered by the graph search).
 
 ---
 
@@ -136,6 +141,7 @@ class Settings(BaseSettings):
     ELASTICSEARCH_URL: str = os.getenv("ELASTICSEARCH_URL", "http://elasticsearch:9200")
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/4")
     INVENTORY_SERVICE_URL: str = os.getenv("INVENTORY_SERVICE_URL", "http://inventory-service:8000")
+    OPERATOR_SERVICE_URL: str = os.getenv("OPERATOR_SERVICE_URL", "http://operator-service:8000")
     MIN_TRANSFER_MINUTES: int = int(os.getenv("MIN_TRANSFER_MINUTES", "30"))
     MAX_TRANSFER_WAIT_HOURS: int = int(os.getenv("MAX_TRANSFER_WAIT_HOURS", "6"))
     MAX_LEGS: int = int(os.getenv("MAX_LEGS", "3"))
@@ -174,12 +180,38 @@ arrival_datetime, fare_amount, available_seats, status`.
 
 ### 5.4 `services/planner.py` — the itinerary algorithm
 
-**Algorithm (bounded DFS over a city graph):**
+Itineraries come from **two sources, merged**:
+
+**(A) Operator-curated transit routes** (rank first — the operator *provides*
+this service and guarantees the transfer):
+
+```
+curated_itineraries(origin, destination, journey_date, trips):
+  1. routes = GET {OPERATOR_SERVICE_URL}/transit-routes/?origin=&destination=
+     (ResilientClient; on failure log + return [] — auto-discovery still works)
+  2. for each active route (its city sequence is [origin, *via_cities, destination]):
+       for each consecutive city pair (c_i, c_{i+1}) find candidate trips in
+       `trips` with matching origin/destination cities; chain them with the
+       SAME transfer rules as auto-discovery (>=30 min, <=6 h); prefer trips
+       run by the route's operator_id when several match.
+  3. successful chains become itineraries with:
+       source="operator", transit_route_id, transit_route_name,
+       operator discount: total_fare *= (1 - combined_discount_pct/100)
+       (keep per-leg fares undiscounted; put the discount in a separate
+        field `operator_discount_amount` so booking/payment use the reduced
+        total — see §7.2 step 2a)
+```
+
+**(B) Auto-discovered (bounded DFS over a city graph):**
 
 ```
 build_itineraries(origin, destination, journey_date):
   1. window = [journey_date 00:00, journey_date+1 06:00]  # allow late-night arrivals of last leg
   2. trips = fetch_trips(window)                          # one ES query
+  2b. For MULTI-LEG use, drop trips with allow_transit == false — their
+      operator opted out of being an auto-connection. (allow_transit is
+      indexed in ES per §7b.2. A trip missing the field counts as true.
+      Opted-out trips may still appear as DIRECT 1-leg results.)
   3. adjacency = dict: origin_city -> [trips departing there], each list
      sorted by departure_datetime
   4. results = []
@@ -202,8 +234,12 @@ build_itineraries(origin, destination, journey_date):
   5. Score each itinerary:
         score = (number_of_legs, total_duration_minutes, total_fare)
      Sort ascending (fewer legs first, then faster, then cheaper).
-  6. Return top MAX_ITINERARIES_RETURNED.
 ```
+
+**Merge:** final list = curated itineraries (deduplicated, sorted by score)
+followed by auto-discovered ones (drop any auto itinerary whose exact
+trip-id sequence already appears in the curated list), truncated to
+`MAX_ITINERARIES_RETURNED`.
 
 **Parse datetimes** with `datetime.fromisoformat(value.replace("Z", "+00:00"))`
 and treat naive values as UTC. All comparisons in UTC.
@@ -229,14 +265,21 @@ consume it):
      "arrive": "2026-07-10T11:00:00+00:00", "depart": "2026-07-10T12:00:00+00:00"}
   ],
   "total_fare": 1100.0,
+  "operator_discount_amount": 110.0,
+  "final_fare": 990.0,
   "total_duration_minutes": 540,
   "leg_count": 2,
-  "is_direct": false
+  "is_direct": false,
+  "source": "operator",
+  "transit_route_id": "…",
+  "transit_route_name": "Dhaka–Sylhet Express Connection"
 }
 ```
 
 `transfers[i]` describes the change between `legs[i]` and `legs[i+1]`. Direct
-trips (1 leg) are included with `is_direct: true, transfers: []`.
+trips (1 leg) are included with `is_direct: true, transfers: []`. For
+`source: "auto"` itineraries, `operator_discount_amount` is `0.0`,
+`final_fare == total_fare`, and the `transit_route_*` fields are `null`.
 
 ### 5.5 `routers/transit.py`
 
@@ -305,6 +348,7 @@ Add (copy the search-service block shape, single replica, no DB env):
       REDIS_URL: redis://redis:6379/0
       ELASTICSEARCH_URL: http://elasticsearch:9200
       INVENTORY_SERVICE_URL: http://inventory-service:8000
+      OPERATOR_SERVICE_URL: http://operator-service:8000
       JWT_SECRET: supersecretkey
       ENVIRONMENT: development
       SERVICE_NAME: transit-service
@@ -386,6 +430,7 @@ class Journey(Base):
     status = Column(Enum(BookingStatus, name="booking_status"), default=BookingStatus.SEAT_LOCKED)
     idempotency_key = Column(String, unique=True, index=True, nullable=False)
     payment_id = Column(UUID(as_uuid=True), nullable=True)
+    transit_route_id = Column(UUID(as_uuid=True), nullable=True)  # set when booked via an operator-curated route (§7b.4)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=False)
 ```
@@ -530,6 +575,121 @@ then:
 
 ---
 
+## 7b. Phase 3b — Operator transit management (operator-service + portal)
+
+The operator is the **provider** of the transit service. This phase gives them
+the tools: publish/manage curated transit routes, opt trips in/out of
+auto-discovery, and see connecting passengers.
+
+### 7b.1 Model changes — `services/operator-service/models/models.py`
+
+Add to `Trip`:
+```python
+allow_transit = Column(Boolean, default=True)   # operator opt-in for auto-discovery
+```
+
+New model:
+```python
+class TransitRoute(Base):
+    __tablename__ = "transit_routes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), index=True, nullable=False)
+    name = Column(String, nullable=False)              # e.g. "Dhaka–Sylhet Express Connection"
+    origin_city = Column(String, index=True, nullable=False)
+    destination_city = Column(String, index=True, nullable=False)
+    via_cities = Column(JSONB, nullable=False)         # ordered, e.g. ["Comilla"]; 1..2 entries
+    combined_discount_pct = Column(Float, default=0.0) # 0..50; discount on the journey total
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+```
+
+Startup migration in operator-service `main.py` (after create_all, same
+pattern as deals-service):
+```python
+ALTER TABLE trips ADD COLUMN IF NOT EXISTS allow_transit BOOLEAN DEFAULT TRUE
+```
+
+### 7b.2 Make `allow_transit` visible to transit-service (via ES)
+
+1. `schemas/schemas.py` (operator-service): add `allow_transit: bool = True` to
+   `TripBase` (flows into TripResponse/TripEnrichedResponse automatically) so
+   trip create/update accepts it and listings return it.
+2. Wherever operator-service publishes `trip.created` / `trip.updated` Kafka
+   events, include `allow_transit` in the message (search-service indexes the
+   raw message).
+3. search-service `services/es_svc.py`: add `"allow_transit": {"type": "boolean"}`
+   to the index mapping (in `init_index`). The `/api/search/reindex` endpoint
+   already pushes whole trip dicts from operator-service, so once the schema
+   field exists, reindexed docs carry it.
+4. transit-service auto-discovery filters on it (§5.4 step 2b). Missing field
+   ⇒ treated as `true` (back-compat with old documents).
+
+### 7b.3 New router — `services/operator-service/routers/transit_routes.py`
+
+Prefix `/transit-routes`, include it in operator-service `main.py`
+(health router stays first). Reuse `get_current_user_payload` from
+`api/deps.py`; mutating endpoints require role OPERATOR/ADMIN and (except for
+ADMIN) `operator_id == payload["user_id"]`.
+
+```
+GET    /transit-routes/?origin=&destination=      # PUBLIC (transit-service calls this)
+       -> active routes matching origin+destination (case-insensitive);
+          no filters = all active routes. BaseResponse[list].
+GET    /transit-routes/mine                       # operator: their routes (incl. inactive)
+POST   /transit-routes/                           # create (validate: 1<=len(via_cities)<=2,
+                                                  #   0<=combined_discount_pct<=50,
+                                                  #   origin != destination, no city repeated)
+PUT    /transit-routes/{id}                       # update (partial)
+DELETE /transit-routes/{id}                       # delete (or set is_active=false — hard delete is fine for v1)
+```
+
+### 7b.4 Journey saga honours the operator discount (ties into §7.2)
+
+- `JourneyCreate` gains `transit_route_id: Optional[UUID] = None`.
+- **Saga step 2a (insert after fare validation):** if `transit_route_id` is
+  set, booking-service fetches the route from operator-service
+  (`GET /transit-routes/?origin=&destination=`, match by id, via new
+  `ExternalServices.get_transit_route`) and **recomputes the discount
+  server-side**: `operator_discount = round(total_fare * combined_discount_pct/100, 2)`.
+  Never trust a client-sent discount amount. Store it in
+  `journey.discount_amount` (added to any promo discount) and keep
+  `transit_route_id` on the journey (add the nullable column to the `Journey`
+  model in §7.1).
+- payment-service needs no extra change — it already validates against
+  `total_fare - discount_amount` from `GET /journeys/{id}` (§8.3).
+
+### 7b.5 Operator portal UI
+
+1. **NEW `pages/OperatorTransitRoutes.tsx`** — route `/operator/transit-routes`,
+   nav label **“Transit Routes”** (icon: `GitBranch` or `Route` from
+   lucide-react), wired in `OperatorPortal.tsx` like the other pages.
+   - List the operator's transit routes (name, path “Dhaka → Comilla → Sylhet”,
+     discount %, active toggle, delete).
+   - Create/edit form: name, origin, via city(-ies), destination (dropdowns
+     fed by `GET /api/search/cities`), combined discount %, active.
+2. **`pages/ManageTrips.tsx`** — add an “Allow transit connections” toggle per
+   trip (maps to `allow_transit` via the existing trip update call).
+3. **`pages/OperatorBookings.tsx`** — bookings that have `journey_id` get a
+   **“Transit leg {leg_number}”** badge; clicking it fetches
+   `GET /api/bookings/journeys/{journey_id}` (operators are authorized, §7.2
+   endpoint 2) and shows the passenger's full path + onward connection — this
+   is the driver/counter manifest view (“passenger continues to Sylhet on the
+   14:00 bus”).
+
+### 7b.6 Acceptance criteria (Phase 3b)
+
+- Operator (JWT role OPERATOR) can create a transit route; it appears in
+  `GET /api/operators/transit-routes/?origin=Dhaka&destination=Sylhet`.
+- `/api/transit/search` now returns that itinerary FIRST with
+  `source: "operator"`, the route name, and `final_fare` reduced by the
+  configured percentage.
+- Setting `allow_transit=false` on a leg trip removes it from **auto**
+  itineraries (after reindex) but curated routes and direct search still work.
+- A journey booked with `transit_route_id` stores the recomputed discount and
+  payment succeeds only for the discounted amount.
+
+---
+
 ## 8. Phase 4 — Payment for journeys (payment-service)
 
 ### 8.1 `schemas/schemas.py`
@@ -594,8 +754,13 @@ after each file; it must stay clean.
   “No direct bus — here are connecting options”.
 - Itinerary card shows each leg (operator, times, fare) and between legs a
   transfer chip: “Change at {city} · wait {wait_minutes} min”.
+- `source: "operator"` itineraries render FIRST with a badge
+  **“Operator transit service — guaranteed connection”** plus the
+  `transit_route_name`, and show `final_fare` with the operator discount
+  (strike through `total_fare` when discounted).
 - “Book journey” navigates to `/booking/transit-seats` with
-  `state = { itinerary, origin, destination, date }`.
+  `state = { itinerary, origin, destination, date }` (itinerary carries
+  `transit_route_id`, which flows through to `JourneyCreate` in §9.3).
 
 ### 9.2 NEW `pages/TransitSeats.tsx` (route `/booking/transit-seats`)
 A stepper with one step per leg:
@@ -609,7 +774,8 @@ A stepper with one step per leg:
 ### 9.3 NEW `pages/TransitPassengerDetails.tsx` (route `/booking/transit-passengers`)
 Copy the contact-form skeleton from `PassengerDetails.tsx`. On submit build
 `JourneyCreate` (legs from the itinerary + chosen seats; `fare = leg.fare_amount
-* seats.length`; `total_fare = sum`; `idempotency_key = crypto.randomUUID()`),
+* seats.length`; `total_fare = sum`; `transit_route_id = itinerary.transit_route_id`
+when the itinerary came from an operator route; `idempotency_key = crypto.randomUUID()`),
 `POST /api/bookings/journeys/`, then navigate to
 `/booking/payment/{first_booking_id}` with
 `state = { journeyId, journeyTotal, legs, isTransit: true }`.
@@ -635,8 +801,15 @@ Group rows that share `journey_id`: render one “Journey {origin} → {destinat
 returned by `/api/bookings/my` (add `journey_id`/`leg_number` to
 `BookingResponse` in booking-service `schemas/schemas.py` — two optional fields).
 
-### 9.6 Router wiring
-Add the two new routes in `App.tsx` next to the existing `/booking/*` routes.
+### 9.6 Operator-side pages
+The operator portal work (Transit Routes management page, `allow_transit`
+toggle in ManageTrips, transit-leg badge + manifest view in OperatorBookings)
+is specified in **§7b.5** — implement it in this phase alongside the customer
+pages; it is part of the frontend deliverable.
+
+### 9.7 Router wiring
+Add the two new customer routes in `App.tsx` next to the existing `/booking/*`
+routes, and the `/operator/transit-routes` route inside `OperatorPortal.tsx`.
 
 ---
 
@@ -651,6 +824,12 @@ Comilla→Sylhet route first if none exists). Then **re-run**
 `curl -X POST http://localhost:18085/api/search/reindex` so both search and
 transit see the new trips.
 
+Also seed **one curated transit route** for the same pair (operator JWT):
+`POST /api/operators/transit-routes/` with
+`{"name":"Dhaka–Sylhet Express Connection","origin_city":"Dhaka",
+"destination_city":"Sylhet","via_cities":["Comilla"],"combined_discount_pct":10}`
+— so the demo shows both an operator-provided and an auto-discovered itinerary.
+
 ---
 
 ## 11. Phase 7 — Tests & docs
@@ -664,7 +843,12 @@ transit see the new trips.
    - saga compensation test: lock a seat on leg-2's trip directly via
      inventory with a random booking_id, then POST a journey needing that seat
      → expect 409 AND leg-1 seats AVAILABLE afterwards; then release the
-     manual lock.
+     manual lock;
+   - operator-transit test (mint an OPERATOR JWT, see recipe below): create a
+     transit route via `POST /api/operators/transit-routes/`, assert
+     `/api/transit/search` now returns an itinerary with `source == "operator"`
+     ranked first and `final_fare < total_fare` when a discount is set; delete
+     the route afterwards (cleanup).
 2. `busgo/tests/curl_commands.md` — add a “transit-service `/api/transit`”
    section (search curl) and a journey-booking example under booking-service.
 3. **Testing recipe (JWTs):** mint tokens inside any service container:
@@ -692,7 +876,19 @@ curl -s "http://localhost:18085/api/transit/search?origin=Dhaka&destination=Sylh
 # 3. Saga compensation: make leg-2's seat taken, book again → 409 and leg-1
 #    seats instantly released (watch inventory seats endpoint).
 
-# 4. Microservice story: transit-service is a separate container/upstream in
+# 4. OPERATOR SIDE: log in as the operator → Transit Routes → create
+#    "Dhaka–Sylhet Express Connection" via Comilla with 10% off.
+#    Re-run the customer search: that itinerary now appears FIRST with the
+#    "Operator transit service — guaranteed connection" badge and the
+#    discounted fare. Then open Operator → Bookings: the booked legs carry
+#    "Transit leg 1/2" badges, and clicking one shows the passenger's onward
+#    connection (the driver/counter manifest).
+
+# 5. Operator control: toggle "Allow transit connections" OFF on a leg trip,
+#    reindex, search again → that trip disappears from auto itineraries but
+#    still sells as a direct ticket.
+
+# 6. Microservice story: transit-service is a separate container/upstream in
 #    Kong; kill it -> direct search still works (graceful degradation);
 #    Grafana shows its own request rate/latency series.
 ```
@@ -706,13 +902,17 @@ curl -s "http://localhost:18085/api/transit/search?origin=Dhaka&destination=Sylh
 | 1 | transit-service code | — | §5.7 criteria pass |
 | 2 | infra wiring | 1 | §6.5 commands pass, unit suite green |
 | 3 | booking saga | — (parallel with 1) | §7.4 criteria pass |
+| 3b | operator transit management (backend: models, ES field, transit-routes router, saga discount) | 3 | §7b.6 criteria pass |
 | 4 | payment journey support | 3 | §8.4 criteria pass |
-| 5 | frontend | 1–4 | tsc clean; UI flow books a 2-leg journey |
-| 6 | seed data | 2 | transit search returns ≥1 two-leg itinerary |
+| 5 | frontend (customer + operator pages) | 1–4 | tsc clean; UI books a 2-leg journey; operator can create a transit route and see transit passengers |
+| 6 | seed data | 2, 3b | transit search returns ≥1 two-leg itinerary, incl. one curated (create a transit route for the seeded pair) |
 | 7 | tests & docs | all | `python run_tests.py all` green incl. transit |
 
 **Non-goals for v1 (explicitly out of scope, do not build):** cross-date
 multi-day itineraries beyond the +6h window, per-leg different passenger lists,
 partial-journey cancellation (cancel is whole-journey only), promo UI on the
-transit payment page, walking/other transport between terminals in the same city.
+transit payment page, walking/other transport between terminals in the same
+city, and **revenue sharing / settlement between partner operators** on
+multi-operator journeys (each leg's revenue simply belongs to that leg's
+operator, as today).
 ```
