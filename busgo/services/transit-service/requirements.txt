@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+elasticsearch[async]==8.11.0
+redis
+httpx
+tenacity
+prometheus-client
+python-json-logger
+pydantic-settings

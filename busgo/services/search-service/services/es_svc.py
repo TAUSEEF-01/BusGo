@@ -23,7 +23,8 @@ class ESService:
                         "arrival_datetime": {"type": "date"},
                         "fare_amount": {"type": "double"},
                         "available_seats": {"type": "integer"},
-                        "status": {"type": "keyword"}
+                        "status": {"type": "keyword"},
+                        "allow_transit": {"type": "boolean"}
                     }
                 }
             }

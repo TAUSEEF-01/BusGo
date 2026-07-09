@@ -15,6 +15,7 @@ class InitiateRequest(BaseModel):
     method: PaymentMethod
     mobile_number: Optional[str] = None  # required for BKASH / NAGAD
     pin: Optional[str] = None  # required for BKASH / NAGAD
+    journey_id: Optional[UUID] = None  # set for a multi-leg transit journey payment
 
 class InitiateResponse(BaseModel):
     payment_id: UUID

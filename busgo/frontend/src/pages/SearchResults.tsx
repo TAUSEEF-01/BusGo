@@ -69,9 +69,20 @@ export function SearchResults() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [itineraries, setItineraries] = useState<any[]>([]);
 
   useEffect(() => {
     fetchTrips();
+    // Also look for connecting (multi-leg) journeys — skip on the round-trip return step.
+    if (!isReturnStep) {
+      apiClient
+        .get("/api/transit/search", { params: { origin, destination, journey_date: date } })
+        .then((r) => {
+          const its = (r.data?.data?.itineraries || []).filter((it: any) => it.leg_count > 1);
+          setItineraries(its);
+        })
+        .catch(() => setItineraries([]));
+    }
   }, [origin, destination, date]);
 
   const fetchTrips = async () => {
@@ -318,8 +329,8 @@ export function SearchResults() {
               </div>
             )}
 
-            {/* Empty State */}
-            {!loading && filteredTrips.length === 0 && (
+            {/* Empty State (only when there are no direct trips AND no connecting journeys) */}
+            {!loading && filteredTrips.length === 0 && itineraries.length === 0 && (
               <div className="card-premium p-12 text-center">
                 <Bus className="h-16 w-16 text-surface-300 mx-auto mb-4" />
                 <h3 className="text-xl font-bold text-surface-900 mb-2">No buses found</h3>
@@ -331,6 +342,70 @@ export function SearchResults() {
                 <button onClick={() => navigate("/")} className="btn-primary">
                   Modify Search
                 </button>
+              </div>
+            )}
+
+            {/* Connecting journeys (change buses) */}
+            {!loading && itineraries.length > 0 && (
+              <div className="mb-6">
+                {filteredTrips.length === 0 && (
+                  <div className="flex items-start gap-2 p-4 mb-4 rounded-xl bg-blue-50 border border-blue-200">
+                    <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-sm text-blue-800"><strong>No direct bus</strong> for {origin} → {destination}. Here are connecting options where you change buses along the way.</p>
+                  </div>
+                )}
+                <h2 className="text-lg font-bold text-surface-900 mb-3 flex items-center gap-2">
+                  <ArrowRight className="h-4 w-4 text-brand-600" /> Connecting journeys (change buses)
+                </h2>
+                <div className="space-y-4">
+                  {itineraries.map((it) => (
+                    <div key={it.itinerary_id} className={`card-premium p-5 ${it.source === "operator" ? "ring-1 ring-brand-200" : ""}`}>
+                      {it.source === "operator" && (
+                        <div className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-full mb-2">
+                          ★ Operator transit service — guaranteed connection{it.transit_route_name ? ` · ${it.transit_route_name}` : ""}
+                        </div>
+                      )}
+                      <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                        <div className="flex-1 space-y-2">
+                          {it.legs.map((leg: any, i: number) => (
+                            <div key={i}>
+                              <div className="flex items-center gap-2 text-sm">
+                                <Bus className="h-3.5 w-3.5 text-surface-400" />
+                                <span className="font-semibold text-surface-900">{leg.origin_city} → {leg.destination_city}</span>
+                                <span className="text-surface-500">· {leg.operator_name}</span>
+                                <span className="text-surface-400">· {new Date(leg.departure_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–{new Date(leg.arrival_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                <span className="ml-auto text-surface-600">৳{leg.fare_amount}</span>
+                              </div>
+                              {i < it.legs.length - 1 && it.transfers?.[i] && (
+                                <div className="ml-5 my-1 text-[11px] text-amber-700 bg-amber-50 inline-block px-2 py-0.5 rounded-full">
+                                  Change at {it.transfers[i].city} · wait {it.transfers[i].wait_minutes} min
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="lg:text-right lg:w-44 flex lg:flex-col items-center lg:items-end justify-between gap-2 border-t lg:border-t-0 lg:border-l border-surface-100 lg:pl-4 pt-3 lg:pt-0">
+                          <div>
+                            {it.operator_discount_amount > 0 && (
+                              <span className="text-xs text-surface-400 line-through mr-1">৳{it.total_fare}</span>
+                            )}
+                            <span className="text-xl font-extrabold text-brand-600">৳{it.final_fare}</span>
+                            <p className="text-[11px] text-surface-500">{it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m</p>
+                          </div>
+                          <button
+                            onClick={() => navigate("/booking/transit-seats", { state: { itinerary: it, origin, destination, date } })}
+                            className="btn-primary !py-2 !px-4 text-sm whitespace-nowrap"
+                          >
+                            Book journey
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {filteredTrips.length > 0 && (
+                  <h2 className="text-lg font-bold text-surface-900 mt-6 mb-1">Direct buses</h2>
+                )}
               </div>
             )}
 

@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from routers.bookings import router as bookings_router
 from routers.marketing import router as marketing_router
+from routers.journeys import router as journeys_router
 from models.base import Base
 from database import engine
 from services.scheduler import scheduler
@@ -36,6 +38,7 @@ app.include_router(create_health_router(SERVICE_NAME, {
     "redis": redis_check(os.environ.get("REDIS_URL")),
 }))
 app.include_router(marketing_router)
+app.include_router(journeys_router)
 app.include_router(bookings_router)
 
 @app.on_event("startup")
@@ -44,6 +47,9 @@ async def startup():
     kafka_consumer = BookingKafkaConsumer()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # New transit columns on the existing bookings table (create_all won't add them).
+        await conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS journey_id UUID"))
+        await conn.execute(text("ALTER TABLE bookings ADD COLUMN IF NOT EXISTS leg_number INTEGER"))
     scheduler.start()
     await kafka_consumer.start()
 

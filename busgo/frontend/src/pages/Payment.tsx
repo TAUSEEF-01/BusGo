@@ -57,9 +57,14 @@ export function Payment() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [tripId, setTripId] = useState<string | null>(state.trip_id || null);
-  const [grossTotal, setGrossTotal] = useState<number>(state.totalFare || 0);
+  const [grossTotal, setGrossTotal] = useState<number>(state.totalFare || state.journeyTotal || 0);
   const [discount, setDiscount] = useState<number>(0);
   const [returnBookingData, setReturnBookingData] = useState<any>(null);
+
+  // Transit (multi-leg journey) mode.
+  const isTransit = !!state.isTransit;
+  const journeyId = state.journeyId as string | undefined;
+  const transitLegs: any[] = state.legs || [];
 
   // Promo code state
   const [promoInput, setPromoInput] = useState("");
@@ -73,7 +78,9 @@ export function Payment() {
   const returnBookingId = state.return_booking_id;
   const outboundTotalVal = Number(state.outboundTotal || total);
   const returnTotalVal = Number(state.returnTotal || (returnBookingData?.total_fare || 0));
-  const combinedTotal = state.isRoundTrip ? (outboundTotalVal + returnTotalVal) : total;
+  const combinedTotal = isTransit
+    ? Number(state.journeyTotal || total)
+    : state.isRoundTrip ? (outboundTotalVal + returnTotalVal) : total;
 
   // Account that funds the currently selected method.
   const activeAccount = accounts.find((a) => a.account_type === METHOD_ACCOUNT_TYPE[method]);
@@ -97,9 +104,25 @@ export function Payment() {
     return () => { mounted = false; };
   }, []);
 
+  // Transit: fetch the journey so the charged total is authoritative.
+  useEffect(() => {
+    if (!isTransit || !journeyId) return;
+    (async () => {
+      try {
+        const res = await apiClient.get(`/api/bookings/journeys/${journeyId}`);
+        if (res.data.success) {
+          setGrossTotal(Number(res.data.data.final_fare));
+          setDiscount(0);
+        }
+      } catch (err) {
+        console.error("Failed to load journey", err);
+      }
+    })();
+  }, [isTransit, journeyId]);
+
   // Ensure we have trip_id + accurate total from the booking record.
   useEffect(() => {
-    if (!booking_id) return;
+    if (!booking_id || isTransit) return;
     (async () => {
       try {
         const res = await apiClient.get(`/api/bookings/${booking_id}`);
@@ -223,7 +246,7 @@ export function Payment() {
       return;
     }
     
-    if (!tripId) {
+    if (!tripId && !isTransit) {
       toast.error("Could not load booking details. Please refresh and try again.");
       return;
     }
@@ -236,9 +259,34 @@ export function Payment() {
 
     setLoading(true);
     try {
-      if (state.isRoundTrip && returnBookingId) {
+      if (isTransit && journeyId) {
+        // Transit journey: one payment for all legs, then confirm the journey.
+        const initRes = await apiClient.post("/api/payments/initiate", {
+          booking_id,
+          journey_id: journeyId,
+          trip_id: transitLegs[0]?.trip_id || tripId,
+          amount: combinedTotal,
+          method: METHOD_ENUM[method],
+          ...(method === "bkash" || method === "nagad" ? { mobile_number: phone, pin } : {}),
+        });
+        if (!initRes.data.success) {
+          toast.error(initRes.data.message || "Payment was declined.");
+          setLoading(false);
+          return;
+        }
+        const payment_id = initRes.data.data.payment_id;
+        const confirmRes = await apiClient.post(`/api/bookings/journeys/${journeyId}/confirm-payment`, null, {
+          params: { payment_id },
+        });
+        if (confirmRes.data.success) {
+          toast.success("Payment successful! All buses in your journey are confirmed.");
+          navigate(`/booking/confirmation/${booking_id}`, { state: { isTransit: true, journeyId } });
+        } else {
+          toast.error(confirmRes.data.message || "Payment confirmation failed. Please contact support.");
+        }
+      } else if (state.isRoundTrip && returnBookingId) {
         // Sequential Payment
-        
+
         // 1) Outbound Payment Initiate
         const initResOutbound = await apiClient.post("/api/payments/initiate", {
           booking_id,
@@ -730,8 +778,8 @@ export function Payment() {
                       </div>
                     </div>
 
-                    {/* Promo Code */}
-                    <div className="border-t border-surface-200 pt-4">
+                    {/* Promo Code (hidden for transit journeys in v1) */}
+                    <div className={`border-t border-surface-200 pt-4 ${isTransit ? "hidden" : ""}`}>
                       <label className="block text-sm font-semibold text-surface-700 mb-1.5">Promo Code</label>
                       {appliedPromo ? (
                         <div className="flex items-center justify-between gap-2 p-3 rounded-lg bg-emerald-50 border border-emerald-200">

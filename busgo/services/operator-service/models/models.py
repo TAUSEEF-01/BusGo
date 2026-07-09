@@ -73,8 +73,25 @@ class Trip(Base):
     fare_amount = Column(Numeric(10, 2), nullable=False)
     available_seats = Column(Integer, nullable=False)
     status = Column(Enum(TripStatus, name="trip_status"), default=TripStatus.SCHEDULED)
+    allow_transit = Column(Boolean, default=True)  # operator opt-in for auto-discovered connections
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     operator = relationship("Operator", back_populates="trips")
     bus = relationship("Bus", back_populates="trips")
     route = relationship("Route", back_populates="trips")
+
+
+class TransitRoute(Base):
+    """An operator-published curated connection (Dhaka -> [Comilla] -> Sylhet),
+    optionally with a combined-fare discount. transit-service ranks these above
+    auto-discovered itineraries."""
+    __tablename__ = "transit_routes"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    operator_id = Column(UUID(as_uuid=True), ForeignKey("operators.id"), index=True, nullable=False)
+    name = Column(String, nullable=False)
+    origin_city = Column(String, index=True, nullable=False)
+    destination_city = Column(String, index=True, nullable=False)
+    via_cities = Column(JSONB, nullable=False)  # ordered list, 1..2 entries
+    combined_discount_pct = Column(Float, default=0.0)  # 0..50, discount on the journey total
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

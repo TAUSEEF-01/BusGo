@@ -62,6 +62,36 @@ curl -s $KONG/api/operators/trips/ | jq            # list trips
 curl -s $KONG/api/operators/trips/REPLACE_WITH_TRIP_ID | jq
 ```
 
+## 3b. transit-service  `/api/transit`  (multi-leg connecting journeys — no auth)
+```bash
+# Find connecting journeys when there's no direct bus (Dhaka -> Comilla -> Sylhet)
+curl -s "$KONG/api/transit/search?origin=Dhaka&destination=Sylhet&journey_date=2026-08-15" | jq '.data.itineraries[] | {source, legs: [.legs[] | "\(.origin_city)->\(.destination_city)"], total_fare, final_fare, transfers}'
+```
+
+Book a whole journey (all legs at once; auth required). Build `legs` from the
+itinerary the search returned:
+```bash
+curl -s -X POST $KONG/api/bookings/journeys/ -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{
+  "origin":"Dhaka","destination":"Sylhet",
+  "legs":[
+    {"trip_id":"LEG1_TRIP","operator_id":"OP","seat_numbers":["A1"],"boarding_point":"Dhaka","dropping_point":"Comilla","journey_date":"2026-08-15","departure_time":"08:00:00","fare":500},
+    {"trip_id":"LEG2_TRIP","operator_id":"OP","seat_numbers":["A1"],"boarding_point":"Comilla","dropping_point":"Sylhet","journey_date":"2026-08-15","departure_time":"12:00:00","fare":700}
+  ],
+  "passenger_details":[{"name":"T","age":30,"gender":"male","seat":"A1"}],
+  "total_fare":1200,"idempotency_key":"'$(uuidgen)'"
+}' | jq
+# -> if any leg's seats are unavailable: 409 and NO seats are held (saga compensation)
+
+curl -s $KONG/api/bookings/journeys/JOURNEY_ID -H "Authorization: Bearer $TOKEN" | jq   # journey + legs
+```
+
+Operator: publish a curated transit route (ranks above auto-discovered):
+```bash
+curl -s -X POST $KONG/api/operators/transit-routes/ -H "Authorization: Bearer $OP_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"Dhaka-Sylhet Express Connection","origin_city":"Dhaka","destination_city":"Sylhet","via_cities":["Comilla"],"combined_discount_pct":10,"operator_id":"OPERATOR_ID"}' | jq
+curl -s "$KONG/api/operators/transit-routes/?origin=Dhaka&destination=Sylhet" | jq   # public list (transit-service uses this)
+```
+
 ## 4. inventory-service  `/api/inventory`  (seat locking — no auth needed)
 ```bash
 TRIP=REPLACE_WITH_TRIP_ID

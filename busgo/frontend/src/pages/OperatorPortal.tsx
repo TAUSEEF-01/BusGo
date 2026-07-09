@@ -5,7 +5,7 @@ import { useAuthStore } from "../stores/authStore";
 import {
   LayoutDashboard, Bus, Ticket, BarChart3, Settings, LogOut,
   Users, TrendingUp, DollarSign, Star, ArrowUpRight, ArrowDownRight,
-  Calendar, ChevronRight, Menu, X, MapPin, ArrowRight, Clock, BadgePercent, Bell, Target,
+  Calendar, ChevronRight, Menu, X, MapPin, ArrowRight, Clock, BadgePercent, Bell, Target, GitBranch,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -16,6 +16,7 @@ import { NotificationBell } from "../notifications/NotificationBell";
 import { OperatorDeals } from "./OperatorDeals";
 import { OperatorNotifications } from "./OperatorNotifications";
 import { FillEmptySeats } from "./FillEmptySeats";
+import { OperatorTransitRoutes } from "./OperatorTransitRoutes";
 
 /* ─── Dashboard Stats ──────────────────────────────── */
 const STATS = [
@@ -32,6 +33,7 @@ const NAV_ITEMS = [
   { to: "/operator/trips", label: "Manage Trips", icon: Bus },
   { to: "/operator/bookings", label: "Bookings", icon: Ticket },
   { to: "/operator/fill-seats", label: "Fill Empty Seats", icon: Target },
+  { to: "/operator/transit-routes", label: "Transit Routes", icon: GitBranch },
   { to: "/operator/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/operator/deals", label: "Deals", icon: BadgePercent },
   { to: "/operator/notifications", label: "Notifications", icon: Bell },
@@ -738,6 +740,7 @@ export function OperatorPortal() {
             <Route path="/trips" element={<ManageTrips />} />
             <Route path="/bookings" element={<OperatorBookings />} />
             <Route path="/fill-seats" element={<FillEmptySeats />} />
+            <Route path="/transit-routes" element={<OperatorTransitRoutes />} />
             <Route path="/analytics" element={<OperatorAnalytics />} />
             <Route path="/deals" element={<OperatorDeals />} />
             <Route path="/notifications" element={<OperatorNotifications />} />

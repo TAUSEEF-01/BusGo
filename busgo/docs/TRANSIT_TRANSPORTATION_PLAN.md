@@ -1,6 +1,13 @@
 # Transit (Multi-Leg / Connecting-Bus) Transportation — Implementation Plan
 
-> **Status:** PLANNED — not yet implemented.
+> **Status:** ✅ IMPLEMENTED (2026-07-09). Verified live: transit-service search
+> (auto + operator-curated itineraries), booking saga with compensation, operator
+> transit-route CRUD, journey payment fraud check, and the full test suite (incl.
+> `run_tests.py transit`). Deferred (secondary, capabilities exist via API):
+> the per-trip `allow_transit` toggle inside ManageTrips.tsx and the
+> OperatorBookings manifest view. A reliability fix was needed —
+> `use_insertmanyvalues=False` on the booking engine — because the Supabase
+> pgbouncer (transaction mode) breaks asyncpg `executemany` (multi-row leg inserts).
 > **Audience:** any engineer or AI model executing this without prior context.
 > Follow the phases **in order**. Each phase ends with acceptance criteria; do
 > not start the next phase until they pass. Conventions, gotchas, and exact

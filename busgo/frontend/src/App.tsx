@@ -11,6 +11,8 @@ import { Routes as RoutesPage } from "./pages/Routes";
 import { SelectSeats } from "./pages/SelectSeats";
 import { PassengerDetails } from "./pages/PassengerDetails";
 import { Payment } from "./pages/Payment";
+import { TransitSeats } from "./pages/TransitSeats";
+import { TransitPassengerDetails } from "./pages/TransitPassengerDetails";
 import { Confirmation } from "./pages/Confirmation";
 import { MyBookings } from "./pages/MyBookings";
 import { Cancellation } from "./pages/Cancellation";
@@ -54,6 +56,15 @@ function App() {
         <Route
           path="/booking/select-seats/:trip_id"
           element={<SelectSeats />}
+        />
+        <Route path="/booking/transit-seats" element={<TransitSeats />} />
+        <Route
+          path="/booking/transit-passengers"
+          element={
+            <ProtectedRoute>
+              <TransitPassengerDetails />
+            </ProtectedRoute>
+          }
         />
 
         <Route

@@ -208,6 +208,7 @@ services:
       SERVICE_DB: payment_db
       ROOT_PATH: /api/payments
       BANK_SERVICE_URL: http://bank-service:8000
+      BOOKING_SERVICE_URL: http://booking-service:8000
 
   bank-service:
     <<: *service-defaults
@@ -360,6 +361,25 @@ services:
       SERVICE_NAME: audit-service
       SERVICE_DB: audit_db
       ROOT_PATH: /api/audit
+
+  transit-service:
+    <<: *service-defaults
+    build:
+      context: ../services/transit-service
+    ports:
+      - "${TRANSIT_SERVICE_PORT:-8517}:8000"
+    volumes:
+      - ../services/transit-service:/app
+      - ../shared:/app/shared
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      INVENTORY_SERVICE_URL: http://inventory-service:8000
+      OPERATOR_SERVICE_URL: http://operator-service:8000
+      JWT_SECRET: supersecretkey
+      ENVIRONMENT: development
+      SERVICE_NAME: transit-service
+      ROOT_PATH: /api/transit
 
   # ── Observability stack ──────────────────────────────────────────────────
   prometheus:

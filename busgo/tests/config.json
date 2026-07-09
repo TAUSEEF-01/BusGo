@@ -15,14 +15,16 @@
     { "name": "operator-service",    "prefix": "/api/operators",     "replicas": 1, "upstream": "operator-upstream" },
     { "name": "deals-service",       "prefix": "/api/deals",         "replicas": 1, "upstream": "deals-upstream" },
     { "name": "admin-service",       "prefix": "/api/admin",         "replicas": 1, "upstream": "admin-upstream" },
-    { "name": "audit-service",       "prefix": "/api/audit",         "replicas": 1, "upstream": "audit-upstream" }
+    { "name": "audit-service",       "prefix": "/api/audit",         "replicas": 1, "upstream": "audit-upstream" },
+    { "name": "transit-service",     "prefix": "/api/transit",       "replicas": 1, "upstream": "transit-upstream" }
   ],
   "smoke_endpoints": [
     { "service": "deals-service",    "method": "GET", "path": "/api/deals/promos/",        "expect": 200, "desc": "list active promo codes" },
     { "service": "deals-service",    "method": "GET", "path": "/api/deals/flash-sales/",    "expect": 200, "desc": "list flash sales" },
     { "service": "operator-service", "method": "GET", "path": "/api/operators/operators/", "expect": 200, "desc": "list operators" },
     { "service": "operator-service", "method": "GET", "path": "/api/operators/trips/",      "expect": 200, "desc": "list trips" },
-    { "service": "search-service",   "method": "GET", "path": "/api/search/cities",         "expect": 200, "desc": "list searchable cities" }
+    { "service": "search-service",   "method": "GET", "path": "/api/search/cities",         "expect": 200, "desc": "list searchable cities" },
+    { "service": "transit-service",  "method": "GET", "path": "/api/transit/search?origin=Dhaka&destination=Sylhet&journey_date=2026-07-10", "expect": 200, "desc": "transit itinerary search" }
   ],
   "load_balancing": {
     "targets": ["auth-service", "search-service", "booking-service"],
@@ -32,5 +34,11 @@
   "seat_concurrency": {
     "users": 8,
     "note": "Number of users that simultaneously try to grab the SAME seat. Exactly one must win (HTTP 200); the rest must be rejected (HTTP 409)."
+  },
+  "transit": {
+    "origin": "Dhaka",
+    "destination": "Sylhet",
+    "journey_date": "2026-08-15",
+    "note": "A route with a seeded connecting itinerary (Dhaka -> Comilla -> Sylhet). See plan Phase 6."
   }
 }

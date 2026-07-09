@@ -122,6 +122,14 @@ services:
           - /api/notifications
           - /api/notification
         strip_path: true
+  - name: transit-service
+    url: http://transit-upstream
+    retries: 3
+    routes:
+      - name: transit-route
+        paths:
+          - /api/transit
+        strip_path: true
 
 # Active checks poll /health on every target; passive checks trip a target out
 # of rotation as a circuit breaker on errors. The first upstream defines the
@@ -153,6 +161,9 @@ upstreams:
           timeouts: 3
   - name: search-upstream
     targets: [{ target: "search-service:8000", weight: 100 }]
+    healthchecks: *default-healthchecks
+  - name: transit-upstream
+    targets: [{ target: "transit-service:8000", weight: 100 }]
     healthchecks: *default-healthchecks
   - name: inventory-upstream
     targets: [{ target: "inventory-service:8000", weight: 100 }]

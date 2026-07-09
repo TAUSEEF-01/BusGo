@@ -46,6 +46,8 @@ class BookingResponse(BaseModel):
     departure_time: time
     expires_at: datetime
     created_at: datetime
+    journey_id: Optional[UUID] = None
+    leg_number: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -56,3 +58,23 @@ class BookingStatusChange(BaseModel):
 
 class ApplyPromoRequest(BaseModel):
     promo_code: str
+
+class JourneyLegCreate(BaseModel):
+    trip_id: UUID
+    operator_id: UUID
+    seat_numbers: List[str]
+    boarding_point: str
+    dropping_point: str
+    journey_date: date
+    departure_time: time
+    fare: float
+
+class JourneyCreate(BaseModel):
+    origin: str
+    destination: str
+    legs: List[JourneyLegCreate]
+    passenger_details: List[PassengerDetail]
+    total_fare: float
+    promo_code: Optional[str] = None
+    transit_route_id: Optional[UUID] = None
+    idempotency_key: str

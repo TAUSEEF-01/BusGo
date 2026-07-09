@@ -97,6 +97,7 @@ class TripBase(BaseModel):
     fare_amount: float
     available_seats: int
     status: Optional[TripStatus] = TripStatus.SCHEDULED
+    allow_transit: Optional[bool] = True
 
 class TripCreate(TripBase):
     operator_id: UUID
@@ -107,6 +108,7 @@ class TripUpdate(BaseModel):
     fare_amount: Optional[float] = None
     available_seats: Optional[int] = None
     status: Optional[TripStatus] = None
+    allow_transit: Optional[bool] = None
 
 class TripResponse(TripBase):
     id: UUID
@@ -124,3 +126,30 @@ class TripEnrichedResponse(TripResponse):
     destination_city: str
     boarding_points: Optional[List[Point]] = None
     dropping_points: Optional[List[Point]] = None
+
+
+class TransitRouteBase(BaseModel):
+    name: str
+    origin_city: str
+    destination_city: str
+    via_cities: List[str]
+    combined_discount_pct: Optional[float] = 0.0
+    is_active: Optional[bool] = True
+
+class TransitRouteCreate(TransitRouteBase):
+    operator_id: UUID
+
+class TransitRouteUpdate(BaseModel):
+    name: Optional[str] = None
+    origin_city: Optional[str] = None
+    destination_city: Optional[str] = None
+    via_cities: Optional[List[str]] = None
+    combined_discount_pct: Optional[float] = None
+    is_active: Optional[bool] = None
+
+class TransitRouteResponse(TransitRouteBase):
+    id: UUID
+    operator_id: UUID
+    created_at: datetime
+    class Config:
+        from_attributes = True

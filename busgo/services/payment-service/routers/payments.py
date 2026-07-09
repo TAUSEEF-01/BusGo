@@ -34,16 +34,23 @@ async def toggle_simulate_failure(fail: bool):
 async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     user_id = payload.get("user_id")
 
-    # Fraud Detection 1: Mount mismatch
+    # A transit journey pays for all its legs at once. The payment record is
+    # keyed by the journey id (ref_id) so failure/refund events resolve to it.
+    ref_id = str(req.journey_id) if req.journey_id else str(req.booking_id)
+
+    # Fraud Detection 1: Amount mismatch
     auth_header = request.headers.get("Authorization", "").replace("Bearer ", "")
-    booking = await BookingClient.get_booking(str(req.booking_id), auth_header)
+    if req.journey_id:
+        booking = await BookingClient.get_journey(str(req.journey_id), auth_header)
+    else:
+        booking = await BookingClient.get_booking(str(req.booking_id), auth_header)
     if not booking:
         booking = {"total_fare": req.amount, "trip_id": str(req.trip_id)} # Fallback for dev if booking service unreachable
-        
+
     actual_fare = float(booking.get("total_fare", 0)) - float(booking.get("discount_amount", 0))
     if abs(actual_fare - req.amount) > 0.01: # allow tiny float diff
         await KafkaProducerClient.publish("audit.log", {
-            "event": "fraud.detected", "user_id": user_id, "reason": "Amount mismatch", "booking_id": str(req.booking_id)
+            "event": "fraud.detected", "user_id": user_id, "reason": "Amount mismatch", "booking_id": ref_id
         })
         raise HTTPException(status_code=400, detail="Payment amount does not match booking fare")
 
@@ -59,7 +66,7 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         })
         # Definitive failure: release the held seats so other users aren't blocked.
         await KafkaProducerClient.publish("payment.failed", {
-            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "max_attempts_exceeded"
+            "booking_id": ref_id, "trip_id": str(trip_id), "reason": "max_attempts_exceeded"
         })
         raise HTTPException(status_code=403, detail="Maximum payment attempts exceeded for this trip")
 
@@ -69,25 +76,25 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         user_id=str(user_id),
         amount=float(req.amount),
         method=method_value,
-        reference=str(req.booking_id),
+        reference=ref_id,
         mobile_number=req.mobile_number,
         pin=req.pin,
     )
     if not bank_result.get("success"):
         await KafkaProducerClient.publish("audit.log", {
             "event": "payment.declined", "user_id": user_id,
-            "reason": bank_result.get("message"), "booking_id": str(req.booking_id)
+            "reason": bank_result.get("message"), "booking_id": ref_id
         })
         # Payment declined (insufficient balance / bad PIN): free the held seats
         # immediately so they're available to other users right away.
         await KafkaProducerClient.publish("payment.failed", {
-            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "payment_declined"
+            "booking_id": ref_id, "trip_id": str(trip_id), "reason": "payment_declined"
         })
         raise HTTPException(status_code=402, detail=bank_result.get("message", "Insufficient balance"))
 
     try:
         payment = Payment(
-            booking_id=req.booking_id,
+            booking_id=ref_id,
             user_id=user_id,
             trip_id=trip_id,
             amount=req.amount,
@@ -105,11 +112,11 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
             user_id=str(user_id),
             amount=float(req.amount),
             method=method_value,
-            reference=str(req.booking_id),
+            reference=ref_id,
         )
         # Release the held seats since this payment could not be recorded.
         await KafkaProducerClient.publish("payment.failed", {
-            "booking_id": str(req.booking_id), "trip_id": str(trip_id), "reason": "payment_record_failed"
+            "booking_id": ref_id, "trip_id": str(trip_id), "reason": "payment_record_failed"
         })
         raise HTTPException(status_code=500, detail="Payment could not be processed. Your account has not been charged. Please try again.")
 

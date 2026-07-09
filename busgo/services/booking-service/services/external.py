@@ -124,6 +124,26 @@ class ExternalServices:
         return None
 
     @staticmethod
+    async def get_transit_route(transit_route_id: str, origin: str, destination: str) -> dict:
+        """Fetch an operator's curated transit route by id (matched within the
+        origin/destination result set). Returns {} if not found/unavailable."""
+        if not transit_route_id:
+            return {}
+        try:
+            res = await _client.get(
+                f"{settings.OPERATOR_SERVICE_URL}/transit-routes/",
+                params={"origin": origin, "destination": destination},
+                timeout=6.0,
+            )
+            if res.status_code == 200:
+                for r in res.json().get("data", []) or []:
+                    if str(r.get("id")) == str(transit_route_id):
+                        return r
+        except Exception as e:
+            logging.error(f"Failed to fetch transit route {transit_route_id}: {e}")
+        return {}
+
+    @staticmethod
     async def get_trip_occupancy(trip_id: str) -> dict:
         """Return seat occupancy for a trip from inventory-service:
         {total, booked, locked, available}. Empty dict if unavailable."""

@@ -23,6 +23,8 @@ interface Booking {
   total: string;
   status: BookingStatus;
   ticketId: string;
+  journey_id?: string | null;
+  leg_number?: number | null;
 }
 
 const TAB_CONFIG: { id: Tab; label: string; icon: typeof Ticket; emptyTitle: string; emptyDesc: string }[] = [
@@ -143,7 +145,9 @@ export function MyBookings() {
               seats: b.seat_numbers || [],
               total: `৳ ${b.total_fare}`,
               status: mappedStatus,
-              ticketId: b.id.split('-')[0].toUpperCase()
+              ticketId: b.id.split('-')[0].toUpperCase(),
+              journey_id: b.journey_id || null,
+              leg_number: b.leg_number ?? null,
             };
           });
           setBookings(mappedBookings);
@@ -253,6 +257,9 @@ export function MyBookings() {
                                 <span className={`badge ${STATUS_STYLES[booking.status]} text-[10px]`}>
                                   {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                 </span>
+                                {booking.journey_id && (
+                                  <span className="badge bg-brand-50 text-brand-700 text-[10px]">Transit leg {booking.leg_number}</span>
+                                )}
                                 <span className="text-xs text-surface-400 font-semibold">{booking.ticketId}</span>
                               </div>
                             </div>

@@ -5,7 +5,7 @@ import sys
 import os
 
 from database import async_session
-from models.models import Booking, BookingStatusHistory
+from models.models import Booking, BookingStatusHistory, Journey
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.enums import BookingStatus
@@ -46,3 +46,18 @@ async def expire_stale_bookings():
         if bookings:
             await db.commit()
             print(f"Expired {len(bookings)} bookings")
+
+        # Roll up any journey whose legs are all terminal (EXPIRED/CANCELLED) but
+        # whose own status is still an active hold.
+        stale_journeys = (await db.execute(
+            select(Journey).where(Journey.status.in_([BookingStatus.SEAT_LOCKED, BookingStatus.PAYMENT_PENDING]))
+        )).scalars().all()
+        rolled = 0
+        for journey in stale_journeys:
+            legs = (await db.execute(select(Booking).where(Booking.journey_id == journey.id))).scalars().all()
+            if legs and all(l.status in (BookingStatus.EXPIRED, BookingStatus.CANCELLED) for l in legs):
+                journey.status = BookingStatus.EXPIRED
+                rolled += 1
+        if rolled:
+            await db.commit()
+            print(f"Expired {rolled} journeys")

@@ -12,6 +12,12 @@ engine = create_async_engine(
     pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
     max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "2")),
     pool_pre_ping=True,
+    # The Supabase pgbouncer (transaction mode) can route the EXECUTE of an
+    # asyncpg `executemany` to a different backend than its PREPARE, raising
+    # "prepared statement does not exist". A transit journey inserts several
+    # Booking rows at once (the vulnerable path), so disable insertmanyvalues:
+    # multi-row inserts become individual statements, which are pooler-safe.
+    use_insertmanyvalues=False,
 )
 async_session = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

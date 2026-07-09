@@ -101,3 +101,10 @@ scrape_configs:
       - names: ["notification-service"]
         type: A
         port: 8000
+
+  - job_name: transit-service
+    metrics_path: /metrics
+    dns_sd_configs:
+      - names: ["transit-service"]
+        type: A
+        port: 8000

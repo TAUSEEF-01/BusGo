@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON, UniqueConstraint
+from sqlalchemy import Column, String, DateTime, Enum, ForeignKey, Numeric, Date, Time, JSON, UniqueConstraint, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from .base import Base
@@ -28,7 +28,11 @@ class Booking(Base):
     total_fare = Column(Numeric(10, 2), nullable=False)
     discount_amount = Column(Numeric(10, 2), default=0.0)
     promo_code = Column(String, nullable=True)
-    
+
+    # Set when this booking is one leg of a multi-leg transit journey.
+    journey_id = Column(UUID(as_uuid=True), index=True, nullable=True)
+    leg_number = Column(Integer, nullable=True)  # 1-based order within the journey
+
     status = Column(Enum(BookingStatus, name="booking_status"), default=BookingStatus.INITIATED)
     idempotency_key = Column(String, unique=True, index=True, nullable=False)
     payment_id = Column(UUID(as_uuid=True), nullable=True)
@@ -58,6 +62,28 @@ class TravelRecord(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (UniqueConstraint("user_id", "trip_id", name="uq_travel_user_trip"),)
+
+
+class Journey(Base):
+    """A multi-leg transit journey. Each leg is a normal Booking row carrying
+    this journey's id and its leg_number. The journey holds the combined fare,
+    any journey-level discount (operator transit route and/or promo), and the
+    overall status; the legs mirror the journey's lifecycle."""
+    __tablename__ = "journeys"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), index=True, nullable=False)
+    origin = Column(String, nullable=False)
+    destination = Column(String, nullable=False)
+    leg_count = Column(Integer, nullable=False)
+    total_fare = Column(Numeric(10, 2), nullable=False)
+    discount_amount = Column(Numeric(10, 2), default=0.0)
+    promo_code = Column(String, nullable=True)
+    status = Column(Enum(BookingStatus, name="booking_status"), default=BookingStatus.SEAT_LOCKED)
+    idempotency_key = Column(String, unique=True, index=True, nullable=False)
+    payment_id = Column(UUID(as_uuid=True), nullable=True)
+    transit_route_id = Column(UUID(as_uuid=True), nullable=True)  # operator-curated route, if any
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
 
 
 class BookingStatusHistory(Base):
