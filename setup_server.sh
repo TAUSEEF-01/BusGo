@@ -118,8 +118,35 @@ cd "$PROJECT_DIR/busgo/infrastructure"
 sudo docker compose down || true
 echo "Building frontend first to avoid network/CPU contention..."
 sudo docker compose build frontend
-echo "Building and starting all other services..."
-sudo docker compose up --build -d
+
+echo "Building all other services..."
+sudo docker compose build
+
+echo "Starting core infrastructure (Postgres, Redis, ZooKeeper)..."
+sudo docker compose up -d postgres redis zookeeper
+echo "Waiting for core infrastructure to stabilize..."
+sleep 15
+
+echo "Starting Kafka and ElasticSearch..."
+sudo docker compose up -d kafka elasticsearch
+echo "Waiting for Kafka and ElasticSearch to stabilize..."
+sleep 20
+
+echo "Starting observability stack..."
+sudo docker compose up -d prometheus loki promtail grafana
+sleep 10
+
+echo "Starting Auth and Kong..."
+sudo docker compose up -d kong auth-service
+sleep 15
+
+echo "Starting core domain services..."
+sudo docker compose up -d search-service inventory-service booking-service payment-service bank-service ticket-service
+sleep 25
+
+echo "Starting remaining services..."
+sudo docker compose up -d notification-service cancellation-service operator-service deals-service admin-service audit-service transit-service frontend
+sleep 15
 
 # ----- Step 7: Create Kafka Topics -----
 echo "[7/7] Creating Kafka topics to avoid startup race conditions..."
