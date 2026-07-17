@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "BusGo",
+    "slug": "busgo-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "busgo",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#0f172a",
+      "resizeMode": "contain"
+    },
+    "android": {
+      "package": "com.busgo.mobile",
+      "usesCleartextTraffic": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.busgo.mobile"
+    },
+    "extra": {
+      "kongPort": 18085
+    }
+  }
+}
