@@ -40,8 +40,6 @@ def get_db_connect_args(url: str, *, async_driver: bool = True) -> dict:
     
     if not is_local:
         if async_driver:
-            import uuid
-            connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid.uuid4().hex}__"
             if db_ssl:
                 connect_args["ssl"] = "require"
         else:
