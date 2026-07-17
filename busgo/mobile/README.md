@@ -6,7 +6,7 @@ bookings/tickets, deals, and notifications. It talks to the same backend as the
 web app through the Kong gateway.
 
 ## Prerequisites
-- Node.js 20+ on your PC
+- Node.js 20.19.4+ on your PC
 - The BusGo stack running: `cd busgo/infrastructure && docker compose up -d`
 - **Expo Go** app on your phone (Play Store / App Store)
 - Phone and PC on the **same Wi-Fi**
@@ -44,12 +44,17 @@ netsh advfirewall firewall add rule name="BusGo Kong 18085" dir=in action=allow 
 ```
 
 ## If Expo Go says the SDK doesn't match
-Expo Go only runs the latest SDK. Upgrade the project in place:
+This project intentionally targets Expo SDK 54 so it works with the Expo Go
+version distributed through the Play Store during the SDK 57 transition. Keep
+the SDK-aligned package versions installed and clear Metro's cache:
 
 ```bash
-npx expo install expo@latest
 npx expo install --fix
+npx expo start --clear
 ```
+
+Do not upgrade this project to SDK 57 unless you also switch to a matching Expo
+Go APK or an Expo development build.
 
 ## Demo accounts
 Register directly in the app (accounts are auto-verified in dev), or log in

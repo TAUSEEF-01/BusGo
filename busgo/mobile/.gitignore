@@ -5,3 +5,7 @@ web-build/
 *.log
 .DS_Store
 .expo-export-test/
+
+# Android build artifacts (too large for GitHub)
+*.apk
+*.aab

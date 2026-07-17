@@ -12,14 +12,23 @@
       "resizeMode": "contain"
     },
     "android": {
-      "package": "com.busgo.mobile",
-      "usesCleartextTraffic": true
+      "package": "com.busgo.mobile"
     },
     "ios": {
       "bundleIdentifier": "com.busgo.mobile"
     },
     "extra": {
       "kongPort": 18085
-    }
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
   }
 }
