@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, MapPin, Bus, Calendar, ArrowRight, Search,
-  Ticket, X, Eye, FileText, ChevronRight, Loader2
+  Ticket, X, Eye, FileText, Loader2, Wifi, Snowflake, Zap
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,9 @@ interface Booking {
   date: string;
   departure: string;
   arrival: string;
+  busName: string;
+  busType: string;
+  amenities: string[];
   seats: string[];
   total: string;
   totalValue: number;
@@ -36,12 +39,15 @@ interface Booking {
     trip_id: string;
     operator_name: string;
     bus_registration_no?: string | null;
+    bus_type?: string | null;
+    amenities?: string[];
     origin_city: string;
     destination_city: string;
     boarding_point: string;
     dropping_point: string;
     journey_date: string;
     departure_time: string;
+    departure_datetime?: string | null;
     arrival_datetime?: string | null;
     seat_numbers: string[];
   }>;
@@ -58,6 +64,12 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   upcoming: "badge-info",
   completed: "badge-success",
   cancelled: "badge-error",
+};
+
+const AMENITY_MAP: Record<string, { icon: typeof Wifi; label: string }> = {
+  ac: { icon: Snowflake, label: "AC" },
+  wifi: { icon: Wifi, label: "WiFi" },
+  usb: { icon: Zap, label: "USB charging" },
 };
 
 const getOperatorLogo = (name: string) => {
@@ -132,6 +144,15 @@ const formatDateString = (dateStr: string) => {
   }
 };
 
+const formatDuration = (departure?: string | null, arrival?: string | null) => {
+  if (!departure || !arrival || !departure.includes("T") || !arrival.includes("T")) return "Scheduled trip";
+  const start = new Date(departure).getTime();
+  const end = new Date(arrival).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return "Scheduled trip";
+  const totalMinutes = Math.round((end - start) / 60000);
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+};
+
 const mapStatus = (status: string, journeyDate?: string): BookingStatus => {
   if (status === "COMPLETED") return "completed";
   if (status === "CANCELLED" || status === "REFUNDED" || status === "EXPIRED") return "cancelled";
@@ -164,9 +185,12 @@ export function MyBookings() {
               to: b.dropping_point || b.destination_city || "Destination",
               origin_city: b.origin_city || b.boarding_point || "Origin",
               destination_city: b.destination_city || b.dropping_point || "Destination",
-              date: b.journey_date || "N/A",
-              departure: b.departure_time || "N/A",
+              date: b.departure_datetime || b.journey_date || "N/A",
+              departure: b.departure_datetime || b.departure_time || "N/A",
               arrival: b.arrival_datetime || "N/A",
+              busName: b.bus_name || b.bus_registration_no || "Coach assignment pending",
+              busType: b.bus_type || "Standard",
+              amenities: b.amenities || [],
               seats: b.seat_numbers || [],
               total: `৳ ${Number(b.total_fare || 0).toLocaleString()}`,
               totalValue: Number(b.total_fare || 0),
@@ -190,9 +214,12 @@ export function MyBookings() {
               to: lastLeg.dropping_point || journey.destination,
               origin_city: journey.origin,
               destination_city: journey.destination,
-              date: firstLeg.journey_date || "N/A",
-              departure: firstLeg.departure_time || "N/A",
+              date: firstLeg.departure_datetime || firstLeg.journey_date || "N/A",
+              departure: firstLeg.departure_datetime || firstLeg.departure_time || "N/A",
               arrival: lastLeg.arrival_datetime || "N/A",
+              busName: `${journey.leg_count} connecting coaches`,
+              busType: "Transit journey",
+              amenities: Array.from(new Set(legs.flatMap((leg: any) => leg.amenities || []))),
               seats: legs.flatMap((leg: any) => leg.seat_numbers || []),
               total: `৳ ${Number(journey.final_fare || 0).toLocaleString()}`,
               totalValue: Number(journey.final_fare || 0),
@@ -234,7 +261,15 @@ export function MyBookings() {
 
   const filtered = bookings
     .filter((b) => b.status === activeTab)
-    .filter((b) => !searchQuery || b.operator.toLowerCase().includes(searchQuery.toLowerCase()) || b.ticketId.toLowerCase().includes(searchQuery.toLowerCase()));
+    .filter((b) => {
+      const query = searchQuery.trim().toLowerCase();
+      if (!query) return true;
+      return b.operator.toLowerCase().includes(query)
+        || b.busName.toLowerCase().includes(query)
+        || b.ticketId.toLowerCase().includes(query)
+        || b.origin_city.toLowerCase().includes(query)
+        || b.destination_city.toLowerCase().includes(query);
+    });
 
   const activeConfig = TAB_CONFIG.find((t) => t.id === activeTab)!;
 
@@ -288,7 +323,7 @@ export function MyBookings() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by operator or ticket ID..."
+            placeholder="Search operator, bus, route, or ticket ID..."
             className="input-premium !pl-10 max-w-md"
             id="booking-search"
           />
@@ -302,6 +337,7 @@ export function MyBookings() {
               const formattedDep = formatTimeString(booking.departure);
               const formattedArr = formatTimeString(booking.arrival);
               const formattedDate = formatDateString(booking.date);
+              const duration = formatDuration(booking.departure, booking.arrival);
 
               return (
                 <div
@@ -324,7 +360,11 @@ export function MyBookings() {
                               <h3 className="font-bold text-surface-900 text-sm sm:text-base">
                                 {booking.operator}
                               </h3>
-                              <div className="flex items-center gap-2 mt-0.5">
+                              <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-brand-700">
+                                <Bus className="h-3 w-3" /> Bus: {booking.busName}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-1">
+                                <span className="badge badge-neutral text-[10px]">{booking.busType}</span>
                                 <span className={`badge ${STATUS_STYLES[booking.status]} text-[10px]`}>
                                   {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                 </span>
@@ -361,7 +401,7 @@ export function MyBookings() {
                           </div>
 
                           <div className="flex-1 flex flex-col items-center">
-                            <span className="text-xs text-surface-400 mb-1 select-none font-medium">Trip Timeline</span>
+                            <span className="text-xs text-surface-400 mb-1 select-none font-medium">{duration}</span>
                             <div className="w-full flex items-center gap-1">
                               <div className="w-2 h-2 rounded-full bg-brand-500" />
                               <div className="flex-1 h-px bg-surface-300 relative">
@@ -387,9 +427,10 @@ export function MyBookings() {
                                 <div className="flex flex-wrap items-center gap-2">
                                   <span className="font-extrabold text-brand-700">Bus {leg.leg_number}</span>
                                   <span className="font-bold text-surface-800">{leg.origin_city} → {leg.destination_city}</span>
-                                  <span className="text-surface-500">{leg.operator_name}{leg.bus_registration_no ? ` · ${leg.bus_registration_no}` : ""}</span>
+                                  <span className="text-surface-500">{leg.operator_name}{leg.bus_registration_no ? ` · Bus ${leg.bus_registration_no}` : ""}{leg.bus_type ? ` · ${leg.bus_type}` : ""}</span>
                                   <span className="ml-auto font-extrabold text-surface-900">Seat {leg.seat_numbers.join(", ")}</span>
                                 </div>
+                                <p className="mt-1 text-surface-500">{formatTimeString(leg.departure_datetime || leg.departure_time)} → {formatTimeString(leg.arrival_datetime || "N/A")} · {formatDuration(leg.departure_datetime, leg.arrival_datetime)}</p>
                                 {legIndex < (booking.legs?.length || 0) - 1 && (
                                   <p className="mt-1 font-semibold text-amber-700">Change bus at {booking.transfers?.[legIndex]?.city || leg.destination_city}{booking.transfers?.[legIndex]?.wait_minutes != null ? ` · ${booking.transfers[legIndex].wait_minutes} min transfer` : ""}</p>
                                 )}
@@ -452,6 +493,17 @@ export function MyBookings() {
                           )}
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-surface-100 pt-4">
+                      <div className="flex flex-wrap items-center gap-3">
+                        {booking.amenities.length > 0 ? booking.amenities.map((amenity) => {
+                          const item = AMENITY_MAP[amenity.toLowerCase()];
+                          if (!item) return <span key={amenity} className="text-xs font-medium text-surface-500">{amenity}</span>;
+                          const AmenityIcon = item.icon;
+                          return <span key={amenity} className="flex items-center gap-1 text-xs font-medium text-surface-500"><AmenityIcon className="h-3.5 w-3.5" /> {item.label}</span>;
+                        }) : <span className="text-xs text-surface-400">Standard onboard amenities</span>}
+                      </div>
+                      <span className="text-xs font-semibold text-surface-500">Booking reference: <span className="font-mono text-surface-700">{booking.ticketId}</span></span>
                     </div>
                   </div>
                 </div>

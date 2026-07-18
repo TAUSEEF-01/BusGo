@@ -42,9 +42,11 @@ class BookingResponse(BaseModel):
     dropping_point: str
     origin_city: Optional[str] = None
     destination_city: Optional[str] = None
+    departure_datetime: Optional[datetime] = None
     arrival_datetime: Optional[datetime] = None
     bus_type: Optional[str] = None
     bus_registration_no: Optional[str] = None
+    amenities: Optional[List[str]] = None
     journey_date: date
     departure_time: time
     expires_at: datetime

@@ -91,6 +91,7 @@ def _serialize_journey(journey: Journey, legs: list[Booking], trips: dict[str, d
             "departure_time": leg.departure_time.isoformat() if leg.departure_time else None,
             "departure_datetime": departure_datetime,
             "arrival_datetime": trip.get("arrival_datetime"),
+            "amenities": trip.get("amenities") or [],
             "seat_numbers": leg.seat_numbers or [],
             "passenger_details": leg.passenger_details or [],
             "fare": float(leg.total_fare),

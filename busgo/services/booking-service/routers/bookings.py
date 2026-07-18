@@ -257,15 +257,23 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
         if trip_info:
             resp.origin_city = trip_info.get("origin_city") or b.boarding_point
             resp.destination_city = trip_info.get("destination_city") or b.dropping_point
+            departure_datetime = trip_info.get("departure_datetime")
+            if isinstance(departure_datetime, str):
+                try:
+                    departure_datetime = datetime.fromisoformat(departure_datetime.replace("Z", "+00:00"))
+                except ValueError:
+                    departure_datetime = None
             arrival_datetime = trip_info.get("arrival_datetime")
             if isinstance(arrival_datetime, str):
                 try:
                     arrival_datetime = datetime.fromisoformat(arrival_datetime.replace("Z", "+00:00"))
                 except ValueError:
                     arrival_datetime = None
+            resp.departure_datetime = departure_datetime
             resp.arrival_datetime = arrival_datetime
             resp.bus_type = trip_info.get("bus_type")
             resp.bus_registration_no = trip_info.get("bus_registration_no")
+            resp.amenities = trip_info.get("amenities") or []
         else:
             resp.origin_city = b.boarding_point
             resp.destination_city = b.dropping_point
