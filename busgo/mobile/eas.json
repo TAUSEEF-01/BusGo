@@ -6,16 +6,31 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://busgo.farefin.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wtldkwqnfynxfqyqvehy.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV"
+      }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://busgo.farefin.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wtldkwqnfynxfqyqvehy.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://busgo.farefin.com",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://wtldkwqnfynxfqyqvehy.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV"
+      }
     }
   },
   "submit": {

@@ -1,44 +1,36 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
-import { Badge, Button, Card, Empty, ErrorState, Loading, OperatorLogo, Row, TripTimeline } from '../components/ui';
-import { colors, radius } from '../theme';
-import { busDisplayName, durationBetween, money, shortDate, shortTime } from '../utils/format';
+import { Badge, Button, Card, Chip, Empty, ErrorState, Loading, Row } from '../components/ui';
+import { TripCard } from '../components/TripCard';
+import { applyTripFilters, DEFAULT_TRIP_FILTERS, TripFilterBar, TripFilterState } from '../components/TripFilters';
+import { colors } from '../theme';
+import { money, shortDate, shortTime } from '../utils/format';
 import { DirectTrip, Itinerary, ScreenProps } from '../nav';
 
-const AMENITY_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; label: string }> = {
-  ac: { icon: 'snow-outline', label: 'AC' },
-  wifi: { icon: 'wifi-outline', label: 'WiFi' },
-  usb: { icon: 'flash-outline', label: 'USB' },
-};
-
-function operatorRating(name?: string): string {
-  const normalized = (name || '').toLowerCase();
-  if (normalized.includes('greenline')) return '4.5';
-  if (normalized.includes('shohagh')) return '4.2';
-  if (normalized.includes('hanif')) return '4.0';
-  return '4.3';
-}
+type JourneyKind = 'all' | 'direct' | 'connecting';
 
 export default function ResultsScreen({ route, navigation }: ScreenProps<'Results'>) {
-  const { origin, destination, date } = route.params;
+  const { origin, destination, date, returnDate, isReturnLeg, outbound } = route.params;
   const [trips, setTrips] = useState<DirectTrip[]>([]);
   const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [kind, setKind] = useState<JourneyKind>('all');
+  const [filters, setFilters] = useState<TripFilterState>(DEFAULT_TRIP_FILTERS);
 
   const load = useCallback(async () => {
     setError('');
     try {
       const [direct, transit] = await Promise.all([
         api.get(`/api/operators/trips/?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${date}T00:00:00`),
-        api.get(`/api/transit/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&journey_date=${date}`),
+        // A return leg is always booked as a direct trip in the same checkout.
+        isReturnLeg ? Promise.resolve({ data: { itineraries: [] } }) : api.get(`/api/transit/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&journey_date=${date}`),
       ]);
       const directTrips = ((direct.data || []) as DirectTrip[])
-        .filter((trip) => String((trip as any).status || 'SCHEDULED').toUpperCase() === 'SCHEDULED')
-        .sort((a, b) => new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime());
+        .filter((trip) => String((trip as any).status || 'SCHEDULED').toUpperCase() === 'SCHEDULED');
       const transitTrips = ((transit.data?.itineraries || []) as Itinerary[]).filter((item) => item.leg_count > 1);
       setTrips(directTrips);
       setItineraries(transitTrips);
@@ -48,13 +40,19 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
       setLoading(false);
       setRefreshing(false);
     }
-  }, [origin, destination, date]);
+  }, [origin, destination, date, isReturnLeg]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
+
+  const filteredTrips = useMemo(() => applyTripFilters(trips, filters), [trips, filters]);
+  const showDirect = kind !== 'connecting';
+  const showConnecting = kind !== 'direct' && !isReturnLeg;
+  const visibleCount = (showDirect ? filteredTrips.length : 0) + (showConnecting ? itineraries.length : 0);
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
     {/* Route summary header */}
     <View style={styles.headerBar}>
+      {isReturnLeg ? <Row style={{ gap: 6, marginBottom: 6 }}><View style={styles.stepBubble}><Text style={{ color: '#fff', fontWeight: '900', fontSize: 11 }}>2</Text></View><Text style={{ color: '#fca5a5', fontSize: 12, fontWeight: '800' }}>Select your RETURN bus</Text></Row> : null}
       <Row style={{ gap: 8 }}>
         <Text style={styles.routeTitle} numberOfLines={1}>{origin}</Text>
         <Ionicons name="arrow-forward" size={17} color="#fca5a5" />
@@ -62,15 +60,27 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
       </Row>
       <Row style={{ gap: 6, marginTop: 5 }}>
         <Ionicons name="calendar-outline" size={13} color="#94a3b8" />
-        <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>{shortDate(date)} · {trips.length + itineraries.length} options</Text>
+        <Text style={{ color: '#94a3b8', fontSize: 12, fontWeight: '600' }}>{shortDate(date)} · {visibleCount} options{returnDate && !isReturnLeg ? ` · returns ${shortDate(returnDate)}` : ''}</Text>
       </Row>
+      {isReturnLeg && outbound ? <Row style={{ gap: 6, marginTop: 8, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, alignSelf: 'flex-start' }}>
+        <Ionicons name="checkmark-circle" size={14} color="#4ade80" />
+        <Text style={{ color: '#e2e8f0', fontSize: 11, fontWeight: '700' }}>Outbound: {outbound.trip.operator_name} · seats {outbound.seats.join(', ')} · {money(outbound.total)}</Text>
+      </Row> : null}
+    </View>
+
+    {/* Journey-type + filters */}
+    <View style={{ paddingTop: 12, gap: 8 }}>
+      {!isReturnLeg ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 16 }}>
+        {(['all', 'direct', 'connecting'] as JourneyKind[]).map((item) => <Chip key={item} label={item === 'all' ? 'All journeys' : item === 'direct' ? 'Direct only' : 'Connecting only'} active={kind === item} onPress={() => setKind(item)} />)}
+      </ScrollView> : null}
+      <TripFilterBar trips={trips} filters={filters} onChange={setFilters} />
     </View>
 
     <View style={{ padding: 16 }}>
       {loading ? <Loading label="Searching buses and connections…" /> : error ? <ErrorState title="Search unavailable" message={error} onRetry={() => { setLoading(true); load(); }} /> : null}
-      {!loading && !error && !trips.length && !itineraries.length ? <Empty title="No buses found" subtitle="Try another date or route. Operators may not have published future schedules yet." icon="search-outline" /> : null}
+      {!loading && !error && !visibleCount ? <Empty title="No buses found" subtitle="Try another date, route, or fewer filters." icon="search-outline" /> : null}
 
-      {!loading && !error && itineraries.length > 0 ? <>
+      {!loading && !error && showConnecting && itineraries.length > 0 ? <>
         <Text style={styles.section}>Connecting journeys</Text>
         {itineraries.map((item) => <Card key={item.itinerary_id} style={{ marginBottom: 12 }}>
           <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
@@ -82,8 +92,8 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
               <View style={styles.legBubble}><Text style={styles.legBubbleText}>{index + 1}</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontWeight: '800', color: colors.text }}>{leg.origin_city} → {leg.destination_city}</Text>
-                <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 1 }}>{leg.operator_name || `Bus ${index + 1}`}{leg.bus_registration_no ? ` · ${leg.bus_registration_no}` : ''}</Text>
-                <Text style={{ fontSize: 12, color: colors.faint, marginTop: 1 }}>{shortTime(leg.departure_datetime)} – {shortTime(leg.arrival_datetime)}</Text>
+                <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 1 }}>{leg.operator_name || `Bus ${index + 1}`}{leg.bus_registration_no ? ` · ${leg.bus_registration_no}` : ''}{leg.bus_type ? ` · ${leg.bus_type}` : ''}</Text>
+                <Text style={{ fontSize: 12, color: colors.faint, marginTop: 1 }}>{shortTime(leg.departure_datetime)} – {shortTime(leg.arrival_datetime)} · {leg.available_seats} seats left</Text>
               </View>
               <Text style={{ fontWeight: '800', color: colors.text }}>{money(leg.fare_amount)}</Text>
             </Row>
@@ -102,53 +112,14 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
         </Card>)}
       </> : null}
 
-      {!loading && !error && trips.length > 0 ? <>
+      {!loading && !error && showDirect && filteredTrips.length > 0 ? <>
         <Text style={styles.section}>Direct buses</Text>
-        {trips.map((trip, index) => {
-          const id = (trip.trip_id || trip.id) as string;
-          const seatsLeft = trip.available_seats;
-          const amenities = (trip.amenities || []).map((a) => AMENITY_META[a.toLowerCase()]).filter(Boolean);
-          return <Card key={`${id}-${index}`} style={{ marginBottom: 12 }}>
-            {/* Operator header */}
-            <Row style={{ gap: 11, marginBottom: 13 }}>
-              <OperatorLogo name={trip.operator_name || 'Bus operator'} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '800', fontSize: 15, color: colors.text }} numberOfLines={1}>{trip.operator_name || 'Bus operator'}</Text>
-                <Row style={{ gap: 4, marginTop: 2 }}>
-                  <Ionicons name="bus-outline" size={12} color={colors.primary} />
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }} numberOfLines={1}>{busDisplayName(trip)}</Text>
-                </Row>
-                <Row style={{ gap: 8, marginTop: 3 }}>
-                  {trip.bus_type ? <Badge tone="neutral" text={trip.bus_type} /> : null}
-                  <Row style={{ gap: 3 }}><Ionicons name="star" size={12} color={colors.accent} /><Text style={{ fontSize: 12, fontWeight: '700', color: colors.subtext }}>{operatorRating(trip.operator_name)}</Text></Row>
-                </Row>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ fontWeight: '900', fontSize: 19, color: colors.primary }}>{money(trip.fare_amount)}</Text>
-                <Text style={{ fontSize: 10, color: colors.faint }}>per seat</Text>
-              </View>
-            </Row>
-
-            <TripTimeline
-              depTime={shortTime(trip.departure_datetime)} depCity={trip.origin_city || origin}
-              arrTime={shortTime(trip.arrival_datetime)} arrCity={trip.destination_city || destination}
-              centerLabel={durationBetween(trip.departure_datetime, trip.arrival_datetime) || 'Direct'}
-            />
-
-            <Row style={{ justifyContent: 'space-between', marginTop: 13, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderSoft }}>
-              <Row style={{ gap: 10 }}>
-                {amenities.length ? amenities.map((amenity) => <Row key={amenity.label} style={{ gap: 3 }}><Ionicons name={amenity.icon} size={13} color={colors.subtext} /><Text style={{ fontSize: 11, color: colors.subtext }}>{amenity.label}</Text></Row>)
-                  : <Text style={{ fontSize: 11, color: colors.faint }}>Standard amenities</Text>}
-              </Row>
-              {typeof seatsLeft === 'number' ? <Row style={{ gap: 4 }}>
-                <Ionicons name="people-outline" size={13} color={seatsLeft <= 5 ? colors.danger : seatsLeft <= 12 ? colors.warn : colors.success} />
-                <Text style={{ fontSize: 12, fontWeight: '700', color: seatsLeft <= 5 ? colors.danger : seatsLeft <= 12 ? colors.warn : colors.success }}>{seatsLeft} seats left</Text>
-              </Row> : null}
-            </Row>
-
-            <Button title="Select seats" icon="grid-outline" onPress={() => navigation.navigate('Seats', { trip, origin, destination, date })} style={{ marginTop: 13 }} />
-          </Card>;
-        })}
+        {filteredTrips.map((trip, index) => <TripCard
+          key={`${trip.trip_id || trip.id}-${index}`}
+          trip={{ ...trip, origin_city: trip.origin_city || origin, destination_city: trip.destination_city || destination }}
+          selectLabel={isReturnLeg ? 'Select return seats' : 'Select seats'}
+          onSelect={() => navigation.navigate('Seats', { trip, origin, destination, date, returnDate: isReturnLeg ? undefined : returnDate, isReturnLeg, outbound })}
+        />)}
       </> : null}
     </View>
   </ScrollView>;
@@ -157,6 +128,7 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
 const styles = StyleSheet.create({
   headerBar: { backgroundColor: colors.dark, paddingHorizontal: 20, paddingVertical: 16 },
   routeTitle: { fontSize: 19, fontWeight: '900', color: '#fff', maxWidth: '42%' },
+  stepBubble: { width: 20, height: 20, borderRadius: 10, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   section: { fontWeight: '900', fontSize: 16, color: colors.text, marginBottom: 10, marginTop: 8 },
   legBubble: { width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorder, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   legBubbleText: { color: colors.primary, fontWeight: '900', fontSize: 12 },

@@ -6,12 +6,14 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/store/auth';
+import { NotificationsProvider, useNotifications } from './src/store/notifications';
 import { colors } from './src/theme';
 import type { RootStackParamList } from './src/nav';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
+import RoutesScreen from './src/screens/RoutesScreen';
 import SeatsScreen from './src/screens/SeatsScreen';
 import TransitSeatsScreen from './src/screens/TransitSeatsScreen';
 import PassengerScreen from './src/screens/PassengerScreen';
@@ -29,6 +31,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
 const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; idle: keyof typeof Ionicons.glyphMap }> = {
   Home: { active: 'home', idle: 'home-outline' },
+  Routes: { active: 'map', idle: 'map-outline' },
   Trips: { active: 'ticket', idle: 'ticket-outline' },
   Deals: { active: 'pricetag', idle: 'pricetag-outline' },
   Alerts: { active: 'notifications', idle: 'notifications-outline' },
@@ -36,6 +39,7 @@ const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; idle: 
 };
 
 function Tabs() {
+  const { unread } = useNotifications();
   return <Tab.Navigator screenOptions={({ route }) => ({
     headerShown: route.name !== 'Home', headerTitleStyle: { fontWeight: '800' },
     tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.faint,
@@ -46,9 +50,10 @@ function Tabs() {
     },
   })}>
     <Tab.Screen name="Home" component={HomeScreen} />
+    <Tab.Screen name="Routes" component={RoutesScreen} options={{ title: 'All Routes' }} />
     <Tab.Screen name="Trips" component={TripsScreen} options={{ title: 'My Trips' }} />
     <Tab.Screen name="Deals" component={DealsScreen} />
-    <Tab.Screen name="Alerts" component={AlertsScreen} />
+    <Tab.Screen name="Alerts" component={AlertsScreen} options={{ tabBarBadge: unread ? (unread > 99 ? '99+' : unread) : undefined, tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 10, fontWeight: '800' } }} />
     <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>;
 }
@@ -73,4 +78,4 @@ function RootNav() {
 }
 
 const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.primary, card: '#fff', text: colors.text, border: colors.border } };
-export default function App() { return <SafeAreaProvider><AuthProvider><NavigationContainer theme={navigationTheme}><StatusBar barStyle="dark-content" /><RootNav /></NavigationContainer></AuthProvider></SafeAreaProvider>; }
+export default function App() { return <SafeAreaProvider><AuthProvider><NotificationsProvider><NavigationContainer theme={navigationTheme}><StatusBar barStyle="dark-content" /><RootNav /></NavigationContainer></NotificationsProvider></AuthProvider></SafeAreaProvider>; }

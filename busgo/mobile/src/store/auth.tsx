@@ -6,7 +6,8 @@ import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { api, REFRESH_TOKEN_KEY, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../api/client';
+import { api, setUnauthorizedHandler, USER_KEY } from '../api/client';
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from '../lib/tokenStore';
 import { requireSupabase, supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -37,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const [token, rawUser] = await Promise.all([
-          AsyncStorage.getItem(TOKEN_KEY),
+          getAccessToken(),
           AsyncStorage.getItem(USER_KEY),
         ]);
         if (token && rawUser) {
@@ -109,14 +110,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let callbackUrl: string | null = null;
     try {
-      const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, { showInRecents: true });
       if (__DEV__) console.info(`[BusGo Auth] Browser result: ${JSON.stringify(browserResult)}`);
       if (browserResult.type === 'success') {
         callbackUrl = browserResult.url;
       } else {
+        // Some launchers (notably MIUI) deliver the deep link several seconds
+        // after the auth browser reports "dismiss" — wait generously.
         callbackUrl = await Promise.race([
           deepLinkUrl,
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
         ]);
         if (__DEV__) console.info(`[BusGo Auth] Deep link fallback: ${callbackUrl}`);
       }
@@ -125,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!callbackUrl) {
-      if (isExpoGo) throw new Error(`Google could not return to Expo Go. Add exp://** to the Supabase redirect allow list, restart Expo, and try again. Callback: ${redirectTo}`);
+      if (isExpoGo) throw new Error(`Google could not return to Expo Go. If the browser showed the BusGo website at the end, the Supabase redirect allow list is blocking exp:// URLs. If the browser simply closed, your phone may be blocking Expo Go from opening — on Xiaomi/MIUI enable "Display pop-up windows while running in the background" for Expo Go. Callback: ${redirectTo}`);
       throw new Error('Google login was cancelled.');
     }
 
@@ -169,17 +172,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('BusGo returned an invalid Google login response.');
     }
 
-    await AsyncStorage.multiSet([
-      [TOKEN_KEY, busgoToken],
-      [REFRESH_TOKEN_KEY, busgoRefreshToken],
-      [USER_KEY, JSON.stringify(nextUser)],
-    ]);
+    await setTokens(busgoToken, busgoRefreshToken);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
     return nextUser;
   };
 
   const logout = async () => {
-    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+    const refreshToken = await getRefreshToken();
     if (refreshToken) {
       try {
         await api.post('/api/auth/logout', { refresh_token: refreshToken });
@@ -188,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     if (supabase) await supabase.auth.signOut();
-    await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
+    await clearTokens();
     setUser(null);
   };
 
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const normalizedPhone = digits.startsWith('880') && digits.length === 13 ? `0${digits.slice(3)}` : digits;
     const response = await api.put<{ success: boolean; data: User; access_token?: string }>('/api/auth/me', { full_name: fullName, phone: normalizedPhone });
     const nextUser: User = response.data;
-    if (response.access_token) await AsyncStorage.setItem(TOKEN_KEY, response.access_token);
+    if (response.access_token) await setTokens(response.access_token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
     await api.get('/api/bank/accounts/my');

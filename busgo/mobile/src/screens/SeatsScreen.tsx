@@ -13,7 +13,8 @@ const MAX_SEATS = 4;
 const SERVICE_FEE = 20;
 
 export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>) {
-  const { trip, origin, destination, date } = route.params;
+  const { trip, origin, destination, date, returnDate, isReturnLeg, outbound } = route.params;
+  const isOutboundLeg = !!returnDate && !isReturnLeg;
   const { user } = useAuth();
   const tripId = (trip.trip_id || trip.id) as string;
   const [seats, setSeats] = useState<SeatCell[]>([]);
@@ -47,8 +48,21 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
   });
   const seatFare = selected.length * Number(trip.fare_amount);
   const total = seatFare + (selected.length ? SERVICE_FEE : 0);
-  const passengerParams = { mode: 'direct' as const, trip, seats: selected, boardingPoint, droppingPoint, origin, destination, date };
+  const passengerParams = { mode: 'direct' as const, trip, seats: selected, boardingPoint, droppingPoint, origin, destination, date, outbound: isReturnLeg ? outbound : undefined };
   const continueToCheckout = () => {
+    if (isReturnLeg && outbound && selected.length !== outbound.seats.length) {
+      return Alert.alert('Match your outbound seats', `Select exactly ${outbound.seats.length} return seat${outbound.seats.length > 1 ? 's' : ''} — the same passengers travel both ways.`);
+    }
+    if (isOutboundLeg) {
+      // Round trip step 1 → pick the return bus next; login happens at checkout.
+      return navigation.navigate('Results', {
+        origin: destination,
+        destination: origin,
+        date: returnDate!,
+        isReturnLeg: true,
+        outbound: { trip, seats: selected, boardingPoint, droppingPoint, date, total },
+      });
+    }
     if (user) return navigation.navigate('Passenger', passengerParams);
     Alert.alert(
       'Account required for checkout',
@@ -103,7 +117,16 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
       <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Seat fare</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(seatFare)}</Text></Row>
       <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Service fee</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(selected.length ? SERVICE_FEE : 0)}</Text></Row>
       <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.borderSoft, paddingTop: 9 }}><Text style={{ fontWeight: '800', color: colors.text }}>Total</Text><Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>{money(total)}</Text></Row>
-      <Button title={selected.length ? `Continue with ${selected.length} seat${selected.length > 1 ? 's' : ''}` : 'Select seats to continue'} icon="arrow-forward" disabled={!selected.length} onPress={continueToCheckout} style={{ marginTop: 12 }} />
+      {isReturnLeg && outbound ? <Row style={{ gap: 6, marginTop: 10, marginBottom: 2, backgroundColor: colors.infoSoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 }}><Ionicons name="information-circle-outline" size={15} color={colors.info} /><Text style={{ flex: 1, fontSize: 11, color: colors.info, fontWeight: '600' }}>Return leg: select exactly {outbound.seats.length} seat{outbound.seats.length > 1 ? 's' : ''} to match your outbound passengers.</Text></Row> : null}
+      <Button
+        title={!selected.length ? 'Select seats to continue'
+          : isOutboundLeg ? `Continue to return bus (${selected.length} seat${selected.length > 1 ? 's' : ''})`
+          : isReturnLeg ? `Continue with round trip` : `Continue with ${selected.length} seat${selected.length > 1 ? 's' : ''}`}
+        icon="arrow-forward"
+        disabled={!selected.length || (!!isReturnLeg && !!outbound && selected.length !== outbound.seats.length)}
+        onPress={continueToCheckout}
+        style={{ marginTop: 12 }}
+      />
       <Text style={{ fontSize: 11, color: colors.faint, textAlign: 'center', marginTop: 8 }}>Seats are checked again and held when you continue to payment.</Text>
     </Card> : null}
 

@@ -1,9 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../config';
+import { clearTokens, getAccessToken, getRefreshToken, setTokens, USER_KEY } from '../lib/tokenStore';
 
-export const TOKEN_KEY = 'busgo.token';
-export const REFRESH_TOKEN_KEY = 'busgo.refresh-token';
-export const USER_KEY = 'busgo.user';
+export { USER_KEY };
 
 export class ApiError extends Error {
   status: number;
@@ -40,7 +38,7 @@ export interface Envelope<T = any> {
 let refreshPromise: Promise<string | null> | null = null;
 
 async function performTokenRefresh(): Promise<string | null> {
-  const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+  const refreshToken = await getRefreshToken();
   if (!refreshToken) return null;
   const res = await fetchWithTimeout(`${API_URL}/api/auth/refresh`, {
     method: 'POST',
@@ -51,10 +49,7 @@ async function performTokenRefresh(): Promise<string | null> {
   const json = await res.json();
   const tokens = json?.data;
   if (!tokens?.access_token || !tokens?.refresh_token) return null;
-  await AsyncStorage.multiSet([
-    [TOKEN_KEY, tokens.access_token],
-    [REFRESH_TOKEN_KEY, tokens.refresh_token],
-  ]);
+  await setTokens(tokens.access_token, tokens.refresh_token);
   return tokens.access_token;
 }
 
@@ -66,7 +61,7 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 async function request<T = any>(method: string, path: string, body?: any, mayRetry = true): Promise<T> {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await getAccessToken();
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -86,7 +81,7 @@ async function request<T = any>(method: string, path: string, body?: any, mayRet
   if (res.status === 401 && mayRetry && !isAuthRequest) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) return request<T>(method, path, body, false);
-    await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
+    await clearTokens();
     unauthorizedHandler?.();
   }
 

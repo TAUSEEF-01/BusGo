@@ -52,6 +52,17 @@ export interface DirectTrip {
   dropping_points?: { name: string; address?: string }[];
 }
 
+/** The outbound half of a round trip, carried through return selection. */
+export type OutboundSelection = {
+  trip: DirectTrip;
+  seats: string[];
+  boardingPoint: string;
+  droppingPoint: string;
+  date: string;
+  /** Seat fare + service fee for the outbound booking. */
+  total: number;
+};
+
 export type PassengerParams = {
   mode: 'direct' | 'transit';
   origin: string;
@@ -63,6 +74,8 @@ export type PassengerParams = {
   droppingPoint?: string;
   itinerary?: Itinerary;
   seatsByLeg?: string[][];
+  /** Present when this direct checkout is the RETURN leg of a round trip. */
+  outbound?: OutboundSelection;
 };
 
 export type PaymentParams = {
@@ -75,6 +88,10 @@ export type PaymentParams = {
   legs?: { leg_number: number; boarding_point: string; dropping_point: string; seat_numbers: string[]; fare: number }[];
   origin: string;
   destination: string;
+  /** Round trip: the second (return) booking paid in the same checkout. */
+  returnBookingId?: string;
+  returnTripId?: string;
+  returnAmount?: number;
 };
 
 export type RootStackParamList = {
@@ -82,8 +99,8 @@ export type RootStackParamList = {
   Login: { resumeCheckout?: PassengerParams } | undefined;
   Register: { resumeCheckout?: PassengerParams } | undefined;
   PhoneSetup: { resumeCheckout?: PassengerParams; resumePayment?: PaymentParams } | undefined;
-  Results: { origin: string; destination: string; date: string };
-  Seats: { trip: DirectTrip; origin: string; destination: string; date: string };
+  Results: { origin: string; destination: string; date: string; returnDate?: string; isReturnLeg?: boolean; outbound?: OutboundSelection };
+  Seats: { trip: DirectTrip; origin: string; destination: string; date: string; returnDate?: string; isReturnLeg?: boolean; outbound?: OutboundSelection };
   TransitSeats: { itinerary: Itinerary; origin: string; destination: string; date: string };
   Passenger: PassengerParams;
   Payment: PaymentParams;
@@ -91,6 +108,7 @@ export type RootStackParamList = {
     mode: 'direct' | 'transit';
     bookingId: string;
     journeyId?: string;
+    returnBookingId?: string;
     origin: string;
     destination: string;
     amount: number;

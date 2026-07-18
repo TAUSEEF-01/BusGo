@@ -6,7 +6,38 @@ export interface Booking {
   discount_amount?: number; seat_numbers: string[]; passenger_details?: Passenger[];
   boarding_point: string; dropping_point: string; origin_city?: string | null;
   destination_city?: string | null; journey_date: string; departure_time: string;
+  departure_datetime?: string | null; arrival_datetime?: string | null;
+  bus_type?: string | null; bus_registration_no?: string | null; bus_name?: string | null;
+  amenities?: string[]; promo_code?: string | null;
   expires_at: string; created_at: string;
+}
+
+/** One bus inside a multi-leg journey, as serialized by booking-service. */
+export interface JourneyLeg {
+  leg_number: number; booking_id: string; trip_id: string;
+  operator_id?: string | null; operator_name?: string;
+  bus_registration_no?: string | null; bus_type?: string | null; bus_name?: string | null;
+  origin_city: string; destination_city: string;
+  boarding_point: string; dropping_point: string;
+  journey_date?: string | null; departure_time?: string | null;
+  departure_datetime?: string | null; arrival_datetime?: string | null;
+  amenities?: string[]; seat_numbers: string[]; passenger_details?: Passenger[];
+  fare: number; status: string;
+}
+
+export interface Journey {
+  journey_id: string; user_id: string; origin: string; destination: string;
+  leg_count: number; status: string; total_fare: number; discount_amount: number;
+  final_fare: number; promo_code?: string | null; transit_route_id?: string | null;
+  payment_id?: string | null; created_at?: string | null; expires_at?: string | null;
+  transfers: { city: string; wait_minutes?: number | null; arrival_datetime?: string | null; departure_datetime?: string | null }[];
+  legs: JourneyLeg[];
+}
+
+export interface Payment {
+  id: string; booking_id?: string | null; user_id: string; amount: number;
+  method: string; status: string; transaction_ref?: string | null;
+  created_at: string; completed_at?: string | null;
 }
 
 export interface Ticket {

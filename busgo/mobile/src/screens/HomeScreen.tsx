@@ -31,6 +31,9 @@ export default function HomeScreen() {
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
   const [date, setDate] = useState(new Date());
+  const [tripType, setTripType] = useState<'one-way' | 'round-trip'>('one-way');
+  const [returnDate, setReturnDate] = useState<Date | null>(null);
+  const [showReturnDate, setShowReturnDate] = useState(false);
   const [cityTarget, setCityTarget] = useState<'origin' | 'destination' | null>(null);
   const [showDate, setShowDate] = useState(false);
   const [loadingCities, setLoadingCities] = useState(true);
@@ -76,8 +79,17 @@ export default function HomeScreen() {
   const search = (from = origin, to = destination) => {
     if (!from || !to) return Alert.alert('Select your route', 'Choose both departure and destination cities.');
     if (from === to) return Alert.alert('Choose different cities', 'Departure and destination cannot be the same.');
+    if (tripType === 'round-trip') {
+      if (!returnDate) return Alert.alert('Return date', 'Pick the date you are coming back.');
+      if (localDateValue(returnDate) < localDateValue(date)) return Alert.alert('Return date', 'The return date must be on or after the outbound date.');
+    }
     rememberSearch(from, to);
-    navigation.navigate('Results', { origin: from, destination: to, date: localDateValue(date) });
+    navigation.navigate('Results', {
+      origin: from,
+      destination: to,
+      date: localDateValue(date),
+      returnDate: tripType === 'round-trip' && returnDate ? localDateValue(returnDate) : undefined,
+    });
   };
 
   return (
@@ -99,6 +111,15 @@ export default function HomeScreen() {
         <Card style={[{ marginTop: -46, marginHorizontal: 16, borderRadius: radius.xl, padding: 18 }, shadowLifted]}>
           {loadingCities ? <Loading label="Loading destinations…" /> : cityError ? <ErrorState message={cityError} onRetry={loadCities} /> : (
             <>
+              {/* Trip type */}
+              <Row style={{ gap: 8, marginBottom: 12 }}>
+                {([['one-way', 'One way'], ['round-trip', 'Round trip']] as const).map(([id, label]) => (
+                  <Pressable key={id} onPress={() => setTripType(id)} style={[styles.tripTypeChip, tripType === id && styles.tripTypeChipActive]}>
+                    <Ionicons name={id === 'one-way' ? 'arrow-forward' : 'repeat'} size={13} color={tripType === id ? '#fff' : colors.subtext} />
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: tripType === id ? '#fff' : colors.text }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </Row>
               <CityField icon="radio-button-on" label="FROM" value={origin} onPress={() => setCityTarget('origin')} />
               <Row style={{ justifyContent: 'flex-end', marginVertical: -14, zIndex: 2, paddingRight: 18 }}>
                 <Pressable accessibilityLabel="Swap cities" onPress={() => { setOrigin(destination); setDestination(origin); }} style={styles.swap}>
@@ -122,7 +143,15 @@ export default function HomeScreen() {
                 </Pressable>
               </ScrollView>
               <Text style={{ color: colors.subtext, fontSize: 12, marginTop: 9 }}>Selected: {shortDate(localDateValue(date))}</Text>
-              <Button title="Search buses" icon="search" onPress={() => search()} style={{ marginTop: 16 }} />
+              {tripType === 'round-trip' ? <>
+                <Text style={styles.label}>Return date</Text>
+                <Pressable onPress={() => setShowReturnDate(true)} style={styles.returnField}>
+                  <Ionicons name="calendar-outline" size={17} color={colors.primary} />
+                  <Text style={{ flex: 1, fontWeight: '700', color: returnDate ? colors.text : colors.faint }}>{returnDate ? shortDate(localDateValue(returnDate)) : 'Pick your return date'}</Text>
+                  <Ionicons name="chevron-down" size={16} color={colors.faint} />
+                </Pressable>
+              </> : null}
+              <Button title={tripType === 'round-trip' ? 'Search round trip' : 'Search buses'} icon="search" onPress={() => search()} style={{ marginTop: 16 }} />
             </>
           )}
         </Card>
@@ -174,6 +203,7 @@ export default function HomeScreen() {
 
       <CityPicker visible={!!cityTarget} cities={cities} title={cityTarget === 'origin' ? 'Leaving from' : 'Going to'} excluded={cityTarget === 'origin' ? destination : origin} onClose={() => setCityTarget(null)} onSelect={(city) => { cityTarget === 'origin' ? setOrigin(city) : setDestination(city); setCityTarget(null); }} />
       {showDate && <DateTimePicker value={date} minimumDate={new Date()} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={(_, selected) => { setShowDate(false); if (selected) setDate(selected); }} />}
+      {showReturnDate && <DateTimePicker value={returnDate || date} minimumDate={date} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={(_, selected) => { setShowReturnDate(false); if (selected) setReturnDate(selected); }} />}
     </View>
   );
 }
@@ -205,6 +235,9 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#fff', fontWeight: '900', fontSize: 28, marginTop: 4, lineHeight: 34 },
   sectionTitle: { fontWeight: '900', fontSize: 15, color: colors.text, marginBottom: 9 },
   cityField: { flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff' },
+  tripTypeChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 7, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff' },
+  tripTypeChipActive: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
+  returnField: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 12, backgroundColor: '#fff' },
   cityIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
   swap: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, borderWidth: 3, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   label: { fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 16, marginBottom: 8 },

@@ -29,6 +29,18 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
   const summary = useMemo(() => {
     if (params.mode === 'direct') {
       const fare = passengerSeats.length * Number(params.trip?.fare_amount || 0);
+      if (params.outbound) {
+        // Round trip: this screen holds the RETURN leg; the outbound total was
+        // fixed when its seats were chosen.
+        return {
+          lines: [
+            { label: `Outbound ${params.destination} → ${params.origin} · seats ${params.outbound.seats.join(', ')} (incl. fee)`, amount: params.outbound.total },
+            { label: `Return ${params.origin} → ${params.destination} · seats ${passengerSeats.join(', ')}`, amount: fare },
+          ],
+          total: params.outbound.total + fare + SERVICE_FEE,
+          discount: 0,
+        };
+      }
       return { lines: [{ label: `${params.origin} → ${params.destination} · seats ${passengerSeats.join(', ')}`, amount: fare }], total: fare + SERVICE_FEE, discount: 0 };
     }
     const legs = params.itinerary?.legs || [];
@@ -59,7 +71,44 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
     if (!details) return;
     setBusy(true);
     try {
-      if (params.mode === 'direct') {
+      if (params.mode === 'direct' && params.outbound) {
+        // Round trip: hold the outbound seats, then the return seats. The
+        // same passengers travel both ways, remapped to each leg's seats.
+        const outbound = params.outbound;
+        const outboundTrip = outbound.trip;
+        const outboundTripId = (outboundTrip.trip_id || outboundTrip.id) as string;
+        const returnTrip = params.trip!;
+        const returnTripId = (returnTrip.trip_id || returnTrip.id) as string;
+        const returnFare = passengerSeats.length * Number(returnTrip.fare_amount) + SERVICE_FEE;
+        const outboundDetails = details.map((person, index) => ({ ...person, seat: outbound.seats[index] }));
+
+        const outboundResponse = await api.post('/api/bookings/', {
+          trip_id: outboundTripId, operator_id: outboundTrip.operator_id, operator_name: outboundTrip.operator_name || 'Operator',
+          seat_numbers: outbound.seats, passenger_details: outboundDetails, boarding_point: outbound.boardingPoint,
+          dropping_point: outbound.droppingPoint, journey_date: outbound.date,
+          departure_time: String(outboundTrip.departure_datetime).slice(11, 19) || '08:00:00',
+          total_fare: outbound.total, idempotency_key: idempotencyKey(),
+        });
+        const returnResponse = await api.post('/api/bookings/', {
+          trip_id: returnTripId, operator_id: returnTrip.operator_id, operator_name: returnTrip.operator_name || 'Operator',
+          seat_numbers: passengerSeats, passenger_details: details, boarding_point: params.boardingPoint || params.origin,
+          dropping_point: params.droppingPoint || params.destination, journey_date: params.date,
+          departure_time: String(returnTrip.departure_datetime).slice(11, 19) || '08:00:00',
+          total_fare: returnFare, idempotency_key: idempotencyKey(),
+        });
+        navigation.navigate('Payment', {
+          mode: 'direct',
+          bookingId: outboundResponse.data.booking_id,
+          tripId: outboundTripId,
+          amount: Number(outboundResponse.data.total_fare ?? outbound.total),
+          expiresAt: outboundResponse.data.expires_at,
+          origin: outbound.trip.origin_city || params.destination,
+          destination: outbound.trip.destination_city || params.origin,
+          returnBookingId: returnResponse.data.booking_id,
+          returnTripId,
+          returnAmount: Number(returnResponse.data.total_fare ?? returnFare),
+        });
+      } else if (params.mode === 'direct') {
         const trip = params.trip!;
         const tripId = (trip.trip_id || trip.id) as string;
         const response = await api.post('/api/bookings/', {

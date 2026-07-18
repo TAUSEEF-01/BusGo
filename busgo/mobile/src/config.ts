@@ -25,6 +25,12 @@ function detectDevHostIp(): string | null {
 export function apiBaseUrl(): string {
   const fromEnv = process.env.EXPO_PUBLIC_API_URL;
   if (fromEnv) return fromEnv.replace(/\/$/, '');
+  // Release builds must never fall back to a developer machine: the env comes
+  // from eas.json (or the EAS dashboard). Failing fast here beats shipping an
+  // APK that silently talks to localhost.
+  if (!__DEV__) {
+    throw new Error('EXPO_PUBLIC_API_URL is not configured for this build. Set it in eas.json / EAS environment variables.');
+  }
   const ip = detectDevHostIp();
   if (ip) return `http://${ip}:${KONG_PORT}`;
   return `http://localhost:${KONG_PORT}`;
