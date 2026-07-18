@@ -46,9 +46,15 @@ export function Login() {
   };
 
   useEffect(() => {
-    const isCallback = new URLSearchParams(location.search).get("google") === "callback";
+    const callbackParams = new URLSearchParams(location.search);
+    const isCallback = callbackParams.get("google") === "callback";
     if (!isCallback || callbackStarted.current) return;
     callbackStarted.current = true;
+    const oauthError = callbackParams.get("error_description") || callbackParams.get("error");
+    if (oauthError) {
+      setError(oauthError.replace(/\+/g, " "));
+      return;
+    }
     setLoading(true);
     exchangeGoogleSession()
       .then(({ user, returnTo }) => finishLogin(user, returnTo))

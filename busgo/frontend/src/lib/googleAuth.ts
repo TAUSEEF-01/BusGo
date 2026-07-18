@@ -20,11 +20,20 @@ export async function startGoogleSignIn(options?: {
   const redirectUrl = new URL("/login", window.location.origin);
   redirectUrl.searchParams.set("google", "callback");
 
-  const { error } = await requireSupabase().auth.signInWithOAuth({
+  const { data, error } = await requireSupabase().auth.signInWithOAuth({
     provider: "google",
-    options: { redirectTo: redirectUrl.toString() },
+    options: {
+      redirectTo: redirectUrl.toString(),
+      // Explicit navigation is more reliable in Android Chrome and embedded
+      // browsers than relying on the SDK's implicit redirect after its async
+      // request has completed.
+      skipBrowserRedirect: true,
+      queryParams: { prompt: "select_account" },
+    },
   });
   if (error) throw error;
+  if (!data.url) throw new Error("Google did not provide a sign-in page. Please try again.");
+  window.location.assign(data.url);
 }
 
 export async function exchangeGoogleSession() {
