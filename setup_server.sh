@@ -181,6 +181,18 @@ done
 echo "  Restarting services to pick up Kafka topics..."
 sudo docker compose restart search-service payment-service inventory-service ticket-service booking-service bank-service || true
 
+# The service restarts above can reuse Docker IP addresses. Restart Kong last so
+# its DNS-backed upstream targets are resolved against the final container IPs.
+echo "  Restarting API gateway to refresh service discovery..."
+sudo docker compose restart kong || true
+for i in {1..20}; do
+    if [ "$(sudo docker inspect -f '{{.State.Health.Status}}' infrastructure-kong-1 2>/dev/null)" = "healthy" ]; then
+        echo "  API gateway is healthy."
+        break
+    fi
+    sleep 2
+done
+
 echo ""
 echo "=================================================="
 echo "  DEPLOYMENT COMPLETE!"

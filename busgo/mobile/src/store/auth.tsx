@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { api, REFRESH_TOKEN_KEY, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../api/client';
@@ -97,14 +98,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!data.url) throw new Error('Google did not return a login URL.');
     if (__DEV__) console.info(`[BusGo Auth] OAuth URL: ${data.url}`);
 
-    const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-    if (__DEV__) console.info(`[BusGo Auth] Browser result: ${JSON.stringify(browserResult)}`);
-    if (browserResult.type !== 'success') {
+    // On Android the auth browser can report "dismiss" even though the
+    // redirect reached the app, so listen for the deep link as well.
+    let deepLinkSubscription: { remove: () => void } | undefined;
+    const deepLinkUrl = new Promise<string | null>((resolve) => {
+      deepLinkSubscription = Linking.addEventListener('url', (event) => {
+        if (event.url.startsWith(redirectTo)) resolve(event.url);
+      });
+    });
+
+    let callbackUrl: string | null = null;
+    try {
+      const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (__DEV__) console.info(`[BusGo Auth] Browser result: ${JSON.stringify(browserResult)}`);
+      if (browserResult.type === 'success') {
+        callbackUrl = browserResult.url;
+      } else {
+        callbackUrl = await Promise.race([
+          deepLinkUrl,
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+        ]);
+        if (__DEV__) console.info(`[BusGo Auth] Deep link fallback: ${callbackUrl}`);
+      }
+    } finally {
+      deepLinkSubscription?.remove();
+    }
+
+    if (!callbackUrl) {
       if (isExpoGo) throw new Error(`Google could not return to Expo Go. Add exp://** to the Supabase redirect allow list, restart Expo, and try again. Callback: ${redirectTo}`);
       throw new Error('Google login was cancelled.');
     }
 
-    const { params, errorCode } = QueryParams.getQueryParams(browserResult.url);
+    const { params, errorCode } = QueryParams.getQueryParams(callbackUrl);
     if (errorCode) throw new Error(String(errorCode));
 
     // PKCE (the supabase-js v2 default) returns ?code=...; the implicit flow
