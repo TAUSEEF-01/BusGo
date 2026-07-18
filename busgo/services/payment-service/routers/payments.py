@@ -104,11 +104,10 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
             "event": "payment.declined", "user_id": user_id,
             "reason": bank_result.get("message"), "booking_id": ref_id
         })
-        # Payment declined (insufficient balance / bad PIN): free the held seats
-        # immediately so they're available to other users right away.
-        await KafkaProducerClient.publish("payment.failed", {
-            "booking_id": ref_id, "trip_id": str(trip_id), "reason": "payment_declined"
-        })
+        # Incorrect wallet details or a declined funding source should not
+        # destroy the booking immediately. Keep the seats held until the normal
+        # expiry time so the customer can correct the details or choose another
+        # payment method.
         raise HTTPException(status_code=402, detail=bank_result.get("message", "Insufficient balance"))
 
     try:

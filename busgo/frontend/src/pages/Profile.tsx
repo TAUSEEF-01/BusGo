@@ -18,8 +18,9 @@ interface Booking {
   departure: string;
   seats: string[];
   total: number;
-  status: "upcoming" | "completed" | "cancelled";
+  status: "upcoming" | "completed" | "cancelled" | "expired" | "payment_pending";
   ticketId: string;
+  tripId: string;
 }
 
 interface Payment {
@@ -161,11 +162,12 @@ export function Profile() {
         let fetchedBookings: Booking[] = [];
         if (bookingsRes.data?.success && Array.isArray(bookingsRes.data.data)) {
           fetchedBookings = bookingsRes.data.data.map((b: any) => {
-            let mappedStatus: "upcoming" | "completed" | "cancelled" = "upcoming";
+            let mappedStatus: Booking["status"] = "payment_pending";
             if (b.status === "COMPLETED") mappedStatus = "completed";
             else if (b.status === "CANCELLED" || b.status === "REFUNDED") mappedStatus = "cancelled";
+            else if (b.status === "EXPIRED") mappedStatus = "expired";
             else if (new Date(b.journey_date) < new Date() && b.status === "CONFIRMED") mappedStatus = "completed";
-            else if (b.status === "CONFIRMED" || b.status === "INITIATED" || b.status === "SEAT_LOCKED") mappedStatus = "upcoming";
+            else if (b.status === "CONFIRMED") mappedStatus = "upcoming";
 
             return {
               id: b.id,
@@ -178,6 +180,7 @@ export function Profile() {
               total: b.total_fare || 0,
               status: mappedStatus,
               ticketId: b.id.split("-")[0].toUpperCase(),
+              tripId: b.trip_id,
             };
           });
           setBookings(fetchedBookings);
@@ -201,18 +204,9 @@ export function Profile() {
             setPayments(fetchedPayments);
           }
         } catch (payErr) {
-          console.warn("Failed to fetch payments, using mock data mapping from bookings:", payErr);
-          // Fallback transaction mapping for user experiences if payment service fails or has no payments yet
-          fetchedPayments = fetchedBookings.map((b) => ({
-            id: `pay-${b.id.substring(0, 8)}`,
-            bookingId: b.id,
-            amount: b.total,
-            method: "BKASH", // Mock default method
-            status: b.status === "cancelled" ? "REFUNDED" : "COMPLETED",
-            initiatedAt: b.date,
-            completedAt: b.date,
-            gatewayTxnId: `TXN${b.id.substring(0, 8).toUpperCase()}`,
-          }));
+          console.warn("Failed to fetch payment history:", payErr);
+          // Never fabricate paid transactions from unpaid booking records.
+          fetchedPayments = [];
           setPayments(fetchedPayments);
         }
 
@@ -404,7 +398,7 @@ export function Profile() {
           </div>
           <div className="bg-white rounded-xl border border-surface-200 shadow-elevation-1 p-5 flex items-center justify-between group hover:border-brand-500/30 transition-all duration-300">
             <div>
-              <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Total Invested</p>
+              <p className="text-xs font-semibold text-surface-400 uppercase tracking-wider">Total Paid</p>
               <h3 className="text-2xl font-black text-brand-700 mt-1">৳ {stats.totalSpent}</h3>
             </div>
             <div className="w-12 h-12 rounded-xl bg-accent-50 text-accent-600 flex items-center justify-center shrink-0">
@@ -468,9 +462,12 @@ export function Profile() {
                           <h4 className="font-bold text-surface-900 text-sm">{booking.operator}</h4>
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`badge ${
-                              booking.status === "upcoming" ? "badge-info" : booking.status === "completed" ? "badge-success" : "badge-error"
+                              booking.status === "upcoming" ? "badge-info"
+                                : booking.status === "completed" ? "badge-success"
+                                : booking.status === "payment_pending" ? "badge-warning"
+                                : "badge-error"
                             } text-[10px]`}>
-                              {booking.status}
+                              {booking.status.replace("_", " ")}
                             </span>
                             <span className="text-xs text-surface-400 font-semibold">{booking.ticketId}</span>
                           </div>
@@ -501,12 +498,23 @@ export function Profile() {
 
                         {/* Action */}
                         <div className="col-span-12 md:col-span-1.5 flex justify-end">
-                          <button
-                            onClick={() => navigate(`/booking/confirmation/${booking.id}`)}
-                            className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 shadow-sm hover:shadow cursor-pointer"
-                          >
-                            Ticket <ChevronRight className="h-3 w-3" />
-                          </button>
+                          {(booking.status === "upcoming" || booking.status === "completed") ? (
+                            <button
+                              onClick={() => navigate(`/booking/confirmation/${booking.id}`)}
+                              className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 shadow-sm hover:shadow cursor-pointer"
+                            >
+                              Ticket <ChevronRight className="h-3 w-3" />
+                            </button>
+                          ) : booking.status === "payment_pending" ? (
+                            <button
+                              onClick={() => navigate(`/booking/payment/${booking.id}`, { state: { trip_id: booking.tripId, totalFare: booking.total } })}
+                              className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
+                            >
+                              Pay now <ChevronRight className="h-3 w-3" />
+                            </button>
+                          ) : (
+                            <span className="text-xs font-semibold text-surface-400">Not charged</span>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -590,7 +598,7 @@ export function Profile() {
                 <div className="text-center py-16 bg-white rounded-xl border border-surface-200">
                   <CreditCard className="h-12 w-12 text-surface-300 mx-auto mb-3" />
                   <p className="text-surface-700 font-bold">No transactions found</p>
-                  <p className="text-surface-400 text-xs mt-1">Your payment invoices will be displayed here.</p>
+                  <p className="text-surface-400 text-xs mt-1">Completed payments will appear here. Declined or unpaid bookings are not transactions.</p>
                 </div>
               )}
             </div>

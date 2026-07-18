@@ -86,6 +86,15 @@ export function Payment() {
   const activeAccount = accounts.find((a) => a.account_type === METHOD_ACCOUNT_TYPE[method]);
   const insufficient = !!activeAccount && Number(activeAccount.balance) < combinedTotal;
 
+  // This demo payment gateway debits the selected BusGo wallet account. Use
+  // that account's registered number so Google users without a profile phone
+  // cannot accidentally submit a different number and lose the checkout.
+  useEffect(() => {
+    if ((method === "bkash" || method === "nagad") && activeAccount?.account_number) {
+      setPhone(activeAccount.account_number);
+    }
+  }, [method, activeAccount?.account_number]);
+
   // Fetch the user's bank/mobile accounts and balances.
   useEffect(() => {
     let mounted = true;
@@ -392,7 +401,6 @@ export function Payment() {
 
       if (status === 402) {
         errMsg = typeof detail === "string" ? detail : "Insufficient balance to complete this payment.";
-        seatsReleased = true;
       } else if (status === 400) {
         errMsg = typeof detail === "string" ? detail : "Invalid payment request. Please try again.";
       } else if (status === 403) {
@@ -586,15 +594,16 @@ export function Payment() {
                       </label>
                       <div className="relative">
                         <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
-                          placeholder="01XXX XXXXXX"
-                          className="input-premium !pl-10"
-                          required
-                          id="mfs-phone"
-                        />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="01XXX XXXXXX"
+                        className="input-premium !pl-10"
+                        readOnly={Boolean(activeAccount)}
+                        required
+                        id="mfs-phone"
+                      />
                       </div>
                     </div>
                     <div>
