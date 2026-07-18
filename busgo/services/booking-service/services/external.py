@@ -144,6 +144,20 @@ class ExternalServices:
         return {}
 
     @staticmethod
+    async def get_trip(trip_id: str) -> dict:
+        """Fetch authoritative trip, route, bus and fare data."""
+        try:
+            res = await _client.get(
+                f"{settings.OPERATOR_SERVICE_URL}/trips/{trip_id}",
+                timeout=6.0,
+            )
+            if res.status_code == 200:
+                return res.json().get("data", {}) or {}
+        except Exception as e:
+            logging.error(f"Failed to fetch trip {trip_id}: {e}")
+        return {}
+
+    @staticmethod
     async def get_trip_occupancy(trip_id: str) -> dict:
         """Return seat occupancy for a trip from inventory-service:
         {total, booked, locked, available}. Empty dict if unavailable."""

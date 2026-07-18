@@ -32,6 +32,26 @@ CANCELLATION_WINDOW_HOURS = 1
 REFUND_PERCENTAGE = 0.80
 
 
+def _norm_city(value: str) -> str:
+    key = (value or "").strip().lower()
+    return {
+        "chittagong": "chattogram", "comilla": "cumilla", "barisal": "barishal",
+        "bogra": "bogura", "jessore": "jashore",
+    }.get(key, key)
+
+
+def _route_slice(route: dict, origin: str, destination: str):
+    cities = [route.get("origin_city"), *(route.get("via_cities") or []), route.get("destination_city")]
+    keys = [_norm_city(city) for city in cities]
+    try:
+        start = keys.index(_norm_city(origin))
+        end = keys.index(_norm_city(destination), start + 1)
+    except ValueError:
+        return [], []
+    assignments = route.get("leg_assignments") or []
+    return cities[start:end + 1], assignments[start:end]
+
+
 @router.post("/", response_model=BaseResponse)
 async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     # 1. Idempotency
@@ -41,12 +61,62 @@ async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db),
 
     user_id = payload.get("user_id")
 
-    # 2. Validate legs + fare
+    # 2. Validate legs + fare against operator-service. A client cannot alter
+    # a leg price, substitute another bus, or skip a required connection.
     if not (1 <= len(req.legs) <= 3):
         raise HTTPException(status_code=400, detail="A journey must have between 1 and 3 legs")
-    legs_sum = round(sum(l.fare for l in req.legs), 2)
-    if abs(req.total_fare - legs_sum) > 0.01:
-        raise HTTPException(status_code=400, detail="total_fare does not match the sum of leg fares")
+    passenger_counts = {len(leg.seat_numbers) for leg in req.legs}
+    if len(passenger_counts) != 1 or not passenger_counts or next(iter(passenger_counts)) < 1:
+        raise HTTPException(status_code=400, detail="Select the same passenger count on every bus")
+
+    trip_data = []
+    authoritative_total = 0.0
+    for index, leg in enumerate(req.legs):
+        trip = await ExternalServices.get_trip(str(leg.trip_id))
+        if not trip:
+            raise HTTPException(status_code=400, detail=f"Transit leg {index + 1} is no longer available")
+        if str(trip.get("status", "")).upper() != "SCHEDULED":
+            raise HTTPException(status_code=400, detail=f"Transit leg {index + 1} is not scheduled")
+        expected_fare = round(float(trip.get("fare_amount", 0) or 0) * len(leg.seat_numbers), 2)
+        if abs(float(leg.fare) - expected_fare) > 0.01:
+            raise HTTPException(status_code=400, detail=f"Fare changed for transit leg {index + 1}; refresh the journey")
+        if str(trip.get("operator_id")) != str(leg.operator_id):
+            raise HTTPException(status_code=400, detail=f"Operator mismatch on transit leg {index + 1}")
+        if (
+            _norm_city(leg.boarding_point) != _norm_city(trip.get("origin_city"))
+            or _norm_city(leg.dropping_point) != _norm_city(trip.get("destination_city"))
+        ):
+            raise HTTPException(status_code=400, detail=f"Boarding or dropping city mismatch on transit leg {index + 1}")
+        if index == 0 and _norm_city(trip.get("origin_city")) != _norm_city(req.origin):
+            raise HTTPException(status_code=400, detail="The first bus does not start at the selected origin")
+        if index > 0 and _norm_city(trip_data[-1].get("destination_city")) != _norm_city(trip.get("origin_city")):
+            raise HTTPException(status_code=400, detail=f"Transit leg {index + 1} does not continue from the previous bus")
+        trip_data.append(trip)
+        authoritative_total += expected_fare
+
+    if _norm_city(trip_data[-1].get("destination_city")) != _norm_city(req.destination):
+        raise HTTPException(status_code=400, detail="The final bus does not reach the selected destination")
+    authoritative_total = round(authoritative_total, 2)
+    if abs(float(req.total_fare) - authoritative_total) > 0.01:
+        raise HTTPException(status_code=400, detail="Journey fare changed; refresh and try again")
+
+    route = {}
+    if req.transit_route_id:
+        route = await ExternalServices.get_transit_route(str(req.transit_route_id), req.origin, req.destination)
+        if not route:
+            raise HTTPException(status_code=400, detail="This operator transit route is no longer available")
+        route_cities, assignments = _route_slice(route, req.origin, req.destination)
+        if len(route_cities) != len(req.legs) + 1:
+            raise HTTPException(status_code=400, detail="The selected buses do not match this transit route")
+        if assignments:
+            if len(assignments) != len(req.legs):
+                raise HTTPException(status_code=400, detail="Transit bus assignments are incomplete")
+            for index, (assignment, trip) in enumerate(zip(assignments, trip_data)):
+                if (
+                    str(assignment.get("bus_id")) != str(trip.get("bus_id"))
+                    or str(assignment.get("route_id")) != str(trip.get("route_id"))
+                ):
+                    raise HTTPException(status_code=400, detail=f"Bus assignment changed for transit leg {index + 1}")
 
     # 3. Promo discount (validated against the whole journey fare)
     discount = 0.0
@@ -56,7 +126,6 @@ async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db),
 
     # 3a. Operator transit-route discount (recomputed server-side; never trust client)
     if req.transit_route_id:
-        route = await ExternalServices.get_transit_route(str(req.transit_route_id), req.origin, req.destination)
         pct = float(route.get("combined_discount_pct", 0) or 0)
         if pct > 0:
             discount = round(discount + req.total_fare * pct / 100.0, 2)

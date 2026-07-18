@@ -14,6 +14,9 @@ class ESService:
                 "mappings": {
                     "properties": {
                         "trip_id": {"type": "keyword"},
+                        "bus_id": {"type": "keyword"},
+                        "route_id": {"type": "keyword"},
+                        "bus_registration_no": {"type": "keyword"},
                         "operator_id": {"type": "keyword"},
                         "operator_name": {"type": "text"},
                         "bus_type": {"type": "keyword"},

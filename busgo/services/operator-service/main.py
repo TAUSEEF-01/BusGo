@@ -39,6 +39,11 @@ async def startup():
         await conn.run_sync(Base.metadata.create_all)
         # New transit opt-in column on the existing trips table.
         await conn.execute(text("ALTER TABLE trips ADD COLUMN IF NOT EXISTS allow_transit BOOLEAN DEFAULT TRUE"))
+        await conn.execute(text("ALTER TABLE buses ADD COLUMN IF NOT EXISTS allow_transit BOOLEAN DEFAULT FALSE"))
+        await conn.execute(text("UPDATE buses SET allow_transit = FALSE WHERE allow_transit IS NULL"))
+        await conn.execute(text("ALTER TABLE transit_routes ADD COLUMN IF NOT EXISTS leg_assignments JSONB DEFAULT '[]'::jsonb"))
+        await conn.execute(text("UPDATE transit_routes SET leg_assignments = '[]'::jsonb WHERE leg_assignments IS NULL"))
+        await conn.execute(text("ALTER TABLE transit_routes ALTER COLUMN leg_assignments SET NOT NULL"))
 
 @app.get("/")
 async def root():

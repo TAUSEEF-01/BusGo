@@ -373,6 +373,7 @@ export function SearchResults() {
                                 <Bus className="h-3.5 w-3.5 text-surface-400" />
                                 <span className="font-semibold text-surface-900">{leg.origin_city} → {leg.destination_city}</span>
                                 <span className="text-surface-500">· {leg.operator_name}</span>
+                                {leg.bus_registration_no && <span className="rounded bg-surface-100 px-1.5 py-0.5 text-[11px] font-semibold text-surface-600">Bus {i + 1}: {leg.bus_registration_no}</span>}
                                 <span className="text-surface-400">· {new Date(leg.departure_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}–{new Date(leg.arrival_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                                 <span className="ml-auto text-surface-600">৳{leg.fare_amount}</span>
                               </div>
@@ -390,7 +391,7 @@ export function SearchResults() {
                               <span className="text-xs text-surface-400 line-through mr-1">৳{it.total_fare}</span>
                             )}
                             <span className="text-xl font-extrabold text-brand-600">৳{it.final_fare}</span>
-                            <p className="text-[11px] text-surface-500">{it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m</p>
+                            <p className="text-[11px] text-surface-500">through fare per passenger · {it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m</p>
                           </div>
                           <button
                             onClick={() => navigate("/booking/transit-seats", { state: { itinerary: it, origin, destination, date } })}

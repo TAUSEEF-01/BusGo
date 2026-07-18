@@ -31,13 +31,23 @@ def _parse_dt(value: str) -> datetime:
 
 
 def _norm(s) -> str:
-    return (s or "").strip().lower()
+    key = (s or "").strip().lower()
+    return {
+        "chittagong": "chattogram",
+        "comilla": "cumilla",
+        "barisal": "barishal",
+        "bogra": "bogura",
+        "jessore": "jashore",
+    }.get(key, key)
 
 
 def _leg_dict(trip: dict, leg_number: int) -> dict:
     return {
         "leg_number": leg_number,
         "trip_id": str(trip.get("trip_id") or trip.get("id")),
+        "bus_id": str(trip.get("bus_id")) if trip.get("bus_id") else None,
+        "route_id": str(trip.get("route_id")) if trip.get("route_id") else None,
+        "bus_registration_no": trip.get("bus_registration_no"),
         "operator_id": str(trip.get("operator_id")) if trip.get("operator_id") else None,
         "operator_name": trip.get("operator_name"),
         "origin_city": trip.get("origin_city"),
@@ -110,7 +120,8 @@ async def _fetch_transit_routes(origin: str, destination: str) -> list[dict]:
 
 
 def _chain_for_sequence(cities: list[str], trips: list[dict], journey_date: date,
-                        preferred_operator: str | None) -> list[dict] | None:
+                        preferred_operator: str | None,
+                        leg_assignments: list[dict] | None = None) -> list[dict] | None:
     """Greedy chain of trips realising an ordered city sequence. Returns the
     ordered trip docs, or None if no valid chain exists."""
     by_pair: dict[tuple, list[dict]] = {}
@@ -121,6 +132,12 @@ def _chain_for_sequence(cities: list[str], trips: list[dict], journey_date: date
     prev_arrival: datetime | None = None
     for i in range(len(cities) - 1):
         candidates = by_pair.get((_norm(cities[i]), _norm(cities[i + 1])), [])
+        assignment = leg_assignments[i] if leg_assignments and i < len(leg_assignments) else None
+        if assignment:
+            candidates = [t for t in candidates if (
+                str(t.get("bus_id")) == str(assignment.get("bus_id"))
+                and str(t.get("route_id")) == str(assignment.get("route_id"))
+            )]
         # prefer the route's operator, earliest valid departure, seats available
         def _key(t):
             return (
@@ -146,6 +163,24 @@ def _chain_for_sequence(cities: list[str], trips: list[dict], journey_date: date
     return path
 
 
+def _slice_curated_route(route: dict, origin: str, destination: str):
+    """Return only the requested ordered portion of a published through-route.
+
+    Dhaka -> Chattogram -> Cox's Bazar can therefore serve both Dhaka ->
+    Chattogram (one bus) and Dhaka -> Cox's Bazar (two buses).
+    """
+    full_cities = [route.get("origin_city"), *(route.get("via_cities") or []), route.get("destination_city")]
+    keys = [_norm(city) for city in full_cities]
+    try:
+        start = keys.index(_norm(origin))
+        end = keys.index(_norm(destination), start + 1)
+    except ValueError:
+        return None, None
+    assignments = route.get("leg_assignments") or []
+    sliced_assignments = assignments[start:end] if len(assignments) == len(full_cities) - 1 else []
+    return full_cities[start:end + 1], sliced_assignments
+
+
 async def curated_itineraries(origin: str, destination: str, journey_date: date,
                               trips: list[dict]) -> list[dict]:
     routes = await _fetch_transit_routes(origin, destination)
@@ -153,9 +188,12 @@ async def curated_itineraries(origin: str, destination: str, journey_date: date,
     for r in routes:
         if not r.get("is_active", True):
             continue
-        via = r.get("via_cities") or []
-        cities = [origin, *via, destination]
-        path = _chain_for_sequence(cities, trips, journey_date, r.get("operator_id"))
+        cities, assignments = _slice_curated_route(r, origin, destination)
+        if not cities:
+            continue
+        path = _chain_for_sequence(
+            cities, trips, journey_date, r.get("operator_id"), assignments
+        )
         if not path:
             continue
         out.append(_assemble(

@@ -193,7 +193,7 @@ export function TransitSeats() {
             <div className="card-premium p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="font-bold text-surface-900">Bus {step + 1}: {legs[step].operator_name}</h2>
+                  <h2 className="font-bold text-surface-900">Bus {step + 1}: {legs[step].bus_registration_no || legs[step].operator_name}</h2>
                   <p className="text-xs text-surface-500 flex items-center gap-1"><Clock className="h-3 w-3" />{legs[step].origin_city} → {legs[step].destination_city} · ৳{legs[step].fare_amount}/seat</p>
                 </div>
                 <span className="text-sm font-semibold text-brand-600">{currentSelected.length}/{passengerCount} seats</span>

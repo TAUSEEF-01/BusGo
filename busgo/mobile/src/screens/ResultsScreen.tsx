@@ -79,7 +79,7 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
                         🚌 {leg.origin_city} → {leg.destination_city}
                       </Text>
                       <Text style={{ fontSize: 12, color: colors.subtext }}>
-                        {leg.operator_name || 'Operator'} · {timeOf(leg.departure_datetime)}–{timeOf(leg.arrival_datetime)}
+                        {leg.bus_registration_no ? `Bus ${i + 1}: ${leg.bus_registration_no}` : (leg.operator_name || 'Operator')} · {timeOf(leg.departure_datetime)}–{timeOf(leg.arrival_datetime)}
                       </Text>
                     </View>
                     <Text style={{ fontWeight: '700', color: colors.text }}>৳{leg.fare_amount}</Text>
@@ -102,7 +102,7 @@ export default function ResultsScreen({ route, navigation }: ScreenProps<'Result
                     <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{it.final_fare}</Text>
                   </Row>
                   <Text style={{ fontSize: 11, color: colors.subtext }}>
-                    {it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m
+                    through fare per passenger · {it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m
                   </Text>
                 </View>
                 <Button

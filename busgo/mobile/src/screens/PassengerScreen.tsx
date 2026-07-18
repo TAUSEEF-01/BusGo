@@ -26,15 +26,19 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
       const seats = p.seats || [];
       const fare = Number(p.trip?.fare_amount || 0);
       const total = seats.length * fare + SERVICE_FEE;
-      return { lines: [{ label: `${p.origin} → ${p.destination} · seats ${seats.join(', ')}`, amount: total }], total };
+      return { lines: [{ label: `${p.origin} → ${p.destination} · seats ${seats.join(', ')}`, amount: total }], total, payable: total, discount: 0 };
     }
     const legs = p.itinerary?.legs || [];
     const seatsByLeg = p.seatsByLeg || [];
     const lines = legs.map((l, i) => ({
-      label: `Bus ${i + 1}: ${l.origin_city} → ${l.destination_city} · seats ${(seatsByLeg[i] || []).join(', ')}`,
+      label: `Bus ${i + 1}${l.bus_registration_no ? ` (${l.bus_registration_no})` : ''}: ${l.origin_city} → ${l.destination_city} · seats ${(seatsByLeg[i] || []).join(', ')}`,
       amount: Number(l.fare_amount) * (seatsByLeg[i]?.length || 0),
     }));
-    return { lines, total: lines.reduce((s, l) => s + l.amount, 0) };
+    const total = lines.reduce((s, l) => s + l.amount, 0);
+    const baseFare = Number(p.itinerary?.total_fare || 0);
+    const discountRate = baseFare > 0 ? Number(p.itinerary?.operator_discount_amount || 0) / baseFare : 0;
+    const discount = Math.round(total * discountRate * 100) / 100;
+    return { lines, total, payable: Math.max(0, total - discount), discount };
   }, [p]);
 
   const submit = async () => {
@@ -138,9 +142,15 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
             <Text style={{ color: colors.subtext, fontSize: 12 }}>Includes ৳{SERVICE_FEE} service fee</Text>
           </Row>
         )}
+        {p.mode === 'transit' && summary.discount > 0 && (
+          <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
+            <Text style={{ color: colors.success, fontSize: 12 }}>Through-service discount</Text>
+            <Text style={{ color: colors.success, fontWeight: '700' }}>− ৳{summary.discount}</Text>
+          </Row>
+        )}
         <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }}>
           <Text style={{ fontWeight: '800', color: colors.text }}>Total</Text>
-          <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{summary.total}</Text>
+          <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{summary.payable}</Text>
         </Row>
         <Button title={busy ? 'Holding seats…' : 'Hold seats & continue'} onPress={submit} loading={busy} style={{ marginTop: 12 }} />
         <Text style={{ fontSize: 11, color: colors.faint, textAlign: 'center', marginTop: 8 }}>

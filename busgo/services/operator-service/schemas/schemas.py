@@ -45,6 +45,7 @@ class BusBase(BaseModel):
     booked_seats: Optional[List[str]] = []
     amenities: List[str]
     is_active: Optional[bool] = True
+    allow_transit: Optional[bool] = False
 
 class BusCreate(BusBase):
     pass
@@ -57,6 +58,7 @@ class BusUpdate(BaseModel):
     booked_seats: Optional[List[str]] = None
     amenities: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    allow_transit: Optional[bool] = None
 
 class BusResponse(BusBase):
     id: UUID
@@ -121,6 +123,7 @@ class TripEnrichedResponse(TripResponse):
     trip_id: str
     operator_name: str
     bus_type: str
+    bus_registration_no: str
     amenities: List[str]
     origin_city: str
     destination_city: str
@@ -128,11 +131,17 @@ class TripEnrichedResponse(TripResponse):
     dropping_points: Optional[List[Point]] = None
 
 
+class TransitLegAssignment(BaseModel):
+    bus_id: UUID
+    route_id: UUID
+
+
 class TransitRouteBase(BaseModel):
     name: str
     origin_city: str
     destination_city: str
     via_cities: List[str]
+    leg_assignments: List[TransitLegAssignment] = Field(default_factory=list)
     combined_discount_pct: Optional[float] = 0.0
     is_active: Optional[bool] = True
 
@@ -144,6 +153,7 @@ class TransitRouteUpdate(BaseModel):
     origin_city: Optional[str] = None
     destination_city: Optional[str] = None
     via_cities: Optional[List[str]] = None
+    leg_assignments: Optional[List[TransitLegAssignment]] = None
     combined_discount_pct: Optional[float] = None
     is_active: Optional[bool] = None
 

@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from database import get_db
-from models.models import Bus, Route, Operator, Trip
+from models.models import Bus, Route, Operator, Trip, TransitRoute
 from schemas.schemas import BusCreate, BusUpdate, BusResponse, RouteCreate, RouteUpdate, RouteResponse
 from api.deps import get_current_user_payload
 
@@ -15,6 +15,24 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.base_response import BaseResponse
 
 router = APIRouter(tags=["buses-routes"])
+
+
+async def _transit_route_using_bus(db: AsyncSession, bus: Bus):
+    routes = (await db.execute(
+        select(TransitRoute).where(TransitRoute.operator_id == bus.operator_id)
+    )).scalars().all()
+    return next((route for route in routes if any(
+        str(item.get("bus_id")) == str(bus.id) for item in (route.leg_assignments or [])
+    )), None)
+
+
+async def _transit_route_using_service_route(db: AsyncSession, route: Route):
+    routes = (await db.execute(
+        select(TransitRoute).where(TransitRoute.operator_id == route.operator_id)
+    )).scalars().all()
+    return next((transit_route for transit_route in routes if any(
+        str(item.get("route_id")) == str(route.id) for item in (transit_route.leg_assignments or [])
+    )), None)
 
 @router.post("/operators/{id}/buses", response_model=BaseResponse[BusResponse])
 async def create_bus(id: UUID, req: BusCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
@@ -60,6 +78,10 @@ async def update_bus(id: UUID, req: BusUpdate, db: AsyncSession = Depends(get_db
         raise HTTPException(status_code=404, detail="Bus not found")
     
     update_data = req.model_dump(exclude_unset=True)
+    if update_data.get("allow_transit") is False and bus.allow_transit:
+        transit_route = await _transit_route_using_bus(db, bus)
+        if transit_route:
+            raise HTTPException(status_code=400, detail=f"Remove this bus from transit route '{transit_route.name}' before disabling transit service")
     for key, value in update_data.items():
         setattr(bus, key, value)
         
@@ -123,6 +145,13 @@ async def update_route(id: UUID, req: RouteUpdate, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=404, detail="Route not found")
     
     update_data = req.model_dump(exclude_unset=True)
+    if (
+        ("origin_city" in update_data and update_data["origin_city"] != route.origin_city)
+        or ("destination_city" in update_data and update_data["destination_city"] != route.destination_city)
+    ):
+        transit_route = await _transit_route_using_service_route(db, route)
+        if transit_route:
+            raise HTTPException(status_code=400, detail=f"Remove this service route from transit route '{transit_route.name}' before changing its cities")
     if "boarding_points" in update_data:
         update_data["boarding_points"] = [p for p in update_data["boarding_points"]]
     if "dropping_points" in update_data:
@@ -157,6 +186,9 @@ async def delete_bus(id: UUID, db: AsyncSession = Depends(get_db), payload: dict
     bus = result.scalars().first()
     if not bus:
         raise HTTPException(status_code=404, detail="Bus not found")
+    transit_route = await _transit_route_using_bus(db, bus)
+    if transit_route:
+        raise HTTPException(status_code=400, detail=f"Bus is assigned to transit route '{transit_route.name}'")
     try:
         await db.delete(bus)
         await db.commit()
@@ -171,6 +203,9 @@ async def delete_route(id: UUID, db: AsyncSession = Depends(get_db), payload: di
     route = result.scalars().first()
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
+    transit_route = await _transit_route_using_service_route(db, route)
+    if transit_route:
+        raise HTTPException(status_code=400, detail=f"Route is assigned to transit route '{transit_route.name}'")
         
     # Check if any associated trips have sold tickets
     trips_res = await db.execute(

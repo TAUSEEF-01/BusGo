@@ -43,6 +43,7 @@ class Bus(Base):
     booked_seats = Column(JSONB, default=list)
     amenities = Column(JSONB, nullable=False)
     is_active = Column(Boolean, default=True)
+    allow_transit = Column(Boolean, default=False)  # may be assigned to an operator-managed transit leg
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     operator = relationship("Operator", back_populates="buses")
@@ -92,6 +93,9 @@ class TransitRoute(Base):
     origin_city = Column(String, index=True, nullable=False)
     destination_city = Column(String, index=True, nullable=False)
     via_cities = Column(JSONB, nullable=False)  # ordered list, 1..2 entries
+    # One entry per city-to-city leg: {bus_id, route_id}. Stored as JSONB so
+    # existing deployments can add this feature without a destructive migration.
+    leg_assignments = Column(JSONB, nullable=False, default=list)
     combined_discount_pct = Column(Float, default=0.0)  # 0..50, discount on the journey total
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

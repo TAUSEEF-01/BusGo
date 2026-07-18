@@ -125,7 +125,7 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
         <Row style={{ justifyContent: 'space-between' }}>
           <View>
             <Text style={{ fontWeight: '800', color: colors.text }}>
-              Bus {step + 1}: {leg.operator_name || 'Operator'}
+              Bus {step + 1}: {leg.bus_registration_no || leg.operator_name || 'Operator'}
             </Text>
             <Text style={{ fontSize: 12, color: colors.subtext }}>
               {leg.origin_city} → {leg.destination_city} · ৳{leg.fare_amount}/seat

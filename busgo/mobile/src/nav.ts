@@ -4,6 +4,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 export interface ItineraryLeg {
   leg_number: number;
   trip_id: string;
+  bus_id?: string | null;
+  route_id?: string | null;
+  bus_registration_no?: string;
   operator_id: string | null;
   operator_name?: string;
   origin_city: string;

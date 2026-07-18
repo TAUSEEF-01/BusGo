@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
 import {
   ArrowRight,
+  Bus,
   CheckCircle2,
   Edit2,
   GitBranch,
@@ -24,14 +25,36 @@ interface TransitRoute {
   origin_city: string;
   destination_city: string;
   via_cities: string[];
+  leg_assignments: TransitLegAssignment[];
   combined_discount_pct: number;
   is_active: boolean;
+}
+
+interface TransitLegAssignment {
+  bus_id: string;
+  route_id: string;
+}
+
+interface OperatorBus {
+  id: string;
+  registration_no: string;
+  bus_type: string;
+  total_seats: number;
+  is_active: boolean;
+  allow_transit: boolean;
+}
+
+interface ServiceRoute {
+  id: string;
+  origin_city: string;
+  destination_city: string;
 }
 
 interface TransitRouteForm {
   name: string;
   origin_city: string;
   via_cities: string[];
+  leg_assignments: TransitLegAssignment[];
   destination_city: string;
   combined_discount_pct: number;
 }
@@ -40,6 +63,7 @@ const EMPTY_FORM: TransitRouteForm = {
   name: "",
   origin_city: "",
   via_cities: [""],
+  leg_assignments: [{ bus_id: "", route_id: "" }, { bus_id: "", route_id: "" }],
   destination_city: "",
   combined_discount_pct: 0,
 };
@@ -54,6 +78,8 @@ function errorMessage(error: any, fallback: string) {
 export function OperatorTransitRoutes() {
   const { user } = useAuthStore();
   const [routes, setRoutes] = useState<TransitRoute[]>([]);
+  const [buses, setBuses] = useState<OperatorBus[]>([]);
+  const [serviceRoutes, setServiceRoutes] = useState<ServiceRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,11 +94,21 @@ export function OperatorTransitRoutes() {
   const { cities, loadingCities } = useCityOptions(knownRouteCities);
 
   const load = async () => {
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      const response = await apiClient.get("/api/operators/transit-routes/mine");
-      if (response.data.success) setRoutes(response.data.data || []);
-      else toast.error(response.data.message || "Could not load your transit routes");
+      const [transitResponse, busesResponse, routesResponse] = await Promise.all([
+        apiClient.get("/api/operators/transit-routes/mine"),
+        apiClient.get(`/api/operators/operators/${user?.id}/buses`),
+        apiClient.get(`/api/operators/operators/${user?.id}/routes`),
+      ]);
+      if (transitResponse.data.success) setRoutes(transitResponse.data.data || []);
+      else toast.error(transitResponse.data.message || "Could not load your transit routes");
+      if (busesResponse.data.success) setBuses(busesResponse.data.data || []);
+      if (routesResponse.data.success) setServiceRoutes(routesResponse.data.data || []);
     } catch (error) {
       toast.error(errorMessage(error, "Could not load your transit routes"));
     } finally {
@@ -82,7 +118,7 @@ export function OperatorTransitRoutes() {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [user?.id]);
 
   const closeForm = () => {
     setShowForm(false);
@@ -102,6 +138,9 @@ export function OperatorTransitRoutes() {
       name: route.name,
       origin_city: route.origin_city,
       via_cities: route.via_cities.length ? [...route.via_cities] : [""],
+      leg_assignments: route.leg_assignments?.length
+        ? route.leg_assignments.map((assignment) => ({ ...assignment }))
+        : Array.from({ length: (route.via_cities?.length || 1) + 1 }, () => ({ bus_id: "", route_id: "" })),
       destination_city: route.destination_city,
       combined_discount_pct: route.combined_discount_pct,
     });
@@ -113,6 +152,24 @@ export function OperatorTransitRoutes() {
     setForm((current) => ({
       ...current,
       via_cities: current.via_cities.map((item, itemIndex) => itemIndex === index ? city : item),
+      leg_assignments: Array.from({ length: current.via_cities.length + 1 }, () => ({ bus_id: "", route_id: "" })),
+    }));
+  };
+
+  const updateEndpoint = (field: "origin_city" | "destination_city", city: string) => {
+    setForm((current) => ({
+      ...current,
+      [field]: city,
+      leg_assignments: Array.from({ length: current.via_cities.length + 1 }, () => ({ bus_id: "", route_id: "" })),
+    }));
+  };
+
+  const updateAssignment = (index: number, field: keyof TransitLegAssignment, value: string) => {
+    setForm((current) => ({
+      ...current,
+      leg_assignments: current.leg_assignments.map((assignment, assignmentIndex) =>
+        assignmentIndex === index ? { ...assignment, [field]: value } : assignment
+      ),
     }));
   };
 
@@ -121,9 +178,13 @@ export function OperatorTransitRoutes() {
     if (!form.name.trim()) return "Enter a route name";
     if (!form.origin_city) return "Select an origin city from the dropdown";
     if (via.length === 0) return "Select at least one transit location";
+    if (via.length !== form.via_cities.length) return "Select the added transit location or remove it";
     if (!form.destination_city) return "Select a destination city from the dropdown";
     const sequence = [form.origin_city, ...via, form.destination_city].map(cityKey);
     if (new Set(sequence).size !== sequence.length) return "Each location can appear only once in a transit route";
+    if (form.leg_assignments.length !== via.length + 1 || form.leg_assignments.some((assignment) => !assignment.bus_id || !assignment.route_id)) {
+      return "Select a service route and transit-enabled bus for every leg";
+    }
     if (form.combined_discount_pct < 0 || form.combined_discount_pct > 50) return "Discount must be between 0% and 50%";
     return null;
   };
@@ -146,6 +207,7 @@ export function OperatorTransitRoutes() {
       origin_city: form.origin_city,
       destination_city: form.destination_city,
       via_cities: form.via_cities.filter(Boolean),
+      leg_assignments: form.leg_assignments,
       combined_discount_pct: Number(form.combined_discount_pct),
       ...(!editingId ? { operator_id: user!.id } : {}),
     };
@@ -199,7 +261,10 @@ export function OperatorTransitRoutes() {
     }
   };
 
-  const selectedSequence = [form.origin_city, ...form.via_cities.filter(Boolean), form.destination_city].filter(Boolean);
+  const formSequence = [form.origin_city, ...form.via_cities, form.destination_city];
+  const selectedSequence = formSequence.filter(Boolean);
+  const topologyComplete = formSequence.every(Boolean);
+  const eligibleBuses = buses.filter((bus) => bus.is_active !== false && bus.allow_transit === true);
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -209,7 +274,7 @@ export function OperatorTransitRoutes() {
             <GitBranch className="h-6 w-6 text-brand-600" /> Transit Routes
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-surface-500">
-            Build ordered connecting journeys for passengers. Select one or two transit locations and optionally offer a combined-fare discount.
+            Build ordered connecting journeys and assign the exact bus for every leg. Passengers can finish at any later stop and pay only the scheduled legs they use.
           </p>
         </div>
         <button onClick={showForm ? closeForm : openCreate} className={showForm ? "btn-secondary flex items-center gap-2" : "btn-primary flex items-center gap-2"}>
@@ -268,7 +333,7 @@ export function OperatorTransitRoutes() {
                   id="transit-origin"
                   ariaLabel="Origin city"
                   value={form.origin_city}
-                  onChange={(city) => setForm({ ...form, origin_city: city })}
+                  onChange={(city) => updateEndpoint("origin_city", city)}
                   options={cities}
                   excludedCities={[...form.via_cities, form.destination_city]}
                   placeholder="Select origin"
@@ -284,7 +349,7 @@ export function OperatorTransitRoutes() {
                       Transit {index + 1}{index === 1 && <span className="font-normal text-surface-400">(optional)</span>}
                     </span>
                     {index === 1 && (
-                      <button type="button" onClick={() => setForm({ ...form, via_cities: form.via_cities.slice(0, 1) })} className="text-surface-400 hover:text-red-500" aria-label="Remove second transit stop">
+                      <button type="button" onClick={() => setForm({ ...form, via_cities: form.via_cities.slice(0, 1), leg_assignments: [{ bus_id: "", route_id: "" }, { bus_id: "", route_id: "" }] })} className="text-surface-400 hover:text-red-500" aria-label="Remove second transit stop">
                         <X className="h-4 w-4" />
                       </button>
                     )}
@@ -297,7 +362,7 @@ export function OperatorTransitRoutes() {
                     options={cities}
                     excludedCities={[form.origin_city, form.destination_city, ...form.via_cities.filter((_, itemIndex) => itemIndex !== index)]}
                     placeholder="Select transit city"
-                    required={index === 0}
+                    required
                   />
                 </div>
               ))}
@@ -310,7 +375,7 @@ export function OperatorTransitRoutes() {
                   id="transit-destination"
                   ariaLabel="Destination city"
                   value={form.destination_city}
-                  onChange={(city) => setForm({ ...form, destination_city: city })}
+                  onChange={(city) => updateEndpoint("destination_city", city)}
                   options={cities}
                   excludedCities={[form.origin_city, ...form.via_cities]}
                   placeholder="Select destination"
@@ -322,13 +387,80 @@ export function OperatorTransitRoutes() {
             {form.via_cities.length < 2 && (
               <button
                 type="button"
-                onClick={() => setForm({ ...form, via_cities: [...form.via_cities, ""] })}
+                onClick={() => setForm({ ...form, via_cities: [...form.via_cities, ""], leg_assignments: [...form.leg_assignments, { bus_id: "", route_id: "" }] })}
                 className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-700 hover:text-brand-800"
               >
                 <Plus className="h-3.5 w-3.5" /> Add a second transit location
               </button>
             )}
           </div>
+
+          {topologyComplete && (
+            <div className="mb-6 rounded-2xl border border-brand-100 bg-brand-50/40 p-4 sm:p-5">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="flex items-center gap-2 font-bold text-surface-900"><Bus className="h-4 w-4 text-brand-600" /> Assign a bus to every leg</h3>
+                  <p className="mt-1 text-xs text-surface-500">Passengers see exactly which bus operates each segment. Schedules and segment fares remain managed under Manage Services → Trips.</p>
+                </div>
+                <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-brand-700">{formSequence.length - 1} buses required</span>
+              </div>
+
+              {eligibleBuses.length === 0 && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  No buses are transit-enabled. Open Manage Services → Buses, edit a bus, and enable “Available for transit connections”.
+                </div>
+              )}
+
+              <div className="space-y-3">
+                {formSequence.slice(0, -1).map((origin, index) => {
+                  const destination = formSequence[index + 1];
+                  const assignment = form.leg_assignments[index] || { bus_id: "", route_id: "" };
+                  const matchingRoutes = serviceRoutes.filter((serviceRoute) =>
+                    cityKey(serviceRoute.origin_city) === cityKey(origin)
+                    && cityKey(serviceRoute.destination_city) === cityKey(destination)
+                  );
+                  return (
+                    <div key={`${origin}-${destination}-${index}`} className="grid gap-3 rounded-xl border border-surface-200 bg-white p-4 md:grid-cols-[minmax(150px,0.8fr)_minmax(180px,1fr)_minmax(180px,1fr)] md:items-end">
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-brand-600">Bus {index + 1}</span>
+                        <p className="mt-1 flex items-center gap-1.5 text-sm font-bold text-surface-900">{origin} <ArrowRight className="h-3.5 w-3.5 text-surface-400" /> {destination}</p>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-surface-600">Service route</label>
+                        <select
+                          required
+                          value={assignment.route_id}
+                          onChange={(event) => updateAssignment(index, "route_id", event.target.value)}
+                          className="input-premium w-full !py-2.5 text-sm"
+                        >
+                          <option value="">{matchingRoutes.length ? "Select matching route" : "No matching service route"}</option>
+                          {matchingRoutes.map((serviceRoute) => (
+                            <option key={serviceRoute.id} value={serviceRoute.id}>{serviceRoute.origin_city} → {serviceRoute.destination_city}</option>
+                          ))}
+                        </select>
+                        {!matchingRoutes.length && <p className="mt-1 text-[11px] text-red-600">Create this leg under Manage Services → Routes first.</p>}
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-semibold text-surface-600">Transit bus</label>
+                        <select
+                          required
+                          value={assignment.bus_id}
+                          onChange={(event) => updateAssignment(index, "bus_id", event.target.value)}
+                          className="input-premium w-full !py-2.5 text-sm"
+                        >
+                          <option value="">Select Bus {index + 1}</option>
+                          {eligibleBuses.map((bus) => (
+                            <option key={bus.id} value={bus.id}>{bus.registration_no} · {bus.bus_type} · {bus.total_seats} seats</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-surface-500">Through-ticket price = the existing fares of the selected scheduled legs, less any combined discount above. No extra transit fee is added.</p>
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="min-h-9">
@@ -393,6 +525,26 @@ export function OperatorTransitRoutes() {
                         </span>
                       ))}
                     </div>
+                    {route.leg_assignments?.length ? (
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {route.leg_assignments.map((assignment, index) => {
+                          const assignedBus = buses.find((bus) => bus.id === assignment.bus_id);
+                          return (
+                            <div key={`${route.id}-bus-${index}`} className="flex items-center gap-2 rounded-lg border border-surface-100 bg-surface-50 px-3 py-2 text-xs">
+                              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 font-extrabold text-brand-700">{index + 1}</span>
+                              <div className="min-w-0">
+                                <p className="truncate font-bold text-surface-800">{assignedBus?.registration_no || "Assigned bus"}</p>
+                                <p className="truncate text-surface-500">{sequence[index]} → {sequence[index + 1]}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="mt-3 inline-flex rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                        Bus assignments required — edit this route before using it as a managed through-service.
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">

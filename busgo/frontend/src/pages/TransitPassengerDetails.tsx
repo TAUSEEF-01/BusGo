@@ -19,6 +19,11 @@ export function TransitPassengerDetails() {
   if (!itinerary) { navigate("/search"); return null; }
 
   const totalFare = legs.reduce((sum, l, i) => sum + Number(l.fare_amount) * (seatsByLeg[i]?.length || 0), 0);
+  const operatorDiscountRate = Number(itinerary.total_fare) > 0
+    ? Number(itinerary.operator_discount_amount || 0) / Number(itinerary.total_fare)
+    : 0;
+  const operatorDiscount = Math.round(totalFare * operatorDiscountRate * 100) / 100;
+  const payableFare = Math.max(0, totalFare - operatorDiscount);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -144,9 +149,13 @@ export function TransitPassengerDetails() {
                 </div>
               ))}
             </div>
-            <div className="border-t border-surface-200 mt-4 pt-3 flex justify-between text-base">
-              <span className="font-bold text-surface-900">Total</span>
-              <span className="font-extrabold text-brand-600">৳ {totalFare.toLocaleString()}</span>
+            <div className="border-t border-surface-200 mt-4 pt-3 space-y-2 text-sm">
+              <div className="flex justify-between text-surface-600"><span>Segment fares</span><span>৳ {totalFare.toLocaleString()}</span></div>
+              {operatorDiscount > 0 && <div className="flex justify-between text-emerald-700"><span>Through-service discount</span><span>− ৳ {operatorDiscount.toLocaleString()}</span></div>}
+              <div className="flex justify-between border-t border-surface-100 pt-2 text-base">
+                <span className="font-bold text-surface-900">One-payment total</span>
+                <span className="font-extrabold text-brand-600">৳ {payableFare.toLocaleString()}</span>
+              </div>
             </div>
             <button type="submit" disabled={submitting} className="btn-primary w-full flex items-center justify-center gap-2 !py-3 mt-4 disabled:opacity-50">
               {submitting ? "Locking seats..." : <>Continue to Payment <ArrowRight className="h-4 w-4" /></>}

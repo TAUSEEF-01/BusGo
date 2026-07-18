@@ -56,6 +56,7 @@ async def get_trip(id: UUID, db: AsyncSession = Depends(get_db)):
     trip_dict = TripResponse.model_validate(trip).model_dump()
     trip_dict['operator_name'] = operator.name
     trip_dict['bus_type'] = bus.bus_type.value
+    trip_dict['bus_registration_no'] = bus.registration_no
     trip_dict['amenities'] = bus.amenities
     trip_dict['origin_city'] = route.origin_city
     trip_dict['destination_city'] = route.destination_city
@@ -130,6 +131,7 @@ async def list_trips(
         trip_dict = TripResponse.model_validate(trip).model_dump()
         trip_dict['operator_name'] = operator.name
         trip_dict['bus_type'] = bus.bus_type.value
+        trip_dict['bus_registration_no'] = bus.registration_no
         trip_dict['amenities'] = bus.amenities
         trip_dict['origin_city'] = route.origin_city
         trip_dict['destination_city'] = route.destination_city

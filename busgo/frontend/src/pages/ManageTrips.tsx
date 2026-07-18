@@ -528,6 +528,7 @@ export function ManageTrips() {
       bus_type: "AC",
       total_seats: 40,
       is_active: true,
+      allow_transit: false,
       assign_route: false,
       route_id: "",
       departure_datetime: "",
@@ -546,6 +547,7 @@ export function ManageTrips() {
       bus_type: bus.bus_type,
       total_seats: bus.total_seats,
       is_active: bus.is_active !== undefined ? bus.is_active : true,
+      allow_transit: bus.allow_transit === true,
       assign_route: false,
     });
     setBusSelectedDates([]);
@@ -559,6 +561,7 @@ export function ManageTrips() {
     bus_type: "AC",
     total_seats: 40,
     is_active: true,
+    allow_transit: false,
     // Optional schedule fields
     assign_route: false,
     route_id: "",
@@ -718,6 +721,7 @@ export function ManageTrips() {
         bus_type: busForm.bus_type,
         total_seats: busForm.total_seats,
         is_active: busForm.is_active,
+        allow_transit: busForm.allow_transit,
         seat_layout: {}, // Minimal mock payload
         amenities: ["WiFi", "Water"]
       };
@@ -780,7 +784,8 @@ export function ManageTrips() {
               departure_datetime: departureISO,
               arrival_datetime: arrival.toISOString(),
               fare_amount: busForm.fare_amount,
-              available_seats: busForm.total_seats
+              available_seats: busForm.total_seats,
+              allow_transit: busForm.allow_transit,
             };
             return apiClient.post(`/api/operators/trips/`, tripPayload);
           });
@@ -797,6 +802,7 @@ export function ManageTrips() {
             bus_type: "AC",
             total_seats: 40,
             is_active: true,
+            allow_transit: false,
             assign_route: false,
             route_id: "",
             departure_datetime: "",
@@ -850,7 +856,8 @@ export function ManageTrips() {
           departure_datetime: departureISO,
           arrival_datetime: arrivalISO,
           fare_amount: tripForm.fare_amount,
-          available_seats: bus.total_seats
+          available_seats: bus.total_seats,
+          allow_transit: bus.allow_transit === true,
         };
         return apiClient.post(`/api/operators/trips/`, payload);
       });
@@ -1025,7 +1032,10 @@ export function ManageTrips() {
                             <td className="px-5 py-4 text-sm text-surface-600">{activeRoute ? `${activeRoute.origin_city} → ${activeRoute.destination_city}` : <span className="text-surface-400 italic">Unassigned</span>}</td>
                             <td className="px-5 py-4 text-sm font-bold text-surface-900">{latestTrip ? `৳ ${latestTrip.fare_amount}` : '-'}</td>
                             <td className="px-5 py-4 text-sm">
-                              {b.is_active === false ? <span className="badge badge-error">Unavailable</span> : <span className="badge badge-success">Active</span>}
+                              <div className="flex flex-wrap gap-1.5">
+                                {b.is_active === false ? <span className="badge badge-error">Unavailable</span> : <span className="badge badge-success">Active</span>}
+                                {b.allow_transit && <span className="badge badge-info">Transit enabled</span>}
+                              </div>
                             </td>
                             <td className="px-5 py-4 text-sm text-right">
                               <button onClick={() => openEditBus(b)} className="p-2 text-surface-400 hover:text-brand-600 hover:bg-brand-50 rounded-lg transition-colors">
@@ -1645,6 +1655,19 @@ export function ManageTrips() {
                     onChange={e => setBusForm({...busForm, is_active: e.target.checked})}
                   />
                   Bus is Active and Available
+                </label>
+
+                <label className="flex items-start gap-2 rounded-xl border border-brand-100 bg-brand-50/60 p-3 text-sm cursor-pointer mb-4">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-surface-300 text-brand-600 focus:ring-brand-500 w-4 h-4"
+                    checked={busForm.allow_transit}
+                    onChange={e => setBusForm({ ...busForm, allow_transit: e.target.checked })}
+                  />
+                  <span>
+                    <span className="block font-semibold text-surface-900">Available for transit connections</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-surface-500">Enable this bus so it can be assigned to a specific leg, such as Dhaka → Chattogram, in a multi-bus journey.</span>
+                  </span>
                 </label>
 
                 <label className="flex items-center gap-2 text-sm font-semibold text-surface-900 cursor-pointer mb-2">
