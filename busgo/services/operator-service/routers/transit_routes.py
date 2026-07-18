@@ -23,6 +23,19 @@ from shared.base_response import BaseResponse
 
 router = APIRouter(prefix="/transit-routes", tags=["transit-routes"])
 
+_CITY_ALIASES = {
+    "chittagong": "chattogram",
+    "comilla": "cumilla",
+    "barisal": "barishal",
+    "bogra": "bogura",
+    "jessore": "jashore",
+}
+
+
+def _city_key(value: str) -> str:
+    key = (value or "").strip().lower()
+    return _CITY_ALIASES.get(key, key)
+
 
 def _require_operator(payload: dict):
     role = str(payload.get("role", "")).upper()
@@ -38,11 +51,19 @@ def _owns_or_admin(payload: dict, operator_id) -> bool:
 def _validate(name, origin, destination, via_cities, discount):
     if not name or not name.strip():
         raise HTTPException(status_code=400, detail="name is required")
-    if not origin or not destination or origin.strip().lower() == destination.strip().lower():
+    if (
+        not origin
+        or not origin.strip()
+        or not destination
+        or not destination.strip()
+        or _city_key(origin) == _city_key(destination)
+    ):
         raise HTTPException(status_code=400, detail="origin and destination must differ")
     if not via_cities or not (1 <= len(via_cities) <= 2):
         raise HTTPException(status_code=400, detail="via_cities must contain 1 or 2 cities")
-    seq = [origin.strip().lower(), *[c.strip().lower() for c in via_cities], destination.strip().lower()]
+    if any(not city or not city.strip() for city in via_cities):
+        raise HTTPException(status_code=400, detail="transit locations cannot be empty")
+    seq = [_city_key(origin), *[_city_key(c) for c in via_cities], _city_key(destination)]
     if len(set(seq)) != len(seq):
         raise HTTPException(status_code=400, detail="a city cannot repeat in the route")
     if discount is not None and not (0 <= discount <= 50):
@@ -103,6 +124,11 @@ async def update_transit_route(id: UUID, req: TransitRouteUpdate, db: AsyncSessi
         raise HTTPException(status_code=403, detail="Not authorized")
 
     data = req.model_dump(exclude_unset=True)
+    for field in ("name", "origin_city", "destination_city"):
+        if field in data and data[field] is not None:
+            data[field] = data[field].strip()
+    if "via_cities" in data and data["via_cities"] is not None:
+        data["via_cities"] = [city.strip() for city in data["via_cities"]]
     new_name = data.get("name", route.name)
     new_origin = data.get("origin_city", route.origin_city)
     new_dest = data.get("destination_city", route.destination_city)

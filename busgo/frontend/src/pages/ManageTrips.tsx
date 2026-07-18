@@ -5,6 +5,9 @@ import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
 import { LocationSearch } from "../components/LocationSearch";
 import { MapSelectorModal } from "../components/MapSelectorModal";
+import { CityCombobox } from "../components/CityCombobox";
+import { cityKey } from "../data/cityOptions";
+import { useCityOptions } from "../hooks/useCityOptions";
 
 import { useAuthStore } from "../stores/authStore";
 
@@ -442,6 +445,7 @@ function MultiDateCalendar({
 export function ManageTrips() {
   const user = useAuthStore((s) => s.user);
   const OPERATOR_ID = user?.id || "";
+  const { cities: cityOptions } = useCityOptions();
 
   // Debug: Log operator ID on mount
   useEffect(() => {
@@ -865,6 +869,15 @@ export function ManageTrips() {
   const handleAddRoute = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submittingRoute) return;
+
+    if (!routeForm.origin_city || !routeForm.destination_city) {
+      toast.error("Select both origin and destination cities from the dropdowns");
+      return;
+    }
+    if (cityKey(routeForm.origin_city) === cityKey(routeForm.destination_city)) {
+      toast.error("Origin and destination must be different cities");
+      return;
+    }
     
     // Validate that at least one boarding and dropping point has a name
     const validBoarding = boardingPoints.filter(p => p.name.trim());
@@ -1430,21 +1443,29 @@ export function ManageTrips() {
               <div className="p-6 space-y-4 overflow-y-auto flex-1 pb-36">
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1">Origin City</label>
-                  <select required className="input-premium w-full" value={routeForm.origin_city} onChange={e => setRouteForm({...routeForm, origin_city: e.target.value})}>
-                    <option value="">-- Select Origin --</option>
-                    {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                  </select>
+                  <CityCombobox
+                    id="service-route-origin"
+                    ariaLabel="Route origin city"
+                    required
+                    value={routeForm.origin_city}
+                    onChange={(city) => setRouteForm({ ...routeForm, origin_city: city })}
+                    options={cityOptions}
+                    excludedCities={[routeForm.destination_city]}
+                    placeholder="Search and select origin"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-surface-700 mb-1">Destination City</label>
-                  <select required className="input-premium w-full" value={routeForm.destination_city} onChange={e => setRouteForm({...routeForm, destination_city: e.target.value})}>
-                    <option value="">-- Select Destination --</option>
-                    {["Dhaka", "Chittagong", "Sylhet", "Cox's Bazar", "Rajshahi", "Khulna", "Barisal", "Rangpur", "Comilla", "Mymensingh", "Bogra", "Jessore"].map(city => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                  </select>
+                  <CityCombobox
+                    id="service-route-destination"
+                    ariaLabel="Route destination city"
+                    required
+                    value={routeForm.destination_city}
+                    onChange={(city) => setRouteForm({ ...routeForm, destination_city: city })}
+                    options={cityOptions}
+                    excludedCities={[routeForm.origin_city]}
+                    placeholder="Search and select destination"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
