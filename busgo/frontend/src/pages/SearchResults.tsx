@@ -365,6 +365,12 @@ export function SearchResults() {
                           ★ Operator transit service — guaranteed connection{it.transit_route_name ? ` · ${it.transit_route_name}` : ""}
                         </div>
                       )}
+                      <div className="flex flex-wrap gap-2 mb-3 text-[11px] font-semibold">
+                        <span className="rounded-full bg-blue-50 text-blue-700 px-2 py-1">{it.leg_count} buses</span>
+                        <span className="rounded-full bg-emerald-50 text-emerald-700 px-2 py-1">One payment</span>
+                        <span className="rounded-full bg-amber-50 text-amber-700 px-2 py-1">Choose a seat on every bus</span>
+                        <span className="rounded-full bg-purple-50 text-purple-700 px-2 py-1">Separate ticket per bus</span>
+                      </div>
                       <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                         <div className="flex-1 space-y-2">
                           {it.legs.map((leg: any, i: number) => (
@@ -399,6 +405,7 @@ export function SearchResults() {
                           >
                             Book journey
                           </button>
+                          <p className="text-[10px] text-surface-400 max-w-[170px]">Your confirmation will show each bus, transfer point, and seat separately.</p>
                         </div>
                       </div>
                     </div>

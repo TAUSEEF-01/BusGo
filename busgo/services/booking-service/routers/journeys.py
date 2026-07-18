@@ -10,6 +10,7 @@ from sqlalchemy.future import select
 from datetime import datetime, timedelta, timezone
 import uuid
 import logging
+import asyncio
 
 from database import get_db
 from models.models import Booking, Journey, BookingStatusHistory
@@ -53,6 +54,87 @@ def _route_slice(route: dict, origin: str, destination: str):
     return cities[start:end + 1], assignments[start:end]
 
 
+async def _trip_details_for(legs: list[Booking]) -> dict[str, dict]:
+    """Fetch authoritative operator, coach and schedule data once per trip."""
+    trip_ids = list(dict.fromkeys(str(leg.trip_id) for leg in legs))
+    details = await asyncio.gather(
+        *(ExternalServices.get_trip(trip_id) for trip_id in trip_ids),
+        return_exceptions=True,
+    )
+    return {
+        trip_id: detail if isinstance(detail, dict) else {}
+        for trip_id, detail in zip(trip_ids, details)
+    }
+
+
+def _serialize_journey(journey: Journey, legs: list[Booking], trips: dict[str, dict]) -> dict:
+    serialized_legs = []
+    for leg in sorted(legs, key=lambda item: item.leg_number or 0):
+        trip = trips.get(str(leg.trip_id), {})
+        departure_datetime = trip.get("departure_datetime") or (
+            f"{leg.journey_date.isoformat()}T{leg.departure_time.isoformat()}"
+            if leg.journey_date and leg.departure_time else None
+        )
+        serialized_legs.append({
+            "leg_number": leg.leg_number,
+            "booking_id": str(leg.id),
+            "trip_id": str(leg.trip_id),
+            "operator_id": str(leg.operator_id) if leg.operator_id else None,
+            "operator_name": trip.get("operator_name") or "BusGo operator",
+            "bus_registration_no": trip.get("bus_registration_no"),
+            "bus_type": trip.get("bus_type") or "Bus",
+            "origin_city": trip.get("origin_city") or leg.boarding_point,
+            "destination_city": trip.get("destination_city") or leg.dropping_point,
+            "boarding_point": leg.boarding_point,
+            "dropping_point": leg.dropping_point,
+            "journey_date": leg.journey_date.isoformat() if leg.journey_date else None,
+            "departure_time": leg.departure_time.isoformat() if leg.departure_time else None,
+            "departure_datetime": departure_datetime,
+            "arrival_datetime": trip.get("arrival_datetime"),
+            "seat_numbers": leg.seat_numbers or [],
+            "passenger_details": leg.passenger_details or [],
+            "fare": float(leg.total_fare),
+            "status": leg.status,
+        })
+
+    transfers = []
+    for index in range(len(serialized_legs) - 1):
+        current = serialized_legs[index]
+        following = serialized_legs[index + 1]
+        wait_minutes = None
+        try:
+            arrival = datetime.fromisoformat(str(current["arrival_datetime"]).replace("Z", "+00:00"))
+            departure = datetime.fromisoformat(str(following["departure_datetime"]).replace("Z", "+00:00"))
+            wait_minutes = max(0, int((departure - arrival).total_seconds() // 60))
+        except (TypeError, ValueError):
+            pass
+        transfers.append({
+            "city": current["destination_city"],
+            "wait_minutes": wait_minutes,
+            "arrival_datetime": current["arrival_datetime"],
+            "departure_datetime": following["departure_datetime"],
+        })
+
+    return {
+        "journey_id": str(journey.id),
+        "user_id": str(journey.user_id),
+        "origin": journey.origin,
+        "destination": journey.destination,
+        "leg_count": journey.leg_count,
+        "status": journey.status,
+        "total_fare": float(journey.total_fare),
+        "discount_amount": float(journey.discount_amount or 0),
+        "final_fare": max(0.0, float(journey.total_fare) - float(journey.discount_amount or 0)),
+        "promo_code": journey.promo_code,
+        "transit_route_id": str(journey.transit_route_id) if journey.transit_route_id else None,
+        "payment_id": str(journey.payment_id) if journey.payment_id else None,
+        "created_at": journey.created_at.isoformat() if journey.created_at else None,
+        "expires_at": journey.expires_at.isoformat() if journey.expires_at else None,
+        "transfers": transfers,
+        "legs": serialized_legs,
+    }
+
+
 @router.post("/", response_model=BaseResponse)
 async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     # 1. Idempotency
@@ -69,6 +151,9 @@ async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db),
     passenger_counts = {len(leg.seat_numbers) for leg in req.legs}
     if len(passenger_counts) != 1 or not passenger_counts or next(iter(passenger_counts)) < 1:
         raise HTTPException(status_code=400, detail="Select the same passenger count on every bus")
+    passenger_count = next(iter(passenger_counts))
+    if len(req.passenger_details) != passenger_count:
+        raise HTTPException(status_code=400, detail="Passenger details must match the number of seats on every bus")
 
     trip_data = []
     authoritative_total = 0.0
@@ -165,9 +250,13 @@ async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db),
         )
         db.add(journey)
         for i, leg in enumerate(req.legs):
+            leg_passengers = [
+                {**passenger.model_dump(), "seat": leg.seat_numbers[passenger_index]}
+                for passenger_index, passenger in enumerate(req.passenger_details)
+            ]
             booking = Booking(
                 id=leg_booking_ids[i], user_id=user_id, trip_id=leg.trip_id, operator_id=leg.operator_id,
-                seat_numbers=leg.seat_numbers, passenger_details=[p.model_dump() for p in req.passenger_details],
+                seat_numbers=leg.seat_numbers, passenger_details=leg_passengers,
                 boarding_point=leg.boarding_point, dropping_point=leg.dropping_point,
                 journey_date=leg.journey_date, departure_time=leg.departure_time,
                 total_fare=leg.fare, discount_amount=0.0, promo_code=req.promo_code,
@@ -222,6 +311,39 @@ async def create_journey(req: JourneyCreate, db: AsyncSession = Depends(get_db),
     return BaseResponse(success=True, data=response_data, message="Journey booked successfully")
 
 
+@router.get("/my", response_model=BaseResponse)
+async def get_my_journeys(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, gt=0, le=100),
+    db: AsyncSession = Depends(get_db),
+    payload: dict = Depends(get_current_user_payload),
+):
+    journeys = (await db.execute(
+        select(Journey)
+        .where(Journey.user_id == payload.get("user_id"))
+        .order_by(Journey.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )).scalars().all()
+    if not journeys:
+        return BaseResponse(success=True, data=[])
+
+    journey_ids = [journey.id for journey in journeys]
+    all_legs = (await db.execute(
+        select(Booking)
+        .where(Booking.journey_id.in_(journey_ids))
+        .order_by(Booking.journey_id, Booking.leg_number)
+    )).scalars().all()
+    legs_by_journey: dict[uuid.UUID, list[Booking]] = {journey_id: [] for journey_id in journey_ids}
+    for leg in all_legs:
+        legs_by_journey.setdefault(leg.journey_id, []).append(leg)
+    trips = await _trip_details_for(all_legs)
+    return BaseResponse(success=True, data=[
+        _serialize_journey(journey, legs_by_journey.get(journey.id, []), trips)
+        for journey in journeys
+    ])
+
+
 @router.get("/{journey_id}", response_model=BaseResponse)
 async def get_journey(journey_id: uuid.UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
     journey = (await db.execute(select(Journey).where(Journey.id == journey_id))).scalars().first()
@@ -236,38 +358,8 @@ async def get_journey(journey_id: uuid.UUID, db: AsyncSession = Depends(get_db),
         select(Booking).where(Booking.journey_id == journey_id).order_by(Booking.leg_number)
     )).scalars().all()
 
-    final_fare = max(0.0, float(journey.total_fare) - float(journey.discount_amount or 0))
-    return BaseResponse(success=True, data={
-        "journey_id": str(journey.id),
-        "user_id": str(journey.user_id),
-        "origin": journey.origin,
-        "destination": journey.destination,
-        "leg_count": journey.leg_count,
-        "status": journey.status,
-        "total_fare": float(journey.total_fare),
-        "discount_amount": float(journey.discount_amount or 0),
-        "final_fare": final_fare,
-        "promo_code": journey.promo_code,
-        "transit_route_id": str(journey.transit_route_id) if journey.transit_route_id else None,
-        "payment_id": str(journey.payment_id) if journey.payment_id else None,
-        "expires_at": journey.expires_at.isoformat() if journey.expires_at else None,
-        "legs": [
-            {
-                "leg_number": l.leg_number,
-                "booking_id": str(l.id),
-                "trip_id": str(l.trip_id),
-                "operator_id": str(l.operator_id) if l.operator_id else None,
-                "boarding_point": l.boarding_point,
-                "dropping_point": l.dropping_point,
-                "journey_date": l.journey_date.isoformat() if l.journey_date else None,
-                "departure_time": l.departure_time.isoformat() if l.departure_time else None,
-                "seat_numbers": l.seat_numbers,
-                "fare": float(l.total_fare),
-                "status": l.status,
-            }
-            for l in legs
-        ],
-    })
+    trips = await _trip_details_for(legs)
+    return BaseResponse(success=True, data=_serialize_journey(journey, legs, trips))
 
 
 @router.post("/{journey_id}/confirm-payment", response_model=BaseResponse)

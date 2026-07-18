@@ -205,7 +205,7 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
         return []
     
     operator_names = {}
-    trip_routes = {}
+    trip_details = {}
     import httpx
     import logging
     
@@ -240,15 +240,12 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
                     logging.error(f"Error fetching operator {b_op_id} via HTTP: {e}")
             
             b_trip_id = str(b.trip_id)
-            if b_trip_id not in trip_routes:
+            if b_trip_id not in trip_details:
                 try:
                     res = await client.get(f"http://operator-service:8000/trips/{b_trip_id}", timeout=3.0)
                     if res.status_code == 200:
                         trip_data = res.json().get("data", {})
-                        origin = trip_data.get("origin_city")
-                        dest = trip_data.get("destination_city")
-                        if origin and dest:
-                            trip_routes[b_trip_id] = (origin, dest)
+                        trip_details[b_trip_id] = trip_data
                 except Exception as e:
                     logging.error(f"Error fetching trip {b_trip_id} details via HTTP: {e}")
             
@@ -256,13 +253,22 @@ async def enrich_bookings_with_operator_names(bookings: List[Booking], db: Async
     for b in bookings:
         resp = BookingResponse.model_validate(b)
         resp.operator_name = operator_names.get(b.operator_id, operator_names.get(str(b.operator_id), "Unknown Operator"))
-        route_info = trip_routes.get(str(b.trip_id))
-        if route_info:
-            resp.origin_city = route_info[0]
-            resp.destination_city = route_info[1]
+        trip_info = trip_details.get(str(b.trip_id))
+        if trip_info:
+            resp.origin_city = trip_info.get("origin_city") or b.boarding_point
+            resp.destination_city = trip_info.get("destination_city") or b.dropping_point
+            arrival_datetime = trip_info.get("arrival_datetime")
+            if isinstance(arrival_datetime, str):
+                try:
+                    arrival_datetime = datetime.fromisoformat(arrival_datetime.replace("Z", "+00:00"))
+                except ValueError:
+                    arrival_datetime = None
+            resp.arrival_datetime = arrival_datetime
+            resp.bus_type = trip_info.get("bus_type")
+            resp.bus_registration_no = trip_info.get("bus_registration_no")
         else:
-            resp.origin_city = "Dhaka"
-            resp.destination_city = "Destination"
+            resp.origin_city = b.boarding_point
+            resp.destination_city = b.dropping_point
         response_data.append(resp)
     return response_data
 

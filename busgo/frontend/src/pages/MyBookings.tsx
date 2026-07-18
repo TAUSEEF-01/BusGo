@@ -5,6 +5,7 @@ import {
   Ticket, X, Eye, FileText, ChevronRight, Loader2
 } from "lucide-react";
 import { apiClient } from "../api/client";
+import { toast } from "react-hot-toast";
 
 type BookingStatus = "upcoming" | "completed" | "cancelled";
 type Tab = "upcoming" | "completed" | "cancelled";
@@ -21,10 +22,30 @@ interface Booking {
   arrival: string;
   seats: string[];
   total: string;
+  totalValue: number;
   status: BookingStatus;
   ticketId: string;
   journey_id?: string | null;
   leg_number?: number | null;
+  backendStatus: string;
+  isTransit?: boolean;
+  legCount?: number;
+  legs?: Array<{
+    leg_number: number;
+    booking_id: string;
+    trip_id: string;
+    operator_name: string;
+    bus_registration_no?: string | null;
+    origin_city: string;
+    destination_city: string;
+    boarding_point: string;
+    dropping_point: string;
+    journey_date: string;
+    departure_time: string;
+    arrival_datetime?: string | null;
+    seat_numbers: string[];
+  }>;
+  transfers?: Array<{ city: string; wait_minutes?: number | null }>;
 }
 
 const TAB_CONFIG: { id: Tab; label: string; icon: typeof Ticket; emptyTitle: string; emptyDesc: string }[] = [
@@ -75,6 +96,10 @@ const getOperatorLogo = (name: string) => {
 const formatTimeString = (timeStr: string) => {
   if (!timeStr || timeStr === "N/A") return "N/A";
   try {
+    if (timeStr.includes("T")) {
+      const date = new Date(timeStr);
+      if (!Number.isNaN(date.getTime())) return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    }
     if (timeStr.includes("AM") || timeStr.includes("PM")) {
       return timeStr;
     }
@@ -107,6 +132,13 @@ const formatDateString = (dateStr: string) => {
   }
 };
 
+const mapStatus = (status: string, journeyDate?: string): BookingStatus => {
+  if (status === "COMPLETED") return "completed";
+  if (status === "CANCELLED" || status === "REFUNDED" || status === "EXPIRED") return "cancelled";
+  if (status === "CONFIRMED" && journeyDate && new Date(journeyDate) < new Date()) return "completed";
+  return "upcoming";
+};
+
 export function MyBookings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>("upcoming");
@@ -118,40 +150,64 @@ export function MyBookings() {
   useEffect(() => {
     const fetchBookings = async () => {
       try {
-        const response = await apiClient.get('/api/bookings/my');
-        if (response.data?.success) {
-          const backendBookings = response.data.data;
-          const mappedBookings: Booking[] = backendBookings.map((b: any) => {
-            // Map the backend status to frontend tab status
-            let mappedStatus: BookingStatus = "upcoming";
-            if (b.status === "COMPLETED") mappedStatus = "completed";
-            else if (b.status === "CANCELLED" || b.status === "REFUNDED") mappedStatus = "cancelled";
-            else if (new Date(b.journey_date) < new Date() && b.status === "CONFIRMED") mappedStatus = "completed";
-            else if (b.status === "CONFIRMED" || b.status === "INITIATED" || b.status === "SEAT_LOCKED") mappedStatus = "upcoming";
-
-            // Simple arrival time mock since it's not in DB
-            const arrTime = b.departure_time ? `${parseInt(b.departure_time.split(':')[0]) + 4}:00` : "1:30 PM";
-
-            return {
+        const [bookingsResponse, journeysResponse] = await Promise.all([
+          apiClient.get("/api/bookings/my"),
+          apiClient.get("/api/bookings/journeys/my").catch(() => ({ data: { success: false, data: [] } })),
+        ]);
+        const mappedBookings: Booking[] = [];
+        if (bookingsResponse.data?.success) {
+          const directBookings = (bookingsResponse.data.data || []).filter((booking: any) => !booking.journey_id);
+          mappedBookings.push(...directBookings.map((b: any) => ({
               id: b.id,
               operator: b.operator_name || "Unknown Operator",
-              from: b.boarding_point || "Dhaka",
-              to: b.dropping_point || "Destination",
-              origin_city: b.origin_city || "Dhaka",
-              destination_city: b.destination_city || "Destination",
+              from: b.boarding_point || b.origin_city || "Origin",
+              to: b.dropping_point || b.destination_city || "Destination",
+              origin_city: b.origin_city || b.boarding_point || "Origin",
+              destination_city: b.destination_city || b.dropping_point || "Destination",
               date: b.journey_date || "N/A",
               departure: b.departure_time || "N/A",
-              arrival: arrTime,
+              arrival: b.arrival_datetime || "N/A",
               seats: b.seat_numbers || [],
-              total: `৳ ${b.total_fare}`,
-              status: mappedStatus,
+              total: `৳ ${Number(b.total_fare || 0).toLocaleString()}`,
+              totalValue: Number(b.total_fare || 0),
+              status: mapStatus(b.status, b.journey_date),
               ticketId: b.id.split('-')[0].toUpperCase(),
               journey_id: b.journey_id || null,
               leg_number: b.leg_number ?? null,
-            };
-          });
-          setBookings(mappedBookings);
+              backendStatus: b.status,
+            })));
         }
+        if (journeysResponse.data?.success) {
+          mappedBookings.unshift(...(journeysResponse.data.data || []).map((journey: any) => {
+            const legs = journey.legs || [];
+            const firstLeg = legs[0] || {};
+            const lastLeg = legs[legs.length - 1] || firstLeg;
+            const operatorNames = Array.from(new Set(legs.map((leg: any) => leg.operator_name).filter(Boolean)));
+            return {
+              id: firstLeg.booking_id || journey.journey_id,
+              operator: operatorNames.length === 1 ? String(operatorNames[0]) : `${operatorNames.length} connecting operators`,
+              from: firstLeg.boarding_point || journey.origin,
+              to: lastLeg.dropping_point || journey.destination,
+              origin_city: journey.origin,
+              destination_city: journey.destination,
+              date: firstLeg.journey_date || "N/A",
+              departure: firstLeg.departure_time || "N/A",
+              arrival: lastLeg.arrival_datetime || "N/A",
+              seats: legs.flatMap((leg: any) => leg.seat_numbers || []),
+              total: `৳ ${Number(journey.final_fare || 0).toLocaleString()}`,
+              totalValue: Number(journey.final_fare || 0),
+              status: mapStatus(journey.status, firstLeg.journey_date),
+              ticketId: `JRN-${String(journey.journey_id).split("-")[0].toUpperCase()}`,
+              journey_id: journey.journey_id,
+              backendStatus: journey.status,
+              isTransit: true,
+              legCount: journey.leg_count,
+              legs,
+              transfers: journey.transfers || [],
+            };
+          }));
+        }
+        setBookings(mappedBookings);
       } catch (error) {
         console.error("Failed to fetch bookings:", error);
       } finally {
@@ -160,6 +216,21 @@ export function MyBookings() {
     };
     fetchBookings();
   }, []);
+
+  const cancelTransitJourney = async (booking: Booking) => {
+    if (!booking.journey_id || !window.confirm("Cancel this entire transit journey and every connecting bus ticket?")) return;
+    try {
+      const response = await apiClient.post(`/api/bookings/journeys/${booking.journey_id}/cancel`);
+      if (!response.data?.success) throw new Error(response.data?.message || "Cancellation failed");
+      setBookings((current) => current.map((item) => item.journey_id === booking.journey_id
+        ? { ...item, status: "cancelled", backendStatus: "CANCELLED" }
+        : item));
+      toast.success(response.data?.data?.message || "Transit journey cancelled");
+    } catch (error: any) {
+      const detail = error.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : error.message || "Could not cancel the transit journey");
+    }
+  };
 
   const filtered = bookings
     .filter((b) => b.status === activeTab)
@@ -257,8 +328,8 @@ export function MyBookings() {
                                 <span className={`badge ${STATUS_STYLES[booking.status]} text-[10px]`}>
                                   {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                 </span>
-                                {booking.journey_id && (
-                                  <span className="badge bg-brand-50 text-brand-700 text-[10px]">Transit leg {booking.leg_number}</span>
+                                {booking.isTransit && (
+                                  <span className="badge bg-brand-50 text-brand-700 text-[10px]">Transit journey · {booking.legCount} buses · one payment</span>
                                 )}
                                 <span className="text-xs text-surface-400 font-semibold">{booking.ticketId}</span>
                               </div>
@@ -266,16 +337,14 @@ export function MyBookings() {
                           </div>
 
                           {/* Clickable Seat badge on mobile/tablet */}
-                          <div 
-                            onClick={() => setActiveSeatBooking(booking)}
-                            className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-100 cursor-pointer hover:bg-brand-100 transition-colors"
-                            title="Click to view visual seat map"
-                          >
-                            <Ticket className="h-3.5 w-3.5 text-brand-600" />
-                            <span className="text-xs font-bold text-brand-700 font-mono">
-                              {booking.seats.join(", ")}
-                            </span>
-                          </div>
+                          {!booking.isTransit && <div
+                              onClick={() => setActiveSeatBooking(booking)}
+                              className="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-50 border border-brand-100 cursor-pointer hover:bg-brand-100 transition-colors"
+                              title="Click to view visual seat map"
+                            >
+                              <Ticket className="h-3.5 w-3.5 text-brand-600" />
+                              <span className="text-xs font-bold text-brand-700 font-mono">{booking.seats.join(", ")}</span>
+                            </div>}
                         </div>
 
                         {/* Route Timeline */}
@@ -311,10 +380,27 @@ export function MyBookings() {
                             <span className="text-[10px] py-0.5 mt-1.5 opacity-0 select-none block">placeholder</span>
                           </div>
                         </div>
+                        {booking.isTransit && (
+                          <div className="mt-5 grid gap-2">
+                            {booking.legs?.map((leg, legIndex) => (
+                              <div key={leg.booking_id} className="rounded-xl border border-surface-200 bg-surface-50 px-3 py-2 text-xs">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-extrabold text-brand-700">Bus {leg.leg_number}</span>
+                                  <span className="font-bold text-surface-800">{leg.origin_city} → {leg.destination_city}</span>
+                                  <span className="text-surface-500">{leg.operator_name}{leg.bus_registration_no ? ` · ${leg.bus_registration_no}` : ""}</span>
+                                  <span className="ml-auto font-extrabold text-surface-900">Seat {leg.seat_numbers.join(", ")}</span>
+                                </div>
+                                {legIndex < (booking.legs?.length || 0) - 1 && (
+                                  <p className="mt-1 font-semibold text-amber-700">Change bus at {booking.transfers?.[legIndex]?.city || leg.destination_city}{booking.transfers?.[legIndex]?.wait_minutes != null ? ` · ${booking.transfers[legIndex].wait_minutes} min transfer` : ""}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       {/* Mid Section: Seats display (Desktop/tablet view) */}
-                      <div className="hidden md:flex flex-col items-center justify-center px-4 border-l border-surface-100 min-h-[80px]">
+                      <div className={`${booking.isTransit ? "hidden" : "hidden md:flex"} flex-col items-center justify-center px-4 border-l border-surface-100 min-h-[80px]`}>
                         <span className="text-xs text-surface-400 font-semibold uppercase tracking-wider mb-2">Seats Booked</span>
                         <button
                           onClick={() => setActiveSeatBooking(booking)}
@@ -335,24 +421,35 @@ export function MyBookings() {
                       <div className="flex flex-row md:flex-col items-center md:items-end justify-between md:justify-center gap-3 md:min-w-[160px] border-t md:border-t-0 md:border-l border-surface-100 pt-4 md:pt-0 md:pl-6">
                         <div className="text-left md:text-right">
                           <p className="text-xl sm:text-2xl font-black text-brand-600">{booking.total}</p>
-                          <p className="text-xs text-surface-400 font-bold uppercase tracking-wider">PAID</p>
+                          <p className={`text-xs font-bold uppercase tracking-wider ${booking.backendStatus === "CONFIRMED" || booking.backendStatus === "COMPLETED" ? "text-emerald-600" : "text-amber-600"}`}>
+                            {booking.backendStatus === "CONFIRMED" || booking.backendStatus === "COMPLETED" ? "Paid" : "Payment pending"}
+                          </p>
                         </div>
                         
                         <div className="flex gap-2">
-                          {booking.status === "upcoming" && (
+                          {booking.status === "upcoming" && booking.backendStatus === "CONFIRMED" && (
                             <button
-                              onClick={() => navigate(`/booking/cancel/${booking.id}`)}
+                              onClick={() => booking.isTransit ? void cancelTransitJourney(booking) : navigate(`/booking/cancel/${booking.id}`)}
                               className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-sm"
                             >
                               <X className="h-3.5 w-3.5" /> Cancel
                             </button>
                           )}
-                          <button
-                            onClick={() => navigate(`/booking/confirmation/${booking.id}`)}
-                            className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 cursor-pointer"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> View Ticket
-                          </button>
+                          {booking.backendStatus === "SEAT_LOCKED" || booking.backendStatus === "INITIATED" ? (
+                            <button
+                              onClick={() => navigate(`/booking/payment/${booking.id}`, { state: booking.isTransit ? { isTransit: true, journeyId: booking.journey_id, journeyTotal: booking.totalValue, legs: booking.legs, origin: booking.origin_city, destination: booking.destination_city } : undefined })}
+                              className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-brand/10 cursor-pointer"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" /> Pay now
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => navigate(`/booking/confirmation/${booking.id}${booking.journey_id ? `?journeyId=${booking.journey_id}` : ""}`, { state: booking.journey_id ? { journeyId: booking.journey_id } : undefined })}
+                              className="bg-brand-600 hover:bg-brand-700 active:scale-95 text-white font-bold py-2 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-brand/10 hover:shadow-brand/20 cursor-pointer"
+                            >
+                              <Eye className="h-3.5 w-3.5" /> View {booking.isTransit ? "all tickets" : "ticket"}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>

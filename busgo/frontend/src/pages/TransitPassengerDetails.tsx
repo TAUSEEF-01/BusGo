@@ -3,6 +3,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { ArrowRight, User, Mail, Phone, MapPin, ArrowRight as Arrow } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
+import { useAuthStore } from "../stores/authStore";
+
+interface PassengerDraft {
+  name: string;
+  age: string;
+  gender: "male" | "female" | "other";
+}
 
 export function TransitPassengerDetails() {
   const navigate = useNavigate();
@@ -11,8 +18,16 @@ export function TransitPassengerDetails() {
   const itinerary = state.itinerary;
   const legs: any[] = itinerary?.legs || [];
   const seatsByLeg: string[][] = state.seatsByLeg || [];
+  const user = useAuthStore((store) => store.user);
 
-  const [contact, setContact] = useState({ name: "", email: "", phone: "" });
+  const [contact, setContact] = useState({ email: user?.email || "", phone: user?.phone || "" });
+  const [passengers, setPassengers] = useState<PassengerDraft[]>(() =>
+    (seatsByLeg[0] || []).map((_, index) => ({
+      name: index === 0 ? user?.name || "" : "",
+      age: "",
+      gender: "male",
+    }))
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,11 +42,24 @@ export function TransitPassengerDetails() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!contact.name) e.name = "Name is required";
     if (!contact.email) e.email = "Email is required";
-    if (!contact.phone) e.phone = "Phone is required";
+    if (!/^01\d{9}$/.test(contact.phone.replace(/\D/g, "").slice(-11))) e.phone = "Enter a valid 11-digit phone number";
+    passengers.forEach((passenger, index) => {
+      if (passenger.name.trim().length < 2) e[`passenger_name_${index}`] = "Full name is required";
+      const age = Number(passenger.age);
+      if (!Number.isInteger(age) || age < 1 || age > 120) e[`passenger_age_${index}`] = "Enter a valid age";
+    });
     setErrors(e);
     return Object.keys(e).length === 0;
+  };
+
+  const updatePassenger = (index: number, patch: Partial<PassengerDraft>) => {
+    setPassengers((current) => current.map((passenger, position) => position === index ? { ...passenger, ...patch } : passenger));
+    setErrors((current) => ({
+      ...current,
+      [`passenger_name_${index}`]: "",
+      [`passenger_age_${index}`]: "",
+    }));
   };
 
   const submit = async (ev: React.FormEvent) => {
@@ -52,8 +80,11 @@ export function TransitPassengerDetails() {
           fare: Number(l.fare_amount) * seats.length,
         };
       });
-      const passenger_details = (seatsByLeg[0] || []).map((seat) => ({
-        name: contact.name, age: 30, gender: "male", seat,
+      const passenger_details = (seatsByLeg[0] || []).map((seat, index) => ({
+        name: passengers[index].name.trim(),
+        age: Number(passengers[index].age),
+        gender: passengers[index].gender,
+        seat,
       }));
       const body = {
         origin: state.origin,
@@ -99,18 +130,38 @@ export function TransitPassengerDetails() {
 
       <form onSubmit={submit} className="max-w-4xl mx-auto px-4 py-8 flex flex-col lg:flex-row gap-8">
         <div className="flex-1 card-premium p-6">
-          <h2 className="text-lg font-bold text-surface-900 mb-1">Contact Information</h2>
-          <p className="text-sm text-surface-500 mb-5">We'll send your e-tickets (one per bus) here.</p>
+          <h2 className="text-lg font-bold text-surface-900 mb-1">Passenger details</h2>
+          <p className="text-sm text-surface-500 mb-5">Each passenger keeps the seat shown for every bus below.</p>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                <input value={contact.name} onChange={(e) => setContact((c) => ({ ...c, name: e.target.value }))} className={`input-premium !pl-10 ${errors.name ? "!border-red-400" : ""}`} placeholder="As per NID" />
+            {passengers.map((passenger, index) => (
+              <div key={index} className="rounded-xl border border-surface-200 bg-surface-50/60 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="font-bold text-surface-900">Passenger {index + 1}</p>
+                  <div className="flex flex-wrap justify-end gap-1">
+                    {legs.map((_, legIndex) => <span key={legIndex} className="badge badge-info text-[10px]">Bus {legIndex + 1}: Seat {seatsByLeg[legIndex]?.[index] || "—"}</span>)}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-semibold text-surface-600 mb-1">Full name</label>
+                    <div className="relative"><User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400" /><input value={passenger.name} onChange={(event) => updatePassenger(index, { name: event.target.value })} className={`input-premium !pl-9 ${errors[`passenger_name_${index}`] ? "!border-red-400" : ""}`} placeholder="As shown on identification" /></div>
+                    {errors[`passenger_name_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`passenger_name_${index}`]}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-surface-600 mb-1">Age</label>
+                    <input value={passenger.age} onChange={(event) => updatePassenger(index, { age: event.target.value.replace(/\D/g, "").slice(0, 3) })} className={`input-premium ${errors[`passenger_age_${index}`] ? "!border-red-400" : ""}`} inputMode="numeric" placeholder="Age" />
+                    {errors[`passenger_age_${index}`] && <p className="text-red-500 text-xs mt-1">{errors[`passenger_age_${index}`]}</p>}
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-3">
+                  {(["male", "female", "other"] as const).map((gender) => <button key={gender} type="button" onClick={() => updatePassenger(index, { gender })} className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold capitalize ${passenger.gender === gender ? "border-brand-500 bg-brand-50 text-brand-700" : "border-surface-200 bg-white text-surface-600"}`}>{gender}</button>)}
+                </div>
               </div>
-              {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-            </div>
-            <div>
+            ))}
+
+            <div className="border-t border-surface-200 pt-4">
+              <h3 className="font-bold text-surface-900 mb-1">Ticket contact</h3>
+              <p className="text-xs text-surface-500 mb-3">All leg tickets and connection updates are sent here.</p>
               <label className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />

@@ -168,6 +168,9 @@ export function TransitSeats() {
           <div className="card-premium p-8 text-center">
             <h2 className="text-lg font-bold text-surface-900 mb-2">How many passengers?</h2>
             <p className="text-sm text-surface-500 mb-6">You'll pick the same number of seats on each of the {legs.length} buses.</p>
+            <div className="grid gap-2 mb-6 text-left">
+              {legs.map((leg, index) => <div key={leg.trip_id} className="rounded-xl border border-surface-200 bg-surface-50 px-4 py-3"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-extrabold text-brand-700">Bus {index + 1}</p><p className="text-sm font-bold text-surface-900">{leg.origin_city} → {leg.destination_city}</p><p className="text-xs text-surface-500 mt-0.5">{leg.operator_name} · {leg.bus_registration_no || leg.bus_type || "Assigned coach"}</p></div><p className="text-xs font-semibold text-surface-600">{new Date(leg.departure_datetime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p></div>{index < legs.length - 1 && <p className="text-[11px] text-amber-700 font-semibold mt-2">Change bus at {leg.destination_city}</p>}</div>)}
+            </div>
             <div className="flex justify-center gap-3 mb-8">
               {[1, 2, 3, 4].map((n) => (
                 <button key={n} onClick={() => setPassengerCount(n)}
@@ -183,7 +186,7 @@ export function TransitSeats() {
               {legs.map((l, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <div className={`px-3 py-1.5 rounded-full text-xs font-semibold ${i === step ? "bg-brand-600 text-white" : i < step ? "bg-emerald-100 text-emerald-700" : "bg-surface-100 text-surface-500"}`}>
-                    Bus {i + 1}: {l.origin_city}→{l.destination_city}
+                    Bus {i + 1}: {l.origin_city}→{l.destination_city}{selectedByLeg[i]?.length ? ` · ${selectedByLeg[i].join(", ")}` : ""}
                   </div>
                   {i < legs.length - 1 && <ArrowRight className="h-3 w-3 text-surface-300" />}
                 </div>

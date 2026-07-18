@@ -307,7 +307,7 @@ export function Payment() {
         });
         if (confirmRes.data.success) {
           toast.success("Payment successful! All buses in your journey are confirmed.");
-          navigate(`/booking/confirmation/${booking_id}`, { state: { isTransit: true, journeyId } });
+          navigate(`/booking/confirmation/${booking_id}?journeyId=${journeyId}`, { state: { isTransit: true, journeyId } });
         } else {
           toast.error(confirmRes.data.message || "Payment confirmation failed. Please contact support.");
         }

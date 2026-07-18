@@ -32,9 +32,13 @@ async def build_ticket_event(booking: Booking) -> Dict[str, Any]:
             "origin": trip.get("origin_city") or booking.boarding_point,
             "destination": trip.get("destination_city") or booking.dropping_point,
             "departure_time": departure,
+            "arrival_time": trip.get("arrival_datetime"),
             "boarding_point": booking.boarding_point,
             "dropping_point": booking.dropping_point,
             "operator_name": trip.get("operator_name") or "BusGo operator",
             "bus_type": trip.get("bus_type") or "Bus",
+            "bus_registration_no": trip.get("bus_registration_no"),
+            "journey_id": str(booking.journey_id) if booking.journey_id else None,
+            "leg_number": booking.leg_number,
         },
     }

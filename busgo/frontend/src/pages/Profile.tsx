@@ -21,6 +21,20 @@ interface Booking {
   status: "upcoming" | "completed" | "cancelled" | "expired" | "payment_pending";
   ticketId: string;
   tripId: string;
+  isTransit?: boolean;
+  journeyId?: string;
+  legs?: Array<{
+    leg_number: number;
+    booking_id: string;
+    trip_id: string;
+    operator_name: string;
+    bus_registration_no?: string | null;
+    origin_city: string;
+    destination_city: string;
+    journey_date: string;
+    departure_time: string;
+    seat_numbers: string[];
+  }>;
 }
 
 interface Payment {
@@ -84,6 +98,14 @@ const formatTime = (timeStr: string) => {
   } catch {
     return timeStr;
   }
+};
+
+const mapBookingStatus = (status: string, journeyDate?: string): Booking["status"] => {
+  if (status === "COMPLETED") return "completed";
+  if (status === "CANCELLED" || status === "REFUNDED") return "cancelled";
+  if (status === "EXPIRED") return "expired";
+  if (status === "CONFIRMED") return journeyDate && new Date(journeyDate) < new Date() ? "completed" : "upcoming";
+  return "payment_pending";
 };
 
 export function Profile() {
@@ -193,19 +215,14 @@ export function Profile() {
       try {
         setLoading(true);
         
-        // Fetch Bookings
-        const bookingsRes = await apiClient.get("/api/bookings/my");
+        // Fetch direct bookings and grouped connecting journeys together.
+        const [bookingsRes, journeysRes] = await Promise.all([
+          apiClient.get("/api/bookings/my"),
+          apiClient.get("/api/bookings/journeys/my").catch(() => ({ data: { success: false, data: [] } })),
+        ]);
         let fetchedBookings: Booking[] = [];
         if (bookingsRes.data?.success && Array.isArray(bookingsRes.data.data)) {
-          fetchedBookings = bookingsRes.data.data.map((b: any) => {
-            let mappedStatus: Booking["status"] = "payment_pending";
-            if (b.status === "COMPLETED") mappedStatus = "completed";
-            else if (b.status === "CANCELLED" || b.status === "REFUNDED") mappedStatus = "cancelled";
-            else if (b.status === "EXPIRED") mappedStatus = "expired";
-            else if (new Date(b.journey_date) < new Date() && b.status === "CONFIRMED") mappedStatus = "completed";
-            else if (b.status === "CONFIRMED") mappedStatus = "upcoming";
-
-            return {
+          fetchedBookings = bookingsRes.data.data.filter((b: any) => !b.journey_id).map((b: any) => ({
               id: b.id,
               operator: b.operator_name || "Unknown Operator",
               from: b.boarding_point || "Dhaka",
@@ -214,13 +231,36 @@ export function Profile() {
               departure: b.departure_time || "N/A",
               seats: b.seat_numbers || [],
               total: b.total_fare || 0,
-              status: mappedStatus,
+              status: mapBookingStatus(b.status, b.journey_date),
               ticketId: b.id.split("-")[0].toUpperCase(),
               tripId: b.trip_id,
+            }));
+        }
+        if (journeysRes.data?.success && Array.isArray(journeysRes.data.data)) {
+          const journeyBookings: Booking[] = journeysRes.data.data.map((journey: any) => {
+            const legs = journey.legs || [];
+            const firstLeg = legs[0] || {};
+            const operators = Array.from(new Set(legs.map((leg: any) => leg.operator_name).filter(Boolean)));
+            return {
+              id: firstLeg.booking_id || journey.journey_id,
+              operator: operators.length === 1 ? String(operators[0]) : `${operators.length} connecting operators`,
+              from: journey.origin,
+              to: journey.destination,
+              date: firstLeg.journey_date || "N/A",
+              departure: firstLeg.departure_time || "N/A",
+              seats: legs.flatMap((leg: any) => leg.seat_numbers || []),
+              total: Number(journey.final_fare || 0),
+              status: mapBookingStatus(journey.status, firstLeg.journey_date),
+              ticketId: `JRN-${journey.journey_id.split("-")[0].toUpperCase()}`,
+              tripId: firstLeg.trip_id || "",
+              isTransit: true,
+              journeyId: journey.journey_id,
+              legs,
             };
           });
-          setBookings(fetchedBookings);
+          fetchedBookings = [...journeyBookings, ...fetchedBookings];
         }
+        setBookings(fetchedBookings);
 
         // Fetch Payments
         let fetchedPayments: Payment[] = [];
@@ -505,6 +545,7 @@ export function Profile() {
                         {/* Trip / Operator column */}
                         <div className="col-span-12 md:col-span-3">
                           <h4 className="font-bold text-surface-900 text-sm">{booking.operator}</h4>
+                          {booking.isTransit && <p className="text-[11px] font-semibold text-brand-600 mt-0.5">Transit journey · {booking.legs?.length} buses · one payment</p>}
                           <div className="flex items-center gap-2 mt-1">
                             <span className={`badge ${
                               booking.status === "upcoming" ? "badge-info"
@@ -521,8 +562,9 @@ export function Profile() {
                         {/* Route Info */}
                         <div className="col-span-12 md:col-span-4 flex items-center gap-2.5">
                           <div>
-                            <p className="text-xs text-surface-500 font-medium">Boarding: <span className="font-bold text-surface-800">{booking.from}</span></p>
-                            <p className="text-xs text-surface-500 font-medium mt-0.5">Dropping: <span className="font-bold text-surface-800">{booking.to}</span></p>
+                            <p className="text-xs text-surface-500 font-medium">{booking.isTransit ? "Journey from" : "Boarding"}: <span className="font-bold text-surface-800">{booking.from}</span></p>
+                            <p className="text-xs text-surface-500 font-medium mt-0.5">{booking.isTransit ? "Final stop" : "Dropping"}: <span className="font-bold text-surface-800">{booking.to}</span></p>
+                            {booking.isTransit && <p className="text-[10px] text-amber-700 font-semibold mt-1">Change at {booking.legs?.slice(0, -1).map((leg) => leg.destination_city).join(" · ")}</p>}
                             <p className="text-[10px] text-brand-600 font-bold mt-1 bg-brand-50 px-1.5 py-0.5 rounded inline-block">
                               {formatDate(booking.date)} • {formatTime(booking.departure)}
                             </p>
@@ -531,8 +573,14 @@ export function Profile() {
 
                         {/* Seats */}
                         <div className="col-span-12 md:col-span-2">
-                          <p className="text-sm font-bold text-surface-800">{booking.seats.join(", ")}</p>
-                          <p className="text-[10px] text-surface-400 font-medium uppercase">{booking.seats.length} {booking.seats.length === 1 ? "Seat" : "Seats"}</p>
+                          {booking.isTransit ? (
+                            <div className="space-y-1">
+                              {booking.legs?.map((leg) => <p key={leg.booking_id} className="text-xs font-bold text-surface-800"><span className="text-brand-600">Bus {leg.leg_number}:</span> {leg.seat_numbers.join(", ")}</p>)}
+                              <p className="text-[10px] text-surface-400 font-medium uppercase">Separate seat per bus</p>
+                            </div>
+                          ) : (
+                            <><p className="text-sm font-bold text-surface-800">{booking.seats.join(", ")}</p><p className="text-[10px] text-surface-400 font-medium uppercase">{booking.seats.length} {booking.seats.length === 1 ? "Seat" : "Seats"}</p></>
+                          )}
                         </div>
 
                         {/* Fare */}
@@ -545,14 +593,14 @@ export function Profile() {
                         <div className="col-span-12 md:col-span-1.5 flex justify-end">
                           {(booking.status === "upcoming" || booking.status === "completed") ? (
                             <button
-                              onClick={() => navigate(`/booking/confirmation/${booking.id}`)}
+                              onClick={() => navigate(`/booking/confirmation/${booking.id}${booking.journeyId ? `?journeyId=${booking.journeyId}` : ""}`, { state: booking.journeyId ? { isTransit: true, journeyId: booking.journeyId } : undefined })}
                               className="bg-brand-600 hover:bg-brand-700 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 shadow-sm hover:shadow cursor-pointer"
                             >
                               Ticket <ChevronRight className="h-3 w-3" />
                             </button>
                           ) : booking.status === "payment_pending" ? (
                             <button
-                              onClick={() => navigate(`/booking/payment/${booking.id}`, { state: { trip_id: booking.tripId, totalFare: booking.total } })}
+                              onClick={() => navigate(`/booking/payment/${booking.id}`, { state: booking.isTransit ? { isTransit: true, journeyId: booking.journeyId, journeyTotal: booking.total, legs: booking.legs, origin: booking.from, destination: booking.to } : { trip_id: booking.tripId, totalFare: booking.total } })}
                               className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-1.5 px-3 rounded-lg text-xs flex items-center gap-1 transition-all active:scale-95 cursor-pointer"
                             >
                               Pay now <ChevronRight className="h-3 w-3" />
