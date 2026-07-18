@@ -1,170 +1,66 @@
-import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
-import { Badge, Button, Card, Empty, Loading, Row } from '../components/ui';
+import { Badge, Button, Card, Empty, ErrorState, Loading, Row } from '../components/ui';
 import { colors } from '../theme';
+import { money, shortDate, shortTime } from '../utils/format';
 import { DirectTrip, Itinerary, ScreenProps } from '../nav';
-
-function timeOf(iso: string): string {
-  try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return iso;
-  }
-}
 
 export default function ResultsScreen({ route, navigation }: ScreenProps<'Results'>) {
   const { origin, destination, date } = route.params;
   const [trips, setTrips] = useState<DirectTrip[]>([]);
-  const [itins, setItins] = useState<Itinerary[]>([]);
+  const [itineraries, setItineraries] = useState<Itinerary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      const direct = api
-        .get(`/api/operators/trips/?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${date}T00:00:00`)
-        .then((r) => (r.data || []) as DirectTrip[])
-        .catch(() => [] as DirectTrip[]);
-      const transit = api
-        .get(`/api/transit/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&journey_date=${date}`)
-        .then((r) => ((r.data?.itineraries || []) as Itinerary[]).filter((it) => it.leg_count > 1))
-        .catch(() => [] as Itinerary[]);
-      const [d, t] = await Promise.all([direct, transit]);
-      setTrips(d);
-      setItins(t);
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const [direct, transit] = await Promise.all([
+        api.get(`/api/operators/trips/?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&date=${date}T00:00:00`),
+        api.get(`/api/transit/search?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&journey_date=${date}`),
+      ]);
+      const directTrips = ((direct.data || []) as DirectTrip[])
+        .filter((trip) => String((trip as any).status || 'SCHEDULED').toUpperCase() === 'SCHEDULED')
+        .sort((a, b) => new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime());
+      const transitTrips = ((transit.data?.itineraries || []) as Itinerary[]).filter((item) => item.leg_count > 1);
+      setTrips(directTrips);
+      setItineraries(transitTrips);
+    } catch (reason: any) {
+      setError(reason.message || 'Could not search buses.');
+    } finally {
       setLoading(false);
-    })();
+      setRefreshing(false);
+    }
   }, [origin, destination, date]);
 
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={styles.routeTitle}>
-        {origin} → {destination}
-      </Text>
-      <Text style={{ color: colors.subtext, marginBottom: 14 }}>{date}</Text>
+  useEffect(() => { setLoading(true); load(); }, [load]);
 
-      {loading && <Loading label="Searching direct buses and connections…" />}
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+    <Text style={styles.routeTitle}>{origin} → {destination}</Text>
+    <Text style={{ color: colors.subtext, marginBottom: 14 }}>{shortDate(date)} · {trips.length + itineraries.length} options</Text>
+    {loading ? <Loading label="Searching buses and connections…" /> : error ? <ErrorState title="Search unavailable" message={error} onRetry={() => { setLoading(true); load(); }} /> : null}
+    {!loading && !error && !trips.length && !itineraries.length ? <Empty title="No buses found" subtitle="Try another date or route. Operators may not have published future schedules yet." /> : null}
 
-      {!loading && trips.length === 0 && itins.length === 0 && (
-        <Empty title="No buses found" subtitle="Try a different date, or another route." />
-      )}
+    {!loading && !error && itineraries.length > 0 ? <>
+      <Text style={styles.section}>Connecting journeys</Text>
+      {itineraries.map((item) => <Card key={item.itinerary_id} style={{ marginBottom: 12 }}>
+        <Row style={{ justifyContent: 'space-between', marginBottom: 10 }}><Badge tone={item.source === 'operator' ? 'primary' : 'info'} text={item.source === 'operator' ? 'Operator-guaranteed' : 'BusGo connection'} /><Text style={{ fontSize: 11, color: colors.subtext }}>{Math.floor(item.total_duration_minutes / 60)}h {item.total_duration_minutes % 60}m</Text></Row>
+        {item.legs.map((leg, index) => <View key={leg.trip_id}>
+          <Row style={{ alignItems: 'flex-start', gap: 9 }}><Ionicons name="bus-outline" size={19} color={colors.primary} /><View style={{ flex: 1 }}><Text style={{ fontWeight: '800', color: colors.text }}>{leg.origin_city} → {leg.destination_city}</Text><Text style={{ fontSize: 12, color: colors.subtext }}>{leg.operator_name || leg.bus_registration_no || `Bus ${index + 1}`} · {shortTime(leg.departure_datetime)}–{shortTime(leg.arrival_datetime)}</Text></View><Text style={{ fontWeight: '700', color: colors.text }}>{money(leg.fare_amount)}</Text></Row>
+          {index < item.legs.length - 1 && item.transfers[index] ? <View style={styles.transfer}><Ionicons name="time-outline" size={14} color={colors.warn} /><Text style={{ fontSize: 11, color: colors.warn, fontWeight: '700' }}>Change at {item.transfers[index].city} · {item.transfers[index].wait_minutes} min</Text></View> : null}
+        </View>)}
+        <Row style={styles.totalRow}><View><Row style={{ gap: 6 }}>{item.operator_discount_amount > 0 ? <Text style={{ color: colors.faint, textDecorationLine: 'line-through' }}>{money(item.total_fare)}</Text> : null}<Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>{money(item.final_fare)}</Text></Row><Text style={{ fontSize: 11, color: colors.subtext }}>per passenger · {item.leg_count} buses</Text></View><Button title="Select" onPress={() => navigation.navigate('TransitSeats', { itinerary: item, origin, destination, date })} style={{ paddingHorizontal: 20 }} /></Row>
+      </Card>)}
+    </> : null}
 
-      {/* Connecting journeys */}
-      {!loading && itins.length > 0 && (
-        <>
-          {trips.length === 0 && (
-            <Card style={{ backgroundColor: colors.infoSoft, borderColor: '#bfdbfe', marginBottom: 12 }}>
-              <Text style={{ color: colors.info, fontSize: 13, fontWeight: '600' }}>
-                No direct bus — here are connecting options where you change buses along the way.
-              </Text>
-            </Card>
-          )}
-          <Text style={styles.section}>🔀 Connecting journeys</Text>
-          {itins.map((it) => (
-            <Card key={it.itinerary_id} style={{ marginBottom: 12 }}>
-              {it.source === 'operator' && (
-                <View style={{ marginBottom: 8 }}>
-                  <Badge tone="primary" text={`★ Operator service — guaranteed connection`} />
-                  {it.transit_route_name ? (
-                    <Text style={{ fontSize: 11, color: colors.subtext, marginTop: 3 }}>{it.transit_route_name}</Text>
-                  ) : null}
-                </View>
-              )}
-              {it.legs.map((leg, i) => (
-                <View key={leg.leg_number}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '800', color: colors.text }}>
-                        🚌 {leg.origin_city} → {leg.destination_city}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: colors.subtext }}>
-                        {leg.bus_registration_no ? `Bus ${i + 1}: ${leg.bus_registration_no}` : (leg.operator_name || 'Operator')} · {timeOf(leg.departure_datetime)}–{timeOf(leg.arrival_datetime)}
-                      </Text>
-                    </View>
-                    <Text style={{ fontWeight: '700', color: colors.text }}>৳{leg.fare_amount}</Text>
-                  </Row>
-                  {i < it.legs.length - 1 && it.transfers[i] && (
-                    <View style={styles.transfer}>
-                      <Text style={{ fontSize: 11, color: colors.warn, fontWeight: '700' }}>
-                        ⏱ Change at {it.transfers[i].city} · wait {it.transfers[i].wait_minutes} min
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-              <Row style={{ justifyContent: 'space-between', marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 }}>
-                <View>
-                  <Row style={{ gap: 6 }}>
-                    {it.operator_discount_amount > 0 && (
-                      <Text style={{ color: colors.faint, textDecorationLine: 'line-through' }}>৳{it.total_fare}</Text>
-                    )}
-                    <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{it.final_fare}</Text>
-                  </Row>
-                  <Text style={{ fontSize: 11, color: colors.subtext }}>
-                    through fare per passenger · {it.leg_count} buses · {Math.floor(it.total_duration_minutes / 60)}h {it.total_duration_minutes % 60}m
-                  </Text>
-                </View>
-                <Button
-                  title="Book journey"
-                  onPress={() => navigation.navigate('TransitSeats', { itinerary: it, origin, destination, date })}
-                  style={{ paddingHorizontal: 18, paddingVertical: 10 }}
-                />
-              </Row>
-            </Card>
-          ))}
-        </>
-      )}
-
-      {/* Direct buses */}
-      {!loading && trips.length > 0 && (
-        <>
-          <Text style={styles.section}>🚌 Direct buses</Text>
-          {trips.map((t, i) => {
-            const id = (t.trip_id || t.id) as string;
-            return (
-              <Pressable key={id + i} onPress={() => navigation.navigate('Seats', { trip: t, origin, destination, date })}>
-                <Card style={{ marginBottom: 12 }}>
-                  <Row style={{ justifyContent: 'space-between' }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '800', fontSize: 15, color: colors.text }}>
-                        {t.operator_name || 'Operator'}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 2 }}>
-                        {timeOf(t.departure_datetime)} → {timeOf(t.arrival_datetime)}
-                        {t.bus_type ? ` · ${t.bus_type}` : ''}
-                      </Text>
-                      {typeof t.available_seats === 'number' && (
-                        <Text style={{ fontSize: 11, color: colors.success, marginTop: 2 }}>
-                          {t.available_seats} seats left
-                        </Text>
-                      )}
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{t.fare_amount}</Text>
-                      <Text style={{ fontSize: 11, color: colors.faint }}>per seat</Text>
-                    </View>
-                  </Row>
-                </Card>
-              </Pressable>
-            );
-          })}
-        </>
-      )}
-    </ScrollView>
-  );
+    {!loading && !error && trips.length > 0 ? <>
+      <Text style={styles.section}>Direct buses</Text>
+      {trips.map((trip, index) => { const id = (trip.trip_id || trip.id) as string; return <Card key={`${id}-${index}`} style={{ marginBottom: 12 }}><Row style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}><View style={{ flex: 1, marginRight: 10 }}><Text style={{ fontWeight: '800', fontSize: 15, color: colors.text }}>{trip.operator_name || 'Bus operator'}</Text><Text style={{ fontSize: 13, color: colors.subtext, marginTop: 3 }}>{shortTime(trip.departure_datetime)} → {shortTime(trip.arrival_datetime)}{trip.bus_type ? ` · ${trip.bus_type}` : ''}</Text>{typeof trip.available_seats === 'number' ? <Text style={{ fontSize: 11, color: trip.available_seats < 6 ? colors.warn : colors.success, marginTop: 3 }}>{trip.available_seats} seats available</Text> : null}</View><View style={{ alignItems: 'flex-end' }}><Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>{money(trip.fare_amount)}</Text><Text style={{ fontSize: 10, color: colors.faint }}>per seat</Text></View></Row><Button title="Choose seats" variant="outline" onPress={() => navigation.navigate('Seats', { trip, origin, destination, date })} style={{ marginTop: 12 }} /></Card>; })}
+    </> : null}
+  </ScrollView>;
 }
 
-const styles = StyleSheet.create({
-  routeTitle: { fontSize: 22, fontWeight: '900', color: colors.text },
-  section: { fontWeight: '800', fontSize: 15, color: colors.text, marginBottom: 10, marginTop: 6 },
-  transfer: {
-    backgroundColor: colors.warnSoft,
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    marginVertical: 8,
-    marginLeft: 18,
-  },
-});
+const styles = StyleSheet.create({ routeTitle: { fontSize: 22, fontWeight: '900', color: colors.text }, section: { fontWeight: '900', fontSize: 16, color: colors.text, marginBottom: 10, marginTop: 8 }, transfer: { flexDirection: 'row', gap: 5, alignItems: 'center', backgroundColor: colors.warnSoft, alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4, marginVertical: 9, marginLeft: 28 }, totalRow: { justifyContent: 'space-between', marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 } });

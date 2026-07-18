@@ -12,10 +12,12 @@
       "resizeMode": "contain"
     },
     "android": {
-      "package": "com.busgo.mobile"
+      "package": "com.busgo.mobile",
+      "versionCode": 1
     },
     "ios": {
-      "bundleIdentifier": "com.busgo.mobile"
+      "bundleIdentifier": "com.busgo.mobile",
+      "buildNumber": "1"
     },
     "extra": {
       "kongPort": 18085
@@ -29,7 +31,9 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ]
   }
 }

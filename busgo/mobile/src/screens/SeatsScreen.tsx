@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, ScrollView, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Modal, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api/client';
 import { SeatCell, SeatGrid, SeatLegend, toSeatCells } from '../components/SeatGrid';
-import { Button, Card, Loading, Row } from '../components/ui';
+import { Button, Card, ErrorState, Loading, Row } from '../components/ui';
 import { colors } from '../theme';
+import { money, shortDate } from '../utils/format';
 import { ScreenProps } from '../nav';
 
 const MAX_SEATS = 4;
@@ -15,82 +17,49 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
   const [seats, setSeats] = useState<SeatCell[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const boardingPoints = trip.boarding_points?.length ? trip.boarding_points : [{ name: origin }];
+  const droppingPoints = trip.dropping_points?.length ? trip.dropping_points : [{ name: destination }];
+  const [boardingPoint, setBoardingPoint] = useState(boardingPoints[0].name);
+  const [droppingPoint, setDroppingPoint] = useState(droppingPoints[0].name);
+  const [selecting, setSelecting] = useState<'boarding' | 'dropping' | null>(null);
 
-  useEffect(() => {
-    api
-      .get(`/api/inventory/trips/${tripId}/seats?_t=${Date.now()}`)
-      .then((r) => setSeats(toSeatCells(r.data || [])))
-      .catch(() => setSeats(toSeatCells([])))
-      .finally(() => setLoading(false));
+  const load = useCallback(async () => {
+    setError('');
+    try {
+      const response = await api.get(`/api/inventory/trips/${tripId}/seats?_t=${Date.now()}`);
+      if (!Array.isArray(response.data) || !response.data.length) throw new Error('The operator has not published a seat layout for this bus.');
+      const next = toSeatCells(response.data);
+      setSeats(next);
+      setSelected((current) => current.filter((id) => next.some((seat) => seat.id === id && !seat.taken)));
+    } catch (reason: any) { setError(reason.message || 'Could not load the current seat map.'); }
+    finally { setLoading(false); setRefreshing(false); }
   }, [tripId]);
 
-  const toggle = (id: string) => {
-    setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((s) => s !== id);
-      if (prev.length >= MAX_SEATS) {
-        Alert.alert('Limit reached', `Maximum ${MAX_SEATS} seats per booking.`);
-        return prev;
-      }
-      return [...prev, id];
-    });
-  };
+  useEffect(() => { load(); }, [load]);
+  const toggle = (id: string) => setSelected((current) => {
+    if (current.includes(id)) return current.filter((seat) => seat !== id);
+    if (current.length >= MAX_SEATS) { Alert.alert('Seat limit', `You can book up to ${MAX_SEATS} seats at once.`); return current; }
+    return [...current, id];
+  });
+  const seatFare = selected.length * Number(trip.fare_amount);
+  const total = seatFare + (selected.length ? SERVICE_FEE : 0);
 
-  const total = selected.length * Number(trip.fare_amount) + (selected.length ? SERVICE_FEE : 0);
-
-  return (
-    <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16 }}>
-      <Card style={{ marginBottom: 14 }}>
-        <Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>
-          {trip.operator_name || 'Operator'}
-        </Text>
-        <Text style={{ color: colors.subtext, fontSize: 13 }}>
-          {origin} → {destination} · {date} · ৳{trip.fare_amount}/seat
-        </Text>
-      </Card>
-
-      {loading ? (
-        <Loading label="Loading seat map…" />
-      ) : (
-        <>
-          <SeatLegend />
-          <SeatGrid seats={seats} selected={selected} onToggle={toggle} />
-        </>
-      )}
-
-      <Card style={{ marginTop: 16 }}>
-        <Row style={{ justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={{ color: colors.subtext }}>Seats ({selected.length})</Text>
-          <Text style={{ fontWeight: '700', color: colors.text }}>
-            {selected.length ? selected.join(', ') : '—'}
-          </Text>
-        </Row>
-        <Row style={{ justifyContent: 'space-between', marginBottom: 4 }}>
-          <Text style={{ color: colors.subtext }}>Service fee</Text>
-          <Text style={{ fontWeight: '700', color: colors.text }}>৳{selected.length ? SERVICE_FEE : 0}</Text>
-        </Row>
-        <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 4 }}>
-          <Text style={{ fontWeight: '800', color: colors.text }}>Total</Text>
-          <Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>৳{total}</Text>
-        </Row>
-        <Button
-          title="Continue"
-          disabled={selected.length === 0}
-          onPress={() =>
-            navigation.navigate('Passenger', {
-              mode: 'direct',
-              trip,
-              seats: selected,
-              origin,
-              destination,
-              date,
-            })
-          }
-          style={{ marginTop: 12 }}
-        />
-        <Text style={{ fontSize: 11, color: colors.faint, textAlign: 'center', marginTop: 8 }}>
-          Seats are held for 10 minutes once you continue to payment.
-        </Text>
-      </Card>
-    </ScrollView>
-  );
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
+    <Card style={{ marginBottom: 14 }}><Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>{trip.operator_name || 'Bus operator'}</Text><Text style={{ color: colors.subtext, fontSize: 13 }}>{origin} → {destination} · {shortDate(date)} · {money(trip.fare_amount)}/seat</Text></Card>
+    {loading ? <Loading label="Loading live seat map…" /> : error ? <ErrorState title="Seat map unavailable" message={error} onRetry={() => { setLoading(true); load(); }} /> : <><SeatLegend /><SeatGrid seats={seats} selected={selected} onToggle={toggle} /></>}
+    {!loading && !error ? <Card style={{ marginTop: 16 }}>
+      <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 8 }}>Pickup and drop-off</Text>
+      <Pressable onPress={() => setSelecting('boarding')} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 8 }}><Text style={{ color: colors.faint, fontSize: 11 }}>BOARDING POINT</Text><Row style={{ justifyContent: 'space-between', marginTop: 3 }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }}>{boardingPoint}</Text><Ionicons name="chevron-down" size={18} color={colors.subtext} /></Row></Pressable>
+      <Pressable onPress={() => setSelecting('dropping')} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12, marginBottom: 14 }}><Text style={{ color: colors.faint, fontSize: 11 }}>DROPPING POINT</Text><Row style={{ justifyContent: 'space-between', marginTop: 3 }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }}>{droppingPoint}</Text><Ionicons name="chevron-down" size={18} color={colors.subtext} /></Row></Pressable>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Selected ({selected.length})</Text><Text style={{ fontWeight: '700', color: colors.text }}>{selected.length ? selected.join(', ') : 'None'}</Text></Row>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Seat fare</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(seatFare)}</Text></Row>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Service fee</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(selected.length ? SERVICE_FEE : 0)}</Text></Row>
+      <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 9 }}><Text style={{ fontWeight: '800', color: colors.text }}>Total</Text><Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>{money(total)}</Text></Row>
+      <Button title="Passenger details" disabled={!selected.length} onPress={() => navigation.navigate('Passenger', { mode: 'direct', trip, seats: selected, boardingPoint, droppingPoint, origin, destination, date })} style={{ marginTop: 12 }} />
+      <Text style={{ fontSize: 11, color: colors.faint, textAlign: 'center', marginTop: 8 }}>Seats are checked again and held when you continue to payment.</Text>
+    </Card> : null}
+    <Modal visible={!!selecting} transparent animationType="fade" onRequestClose={() => setSelecting(null)}><Pressable onPress={() => setSelecting(null)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' }}><Pressable onPress={() => {}} style={{ backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, maxHeight: '70%' }}><Row style={{ justifyContent: 'space-between', marginBottom: 12 }}><Text style={{ fontSize: 18, fontWeight: '900', color: colors.text }}>Select {selecting === 'boarding' ? 'boarding' : 'dropping'} point</Text><Pressable onPress={() => setSelecting(null)}><Ionicons name="close" size={24} color={colors.text} /></Pressable></Row><ScrollView>{(selecting === 'boarding' ? boardingPoints : droppingPoints).map((point, index) => <Pressable key={`${point.name}-${index}`} onPress={() => { if (selecting === 'boarding') setBoardingPoint(point.name); else setDroppingPoint(point.name); setSelecting(null); }} style={{ paddingVertical: 13, borderBottomWidth: index === (selecting === 'boarding' ? boardingPoints : droppingPoints).length - 1 ? 0 : 1, borderBottomColor: colors.border }}><Text style={{ color: colors.text, fontWeight: '800' }}>{point.name}</Text>{point.address ? <Text style={{ color: colors.subtext, fontSize: 12, marginTop: 2 }}>{point.address}</Text> : null}</Pressable>)}</ScrollView></Pressable></Pressable></Modal>
+  </ScrollView>;
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { api } from '../api/client';
 import { SeatCell, SeatGrid, SeatLegend, toSeatCells } from '../components/SeatGrid';
-import { Button, Card, Loading, Row } from '../components/ui';
+import { Button, Card, ErrorState, Loading, Row } from '../components/ui';
 import { colors, radius } from '../theme';
 import { ScreenProps } from '../nav';
 
@@ -16,14 +16,26 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
   const [seats, setSeats] = useState<SeatCell[]>([]);
   const [selectedByLeg, setSelectedByLeg] = useState<string[][]>(legs.map(() => []));
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!started) return;
     setLoading(true);
+    setError('');
     api
       .get(`/api/inventory/trips/${legs[step].trip_id}/seats?_t=${Date.now()}`)
-      .then((r) => setSeats(toSeatCells(r.data || [])))
-      .catch(() => setSeats(toSeatCells([])))
+      .then((r) => {
+        if (!Array.isArray(r.data) || !r.data.length) throw new Error('This bus has no published seat layout.');
+        const nextSeats = toSeatCells(r.data);
+        setSeats(nextSeats);
+        setSelectedByLeg((current) => current.map((selection, index) => index === step
+          ? selection.filter((id) => nextSeats.some((seat) => seat.id === id && !seat.taken))
+          : selection));
+      })
+      .catch((reason) => {
+        setSeats([]);
+        setError(reason.message || 'Could not load this bus seat map.');
+      })
       .finally(() => setLoading(false));
   }, [started, step]);
 
@@ -139,6 +151,11 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
 
       {loading ? (
         <Loading label="Loading seat map…" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => {
+          setStarted(false);
+          setTimeout(() => setStarted(true), 0);
+        }} />
       ) : (
         <>
           <SeatLegend />

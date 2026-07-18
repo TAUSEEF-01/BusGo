@@ -9,6 +9,9 @@ import os
 from core.config import settings
 from database import async_session
 from models.models import Booking, BookingStatusHistory, Journey
+from services.external import ExternalServices
+from services.ticket_events import build_ticket_event
+from services.travel_records import record_travel
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.enums import BookingStatus
@@ -63,16 +66,20 @@ class BookingKafkaConsumer:
                     db.add(history)
                     await db.commit()
 
+                    if booking.promo_code:
+                        await ExternalServices.consume_promo(booking.promo_code, str(booking.user_id))
+                    try:
+                        await ExternalServices.confirm_seats(
+                            str(booking.trip_id), booking.seat_numbers,
+                            str(booking.id), str(booking.user_id),
+                        )
+                    except Exception as e:
+                        print(f"Failed to confirm inventory for booking {booking.id}: {e}")
+
                     # Track the journey in the user's travel record (idempotent).
-                    from services.travel_records import record_travel
                     await record_travel(db, booking)
 
-                    # Publish ticket.issued
-                    await KafkaProducerClient.publish("ticket.issued", {
-                        "booking_id": str(booking.id),
-                        "user_id": str(booking.user_id),
-                        "trip_id": str(booking.trip_id)
-                    })
+                    await KafkaProducerClient.publish("ticket.issued", await build_ticket_event(booking))
 
             elif topic == "seat.lock.expired":
                 if booking.status == BookingStatus.SEAT_LOCKED:
@@ -106,9 +113,42 @@ class BookingKafkaConsumer:
         journey = (await db.execute(select(Journey).where(Journey.id == journey_id))).scalars().first()
         if not journey:
             return
-        if topic != "payment.failed":
+        if topic == "payment.completed":
+            if journey.status not in (BookingStatus.SEAT_LOCKED, BookingStatus.PAYMENT_PENDING):
+                return
+            journey.status = BookingStatus.CONFIRMED
+            journey.payment_id = message.get("payment_id")
+            legs = (await db.execute(
+                select(Booking).where(Booking.journey_id == journey.id).order_by(Booking.leg_number)
+            )).scalars().all()
+            for leg in legs:
+                previous = leg.status
+                leg.status = BookingStatus.CONFIRMED
+                leg.payment_id = message.get("payment_id")
+                db.add(BookingStatusHistory(
+                    booking_id=leg.id, from_status=previous,
+                    to_status=BookingStatus.CONFIRMED,
+                    reason="Journey payment completed",
+                ))
+            await db.commit()
+
+            if journey.promo_code:
+                await ExternalServices.consume_promo(journey.promo_code, str(journey.user_id))
+            for leg in legs:
+                try:
+                    await ExternalServices.confirm_seats(
+                        str(leg.trip_id), leg.seat_numbers,
+                        str(leg.id), str(leg.user_id),
+                    )
+                except Exception as e:
+                    print(f"Failed to confirm inventory for journey leg {leg.id}: {e}")
+                await record_travel(db, leg)
+                await KafkaProducerClient.publish("ticket.issued", await build_ticket_event(leg))
             return
-        if journey.status not in (BookingStatus.SEAT_LOCKED, BookingStatus.PAYMENT_PENDING):
+
+        if topic != "payment.failed" or journey.status not in (
+            BookingStatus.SEAT_LOCKED, BookingStatus.PAYMENT_PENDING
+        ):
             return
 
         journey.status = BookingStatus.EXPIRED

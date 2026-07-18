@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from uuid import UUID
 from datetime import datetime
 
@@ -14,7 +14,7 @@ class TicketResponse(BaseModel):
     user_id: UUID
     trip_id: UUID
     seat_numbers: List[str]
-    passenger_details: Dict[str, Any]
+    passenger_details: Union[List[Dict[str, Any]], Dict[str, Any]]
     qr_code_url: Optional[str]
     pdf_url: Optional[str]
     status: TicketStatus
@@ -31,6 +31,6 @@ class ValidateQRRequest(BaseModel):
 class ValidateQRResponse(BaseModel):
     valid: bool
     message: str
-    passenger_details: Optional[Dict[str, Any]] = None
+    passenger_details: Optional[Union[List[Dict[str, Any]], Dict[str, Any]]] = None
     seat_numbers: Optional[List[str]] = None
     trip_id: Optional[UUID] = None

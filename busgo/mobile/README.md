@@ -1,73 +1,69 @@
-# BusGo Mobile (customer app)
+# BusGo Mobile
 
-A React Native (Expo) app for **customers**: search buses (direct **and**
-multi-leg transit journeys), pick seats, pay once, get a ticket per bus, view
-bookings/tickets, deals, and notifications. It talks to the same backend as the
-web app through the Kong gateway.
+The Expo/React Native passenger application for BusGo. It uses the same
+microservices and database as the web application through the Kong gateway.
 
-## Prerequisites
-- Node.js 20.19.4+ on your PC
-- The BusGo stack running: `cd busgo/infrastructure && docker compose up -d`
-- **Expo Go** app on your phone (Play Store / App Store)
-- Phone and PC on the **same Wi-Fi**
+## Implemented features
 
-## Run it
+- Google authentication with persisted Supabase and BusGo sessions
+- Automatic BusGo access-token renewal and expired-session recovery
+- Searchable city selection and journey-date picker
+- Direct buses and multi-bus transit journey search
+- Live seat maps with stale-seat protection
+- One to four passengers with details collected for every seat
+- Atomic transit booking across every bus
+- Ten-minute seat-hold countdown
+- bKash, Nagad, and linked-bank payment flows
+- Promo codes, active deals, and flash sales
+- Booking history grouped by connecting journey
+- Booking details, cancellation eligibility, cancellation, and refunds
+- QR/PDF e-tickets
+- Notifications with read, read-all, and delete actions
+- Editable profile, travel/payment summary, and account balances
+- Loading, empty, error, retry, and pull-to-refresh states
+
+Operator and administrator management remain in the secured web portals. The
+mobile application is the complete passenger travel experience.
+
+## Requirements
+
+- Node.js 20.19.4 or newer
+- Expo Go compatible with Expo SDK 54, or an Expo development build
+- Google enabled in the project's Supabase Authentication providers
+- The redirect URLs described in `../GOOGLE_AUTH_SETUP.md`
+
+## Configuration
+
+Copy `.env.example` to `.env` and set:
+
+```env
+EXPO_PUBLIC_API_URL=https://busgo.farefin.com
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-publishable-key
+```
+
+For local backend development, set `EXPO_PUBLIC_API_URL` to the computer's LAN
+address, such as `http://192.168.0.42:18085`. The phone and computer must be on
+the same network and the port must be allowed through the firewall.
+
+## Development
 
 ```bash
-cd busgo/mobile
 npm install
-npx expo install --fix     # aligns native package versions with your Expo SDK
-npx expo start
+npm run doctor
+npm run typecheck
+npm start
 ```
 
-Scan the QR code with Expo Go (Android) or the Camera app (iOS).
+Use a development build when testing the stable `busgo://auth/callback` deep
+link. Expo Go uses an `exp://` callback; add the exact development URL to the
+Supabase redirect allow list.
 
-### How the app finds your backend
-In development the app reuses the Expo dev-server host (your PC's LAN IP) and
-talks to Kong at port `18085` — zero config when phone + PC share Wi-Fi.
-
-To override (e.g. different machine or port):
+## Build verification
 
 ```bash
-EXPO_PUBLIC_API_URL=http://192.168.0.42:18085 npx expo start
-# PowerShell:
-$env:EXPO_PUBLIC_API_URL="http://192.168.0.42:18085"; npx expo start
+npm run verify
+npm run export:android
 ```
 
-The Login screen shows the resolved server URL at the bottom.
-
-## Windows Firewall (one-time)
-Your phone must reach port 18085 on the PC. If requests time out, allow it:
-
-```powershell
-netsh advfirewall firewall add rule name="BusGo Kong 18085" dir=in action=allow protocol=TCP localport=18085
-```
-
-## If Expo Go says the SDK doesn't match
-This project intentionally targets Expo SDK 54 so it works with the Expo Go
-version distributed through the Play Store during the SDK 57 transition. Keep
-the SDK-aligned package versions installed and clear Metro's cache:
-
-```bash
-npx expo install --fix
-npx expo start --clear
-```
-
-Do not upgrade this project to SDK 57 unless you also switch to a matching Expo
-Go APK or an Expo development build.
-
-## Demo accounts
-Register directly in the app (accounts are auto-verified in dev), or log in
-with an existing web account (phone + password). Mobile-wallet PIN in the mock
-bank is `1234`.
-
-## What's inside
-- `src/config.ts` – backend URL resolution (LAN auto-detect / env override)
-- `src/api/client.ts` – fetch wrapper: token header, BaseResponse envelope, error normalization
-- `src/store/auth.tsx` – login/register/logout, persisted with AsyncStorage
-- `src/screens/` – Login, Register, Home (search), Results (direct + transit),
-  Seats, TransitSeats (per-bus stepper), Passenger, Payment (bank balances,
-  promo codes, journey pay), Confirmation, Trips (bookings + tickets), Deals,
-  Alerts (notifications), Profile
-- Transit journeys use the same saga endpoints as the web: all buses are locked
-  together; if any leg fails, nothing is booked.
+Production builds can be created with EAS using the profiles in `eas.json`.

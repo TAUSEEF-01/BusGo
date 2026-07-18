@@ -13,7 +13,7 @@ class BookingClient:
 
         try:
             res = await _client.get(
-                f"{settings.BOOKING_SERVICE_URL}/bookings/{booking_id}",
+                f"{settings.BOOKING_SERVICE_URL}/{booking_id}",
                 headers=headers,
                 timeout=5.0
             )

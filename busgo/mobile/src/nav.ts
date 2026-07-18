@@ -45,6 +45,8 @@ export interface DirectTrip {
   fare_amount: number;
   available_seats?: number;
   bus_type?: string;
+  boarding_points?: { name: string; address?: string }[];
+  dropping_points?: { name: string; address?: string }[];
 }
 
 export type RootStackParamList = {
@@ -62,6 +64,8 @@ export type RootStackParamList = {
     // direct
     trip?: DirectTrip;
     seats?: string[];
+    boardingPoint?: string;
+    droppingPoint?: string;
     // transit
     itinerary?: Itinerary;
     seatsByLeg?: string[][];
@@ -71,6 +75,7 @@ export type RootStackParamList = {
     bookingId: string; // first leg's booking for transit
     tripId: string;
     amount: number;
+    expiresAt?: string;
     journeyId?: string;
     legs?: { leg_number: number; boarding_point: string; dropping_point: string; seat_numbers: string[]; fare: number }[];
     origin: string;
@@ -84,6 +89,8 @@ export type RootStackParamList = {
     destination: string;
     amount: number;
   };
+  BookingDetail: { bookingId: string; journeyId?: string | null };
+  TicketDetail: { ticketId: string };
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

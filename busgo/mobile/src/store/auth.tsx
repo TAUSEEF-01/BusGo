@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { makeRedirectUri } from 'expo-auth-session';
 import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as WebBrowser from 'expo-web-browser';
-import { api, REFRESH_TOKEN_KEY, TOKEN_KEY, USER_KEY } from '../api/client';
+import { api, REFRESH_TOKEN_KEY, setUnauthorizedHandler, TOKEN_KEY, USER_KEY } from '../api/client';
 import { requireSupabase, supabase } from '../lib/supabase';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -21,6 +21,7 @@ interface AuthState {
   user: User | null;
   ready: boolean;
   signInWithGoogle: () => Promise<void>;
+  updateProfile: (fullName: string, phone: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -37,11 +38,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           AsyncStorage.getItem(TOKEN_KEY),
           AsyncStorage.getItem(USER_KEY),
         ]);
-        if (token && rawUser) setUser(JSON.parse(rawUser));
+        if (token && rawUser) {
+          const cachedUser = JSON.parse(rawUser) as User;
+          setUser(cachedUser);
+          try {
+            const response = await api.get('/api/auth/me');
+            if (response.data) {
+              await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data));
+              setUser(response.data);
+            }
+          } catch (error: any) {
+            if (error?.status === 401) setUser(null);
+          }
+        }
       } finally {
         setReady(true);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => setUser(null));
+    return () => setUnauthorizedHandler(null);
   }, []);
 
   useEffect(() => {
@@ -117,8 +135,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  const updateProfile = async (fullName: string, phone: string) => {
+    const response = await api.put('/api/auth/me', { full_name: fullName, phone: phone.trim() || null });
+    const nextUser: User = response.data;
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+    setUser(nextUser);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, ready, signInWithGoogle, logout }}>
+    <AuthContext.Provider value={{ user, ready, signInWithGoogle, updateProfile, logout }}>
       {children}
     </AuthContext.Provider>
   );

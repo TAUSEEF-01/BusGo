@@ -11,10 +11,9 @@ import os
 from core.config import settings
 from database import async_session
 from models.models import Ticket
-from services.booking_client import BookingClient
 from services.qr_generator import QRGenerator
 from services.pdf_generator import PDFGenerator
-from services.s3_service import S3Service
+from services.artifact_storage import ArtifactStorage
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from shared.enums import TicketStatus
@@ -25,7 +24,6 @@ class TicketKafkaConsumer:
         self.consumer = AIOKafkaConsumer(
             "ticket.issued",
             "booking.cancelled",
-            "payment.completed", # Listen to either based on arch. Let's process on ticket.issued if booking service emits it, or payment.completed
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="ticket-service-group",
             value_deserializer=lambda m: json.loads(m.decode('utf-8'))
@@ -39,11 +37,11 @@ class TicketKafkaConsumer:
         await self.consumer.stop()
 
     async def consume(self):
-        try:
-            async for msg in self.consumer:
+        async for msg in self.consumer:
+            try:
                 await self.process_message(msg.topic, msg.value)
-        except Exception as e:
-            print(f"Consumer error: {e}")
+            except Exception as e:
+                print(f"Error processing {msg.topic} message: {e}")
 
     def generate_token(self, booking_id: str) -> str:
         # UUID + HMAC signature
@@ -80,23 +78,12 @@ class TicketKafkaConsumer:
 
             print(f"Generating ticket for booking {booking_id}")
             
-            # Fetch full booking details
-            booking_data = await BookingClient.get_booking_details(booking_id)
+            # Booking events carry everything needed to issue a ticket. Never
+            # fabricate ticket ownership or journey data when an event is bad.
+            booking_data = message.get("booking")
             if not booking_data:
-                # Mock data if booking service is not fully reachable
-                booking_data = {
-                    "id": booking_id,
-                    "user_id": str(uuid.uuid4()),
-                    "trip_id": str(uuid.uuid4()),
-                    "seat_numbers": ["A1"],
-                    "passenger_details": {"name": "Test User", "phone": "1234567890"},
-                    "origin": "Dhaka",
-                    "destination": "Chittagong",
-                    "departure_time": "2026-05-01 10:00:00",
-                    "boarding_point": "Gabtoli",
-                    "operator_name": "Mock Travels",
-                    "bus_type": "AC"
-                }
+                print(f"Ticket {booking_id} skipped: booking details are unavailable")
+                return
 
             # 1. Generate unique QR Token
             qr_token = self.generate_token(booking_id)
@@ -107,12 +94,12 @@ class TicketKafkaConsumer:
             # 3. Generate PDF
             pdf_bytes = PDFGenerator.generate_ticket_pdf(booking_data, qr_bytes)
             
-            # 4. Upload to S3
-            qr_key = f"tickets/qr/{booking_id}.png"
-            pdf_key = f"tickets/pdf/{booking_id}.pdf"
-            
-            qr_url = await S3Service.upload_file(qr_bytes, qr_key, 'image/png')
-            pdf_url = await S3Service.upload_file(pdf_bytes, pdf_key, 'application/pdf')
+            # 4. Persist artifacts on the ticket-service volume. Public file
+            # links contain the signed QR token and are validated by the API.
+            await ArtifactStorage.save(qr_bytes, f"{booking_id}.png")
+            await ArtifactStorage.save(pdf_bytes, f"{booking_id}.pdf")
+            qr_url = f"/api/tickets/files/{booking_id}/qr?token={qr_token}"
+            pdf_url = f"/api/tickets/files/{booking_id}/pdf?token={qr_token}"
             
             # 5. Save Ticket Record
             ticket = Ticket(

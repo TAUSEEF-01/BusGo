@@ -182,8 +182,13 @@ async def update_profile(req: UpdateProfileRequest, current_user: User = Depends
             if email_check.scalars().first():
                 raise HTTPException(status_code=400, detail="Email already in use")
             current_user.email = req.email
-    if req.phone is not None:
-        current_user.phone = req.phone
+    if "phone" in req.model_fields_set:
+        normalized_phone = (req.phone or "").strip() or None
+        if normalized_phone != current_user.phone and normalized_phone is not None:
+            phone_check = await db.execute(select(User).where(User.phone == normalized_phone, User.id != current_user.id))
+            if phone_check.scalars().first():
+                raise HTTPException(status_code=400, detail="Phone number is already in use")
+        current_user.phone = normalized_phone
 
     await db.commit()
     await db.refresh(current_user)

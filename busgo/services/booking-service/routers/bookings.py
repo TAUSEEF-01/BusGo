@@ -13,6 +13,7 @@ from api.deps import get_current_user_payload
 from services.redis_svc import RedisIdempotencyService
 from services.external import ExternalServices
 from services.travel_records import record_travel
+from services.ticket_events import build_ticket_event
 
 import sys
 import os
@@ -22,6 +23,18 @@ from shared.enums import BookingStatus
 from shared.kafka_producer import KafkaProducerClient
 
 router = APIRouter(tags=["bookings"])
+SERVICE_FEE = 20.0
+
+
+def _valid_route_point(value: str, city: str, points: list) -> bool:
+    selected = (value or "").strip().lower()
+    allowed = {(city or "").strip().lower()}
+    for point in points or []:
+        if isinstance(point, dict):
+            allowed.add(str(point.get("name", "")).strip().lower())
+            allowed.add(str(point.get("address", "")).strip().lower())
+    allowed.discard("")
+    return selected in allowed
 
 @router.post("/", response_model=BaseResponse)
 async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
@@ -31,6 +44,34 @@ async def create_booking(req: BookingCreate, db: AsyncSession = Depends(get_db),
         return BaseResponse(success=True, data=cached_resp, message="Retrieved from cache")
 
     user_id = payload.get("user_id")
+
+    # Validate all client-supplied booking facts against operator-service. The
+    # mobile/web clients display fares, but they are never trusted as the source
+    # of truth for payment.
+    if not req.seat_numbers or len(req.seat_numbers) > 4:
+        raise HTTPException(status_code=400, detail="Select between 1 and 4 seats")
+    if len(set(req.seat_numbers)) != len(req.seat_numbers):
+        raise HTTPException(status_code=400, detail="Duplicate seats are not allowed")
+    if len(req.passenger_details) != len(req.seat_numbers):
+        raise HTTPException(status_code=400, detail="Enter details for every selected seat")
+    passenger_seats = {passenger.seat for passenger in req.passenger_details}
+    if passenger_seats != set(req.seat_numbers):
+        raise HTTPException(status_code=400, detail="Passenger details do not match the selected seats")
+
+    trip = await ExternalServices.get_trip(str(req.trip_id))
+    if not trip:
+        raise HTTPException(status_code=400, detail="This trip is no longer available")
+    if str(trip.get("status", "")).upper() != "SCHEDULED":
+        raise HTTPException(status_code=400, detail="This trip is not open for booking")
+    if str(trip.get("operator_id")) != str(req.operator_id):
+        raise HTTPException(status_code=400, detail="Operator information changed; refresh the trip")
+    if not _valid_route_point(req.boarding_point, trip.get("origin_city", ""), trip.get("boarding_points", [])) or not _valid_route_point(
+        req.dropping_point, trip.get("destination_city", ""), trip.get("dropping_points", [])
+    ):
+        raise HTTPException(status_code=400, detail="Boarding or destination information changed; refresh the trip")
+    authoritative_total = round(float(trip.get("fare_amount", 0)) * len(req.seat_numbers) + SERVICE_FEE, 2)
+    if abs(float(req.total_fare) - authoritative_total) > 0.01:
+        raise HTTPException(status_code=400, detail="Fare changed; refresh the trip and try again")
 
     # 2. Promo Validation (only honour a valid promo's discount)
     promo_result = await ExternalServices.validate_promo(req.promo_code, req.total_fare, str(req.trip_id), str(user_id))
@@ -262,14 +303,27 @@ async def get_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payl
     return BaseResponse(success=True, data=enriched[0])
 
 @router.post("/{booking_id}/confirm-payment")
-async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(...), db: AsyncSession = Depends(get_db)):
-    # Usually internal or heavily secured, maybe omit payload check for system communication.
-    query = select(Booking).where(Booking.id == booking_id)
+async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(...), db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    query = select(Booking).where(Booking.id == booking_id, Booking.user_id == payload.get("user_id"))
     result = await db.execute(query)
     booking = result.scalars().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
-        
+    if booking.status == BookingStatus.CONFIRMED:
+        if str(booking.payment_id) != str(payment_id):
+            raise HTTPException(status_code=409, detail="Booking was confirmed with another payment")
+        return BaseResponse(success=True, message="Booking already confirmed")
+
+    payment = await ExternalServices.get_payment(str(payment_id))
+    expected_amount = round(float(booking.total_fare) - float(booking.discount_amount or 0), 2)
+    if (
+        str(payment.get("status", "")).upper() != "COMPLETED"
+        or str(payment.get("booking_id")) != str(booking.id)
+        or str(payment.get("user_id")) != str(booking.user_id)
+        or abs(float(payment.get("amount", -1)) - expected_amount) > 0.01
+    ):
+        raise HTTPException(status_code=400, detail="A matching completed payment is required")
+
     old_status = booking.status
     booking.status = BookingStatus.CONFIRMED
     booking.payment_id = payment_id
@@ -303,11 +357,7 @@ async def confirm_payment_internal(booking_id: UUID, payment_id: UUID = Query(..
         import logging
         logging.error(f"Failed to confirm seats in inventory: {str(e)}")
 
-    await KafkaProducerClient.publish("ticket.issued", {
-        "booking_id": str(booking.id),
-        "user_id": str(booking.user_id),
-        "trip_id": str(booking.trip_id)
-    })
+    await KafkaProducerClient.publish("ticket.issued", await build_ticket_event(booking))
     
     return BaseResponse(success=True, message="Booking confirmed")
 

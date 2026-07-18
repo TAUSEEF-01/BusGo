@@ -13,6 +13,22 @@ export class ApiError extends Error {
   }
 }
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 20000): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** BaseResponse envelope used by (almost) every BusGo service. */
 export interface Envelope<T = any> {
   success: boolean;
@@ -21,10 +37,12 @@ export interface Envelope<T = any> {
   errors?: string[] | null;
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+let refreshPromise: Promise<string | null> | null = null;
+
+async function performTokenRefresh(): Promise<string | null> {
   const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
   if (!refreshToken) return null;
-  const res = await fetch(`${API_URL}/api/auth/refresh`, {
+  const res = await fetchWithTimeout(`${API_URL}/api/auth/refresh`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: refreshToken }),
@@ -40,6 +58,13 @@ async function refreshAccessToken(): Promise<string | null> {
   return tokens.access_token;
 }
 
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = performTokenRefresh().finally(() => { refreshPromise = null; });
+  }
+  return refreshPromise;
+}
+
 async function request<T = any>(method: string, path: string, body?: any, mayRetry = true): Promise<T> {
   const token = await AsyncStorage.getItem(TOKEN_KEY);
   const headers: Record<string, string> = { Accept: 'application/json' };
@@ -48,7 +73,7 @@ async function request<T = any>(method: string, path: string, body?: any, mayRet
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, {
+    res = await fetchWithTimeout(`${API_URL}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -61,6 +86,8 @@ async function request<T = any>(method: string, path: string, body?: any, mayRet
   if (res.status === 401 && mayRetry && !isAuthRequest) {
     const refreshedToken = await refreshAccessToken();
     if (refreshedToken) return request<T>(method, path, body, false);
+    await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
+    unauthorizedHandler?.();
   }
 
   let json: any = null;
