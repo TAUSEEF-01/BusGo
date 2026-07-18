@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   User, Mail, Phone, Calendar, Shield, CreditCard, Ticket,
   Clock, ArrowRight, ChevronRight, Loader2, Wallet, Award, CheckCircle2, AlertCircle, XCircle
@@ -87,8 +87,11 @@ const formatTime = (timeStr: string) => {
 };
 
 export function Profile() {
-  const { user, updateUser } = useAuthStore();
+  const { user, updateUser, setTokens, refreshToken } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const phoneCompletionRequired = searchParams.get("complete") === "phone";
   const [activeTab, setActiveTab] = useState<Tab>("travel");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -117,36 +120,69 @@ export function Profile() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (phoneCompletionRequired) setIsEditing(true);
+  }, [phoneCompletionRequired]);
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setSuccessMsg(null);
+
+    const phoneDigits = editPhone.replace(/\D/g, "");
+    const normalizedPhone = phoneDigits.startsWith("880") && phoneDigits.length === 13
+      ? `0${phoneDigits.slice(3)}`
+      : phoneDigits;
+    if (!/^01\d{9}$/.test(normalizedPhone)) {
+      setErrorMsg("Enter a valid 11-digit Bangladeshi phone number, for example 01XXXXXXXXX.");
+      return;
+    }
     setSubmitting(true);
 
     try {
       const res = await apiClient.put("/api/auth/me", {
         full_name: editName,
         email: editEmail,
-        phone: editPhone,
+        phone: normalizedPhone,
       });
 
       if (res.data?.success) {
         const updatedUser = res.data.data;
+        if (res.data.access_token && refreshToken) {
+          setTokens(res.data.access_token, refreshToken);
+        }
         updateUser({
           ...user!,
           name: updatedUser.full_name,
           email: updatedUser.email,
           phone: updatedUser.phone,
         });
+
+        // This request provisions new wallets and replaces any temporary
+        // Google-user wallet number with the newly saved profile phone.
+        await apiClient.get("/api/bank/accounts/my");
         setSuccessMsg("Profile updated successfully!");
         setIsEditing(false);
-        setTimeout(() => setSuccessMsg(null), 3000);
+        const stateReturnTo = (location.state as any)?.returnTo;
+        const queryReturnTo = searchParams.get("returnTo");
+        const returnTo = typeof stateReturnTo === "string" && stateReturnTo.startsWith("/")
+          ? stateReturnTo
+          : queryReturnTo?.startsWith("/") ? queryReturnTo : null;
+        if (phoneCompletionRequired && returnTo) {
+          navigate(returnTo, {
+            replace: true,
+            state: (location.state as any)?.returnState,
+          });
+        } else {
+          setTimeout(() => setSuccessMsg(null), 3000);
+        }
       } else {
         setErrorMsg(res.data?.message || "Failed to update profile");
       }
     } catch (err: any) {
       console.error("Profile update failed:", err);
-      setErrorMsg(err.response?.data?.detail || err.message || "Failed to update profile");
+      const detail = err.response?.data?.detail;
+      setErrorMsg(typeof detail === "string" ? detail : err.message || "Failed to update profile");
     } finally {
       setSubmitting(false);
     }
@@ -253,6 +289,15 @@ export function Profile() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 relative z-10">
         {/* User Card */}
         <div className="bg-white rounded-2xl border border-surface-200 shadow-elevation-2 p-6 md:p-8 mb-8">
+          {phoneCompletionRequired && (
+            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-semibold flex items-start gap-2">
+              <Phone className="h-5 w-5 shrink-0 mt-0.5" />
+              <div>
+                <p>Add your phone number to continue</p>
+                <p className="font-normal mt-1">Google does not share it with BusGo. It is required to register your payment wallet and purchase tickets.</p>
+              </div>
+            </div>
+          )}
           {successMsg && (
             <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-semibold flex items-center gap-2 animate-scale-in">
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />

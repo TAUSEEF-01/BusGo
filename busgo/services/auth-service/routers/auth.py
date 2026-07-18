@@ -203,7 +203,15 @@ async def update_profile(req: UpdateProfileRequest, current_user: User = Depends
 
     await db.commit()
     await db.refresh(current_user)
-    return {"success": True, "data": UserResponse.model_validate(current_user), "message": "Profile updated successfully"}
+    # Profile fields are embedded in the JWT. Return a new access token so
+    # downstream services see the updated phone immediately rather than only
+    # after the next login or refresh.
+    return {
+        "success": True,
+        "data": UserResponse.model_validate(current_user),
+        "access_token": create_user_access_token(current_user),
+        "message": "Profile updated successfully",
+    }
 
 @router.post("/send-otp")
 async def send_otp(req: SendOTPRequest, db: AsyncSession = Depends(get_db)):

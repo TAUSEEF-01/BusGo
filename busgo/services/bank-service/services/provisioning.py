@@ -43,7 +43,7 @@ async def provision_accounts(db: AsyncSession, user_id: str, phone: str | None =
     existing = existing_res.scalars().all()
     existing_types = {a.account_type for a in existing}
 
-    created = False
+    changed = False
     if AccountType.BANK not in existing_types:
         db.add(BankAccount(
             user_id=user_id,
@@ -52,7 +52,7 @@ async def provision_accounts(db: AsyncSession, user_id: str, phone: str | None =
             account_number=_bank_account_number(),
             balance=_random_balance(),
         ))
-        created = True
+        changed = True
     if AccountType.MOBILE not in existing_types:
         db.add(BankAccount(
             user_id=user_id,
@@ -62,9 +62,21 @@ async def provision_accounts(db: AsyncSession, user_id: str, phone: str | None =
             balance=_random_balance(),
             pin="1234",
         ))
-        created = True
+        changed = True
 
-    if created:
+    # Google does not supply a phone number. A wallet may therefore have been
+    # provisioned with a temporary number before the user completed Profile.
+    # Once a verified profile phone is present, make it the registered mobile
+    # wallet number used by checkout.
+    phone_digits = "".join(c for c in (phone or "") if c.isdigit())
+    if len(phone_digits) >= 11:
+        canonical_phone = phone_digits[-11:]
+        mobile_account = next((a for a in existing if a.account_type == AccountType.MOBILE), None)
+        if mobile_account and mobile_account.account_number != canonical_phone:
+            mobile_account.account_number = canonical_phone
+            changed = True
+
+    if changed:
         await db.commit()
 
     res = await db.execute(select(BankAccount).where(BankAccount.user_id == user_id))

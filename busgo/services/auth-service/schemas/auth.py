@@ -75,3 +75,15 @@ class UpdateProfileRequest(BaseModel):
     full_name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
+
+    @field_validator('phone')
+    @classmethod
+    def validate_phone(cls, value):
+        if value is None:
+            return value
+        digits = "".join(character for character in value if character.isdigit())
+        if digits.startswith("880") and len(digits) == 13:
+            digits = "0" + digits[3:]
+        if len(digits) != 11 or not digits.startswith("01"):
+            raise ValueError("Enter a valid 11-digit Bangladeshi phone number")
+        return digits

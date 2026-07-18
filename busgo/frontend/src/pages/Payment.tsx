@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { toast } from "react-hot-toast";
+import { useAuthStore } from "../stores/authStore";
 
 type PaymentMethod = "bkash" | "nagad" | "card" | "banking";
 
@@ -45,6 +46,7 @@ export function Payment() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state || {};
+  const user = useAuthStore((store) => store.user);
   const [method, setMethod] = useState<PaymentMethod>("bkash");
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState("");
@@ -97,6 +99,10 @@ export function Payment() {
 
   // Fetch the user's bank/mobile accounts and balances.
   useEffect(() => {
+    if (!user?.phone?.trim()) {
+      setAccountsLoading(false);
+      return;
+    }
     let mounted = true;
     (async () => {
       try {
@@ -111,7 +117,19 @@ export function Payment() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [user?.phone]);
+
+  useEffect(() => {
+    if (user && !user.phone?.trim()) {
+      navigate("/profile?complete=phone", {
+        replace: true,
+        state: {
+          returnTo: `${location.pathname}${location.search}`,
+          returnState: location.state,
+        },
+      });
+    }
+  }, [user, navigate, location.pathname, location.search, location.state]);
 
   // Transit: fetch the journey so the charged total is authoritative.
   useEffect(() => {

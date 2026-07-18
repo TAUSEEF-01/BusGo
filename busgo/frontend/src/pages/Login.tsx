@@ -25,16 +25,24 @@ export function Login() {
     ? `${location.state.from.pathname || "/"}${location.state.from.search || ""}`
     : "/";
 
-  const finishLogin = (user: { role?: string }, returnTo: string) => {
+  const finishLogin = (user: { role?: string; phone?: string | null }, returnTo: string) => {
     const role = user.role?.toUpperCase();
     const safeReturnTo = returnTo.startsWith("/") ? returnTo : "/";
+    let destination = safeReturnTo;
     if (role === "ADMIN" && (safeReturnTo === "/" || safeReturnTo.startsWith("/operator"))) {
-      navigate("/admin", { replace: true });
+      destination = "/admin";
     } else if (role === "OPERATOR" && (safeReturnTo === "/" || safeReturnTo.startsWith("/admin"))) {
-      navigate("/operator", { replace: true });
-    } else {
-      navigate(safeReturnTo, { replace: true });
+      destination = "/operator";
     }
+
+    // Google never guarantees a phone number. Customers must add one once so
+    // the payment wallet can be registered before they reach checkout.
+    if (role === "CUSTOMER" && !user.phone?.trim()) {
+      const params = new URLSearchParams({ complete: "phone", returnTo: destination });
+      navigate(`/profile?${params.toString()}`, { replace: true });
+      return;
+    }
+    navigate(destination, { replace: true });
   };
 
   useEffect(() => {
