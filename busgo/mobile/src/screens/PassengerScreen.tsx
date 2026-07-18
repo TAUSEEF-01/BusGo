@@ -83,6 +83,7 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
   };
 
   if (!user) return <GuestAccess title="Log in to buy tickets" message="Your route and selected seats are ready. Log in or create an account to continue checkout." resumeCheckout={params} />;
+  if (!user.phone?.trim()) return <View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: colors.bg }}><Card><Text style={{ fontSize: 19, fontWeight: '900', color: colors.text }}>Add your phone number</Text><Text style={{ color: colors.subtext, lineHeight: 20, marginTop: 7, marginBottom: 16 }}>Google does not share your phone number. Add it once to register your payment wallet and continue checkout.</Text><Button title="Add phone and continue" icon="call-outline" onPress={() => navigation.navigate('PhoneSetup', { resumeCheckout: params })} /></Card></View>;
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
     <Text style={{ fontSize: 13, color: colors.subtext, marginBottom: 12 }}>Enter the person travelling in each selected seat.</Text>

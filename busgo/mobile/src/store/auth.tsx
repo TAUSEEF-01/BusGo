@@ -22,7 +22,7 @@ export interface User {
 interface AuthState {
   user: User | null;
   ready: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: () => Promise<User>;
   updateProfile: (fullName: string, phone: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -175,6 +175,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       [USER_KEY, JSON.stringify(nextUser)],
     ]);
     setUser(nextUser);
+    return nextUser;
   };
 
   const logout = async () => {
@@ -192,10 +193,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateProfile = async (fullName: string, phone: string) => {
-    const response = await api.put('/api/auth/me', { full_name: fullName, phone: phone.trim() || null });
+    const digits = phone.replace(/\D/g, '');
+    const normalizedPhone = digits.startsWith('880') && digits.length === 13 ? `0${digits.slice(3)}` : digits;
+    const response = await api.put<{ success: boolean; data: User; access_token?: string }>('/api/auth/me', { full_name: fullName, phone: normalizedPhone });
     const nextUser: User = response.data;
+    if (response.access_token) await AsyncStorage.setItem(TOKEN_KEY, response.access_token);
     await AsyncStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     setUser(nextUser);
+    await api.get('/api/bank/accounts/my');
   };
 
   return (

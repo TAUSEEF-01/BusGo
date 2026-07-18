@@ -6,6 +6,7 @@ import { Badge, Button, Card, ErrorState, Input, Loading, Row } from '../compone
 import { colors, radius } from '../theme';
 import { countdown, money, secondsRemaining } from '../utils/format';
 import { ScreenProps } from '../nav';
+import { useAuth } from '../store/auth';
 
 type Method = 'BKASH' | 'NAGAD' | 'CARD';
 interface BankAccount { id: string; account_type: 'MOBILE' | 'BANK'; provider: string; account_number: string; balance: number }
@@ -17,6 +18,7 @@ const METHODS: { id: Method; label: string; icon: keyof typeof Ionicons.glyphMap
 
 export default function PaymentScreen({ route, navigation }: ScreenProps<'Payment'>) {
   const params = route.params;
+  const { user } = useAuth();
   const [method, setMethod] = useState<Method>('BKASH');
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState('');
@@ -33,6 +35,7 @@ export default function PaymentScreen({ route, navigation }: ScreenProps<'Paymen
 
   const load = async () => {
     setLoading(true); setError('');
+    if (!user?.phone?.trim()) { setLoading(false); return; }
     try {
       const [accountResponse, bookingResponse] = await Promise.all([
         api.get('/api/bank/accounts/my'),
@@ -110,6 +113,7 @@ export default function PaymentScreen({ route, navigation }: ScreenProps<'Paymen
   };
 
   if (loading) return <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.bg }}><Loading label="Preparing secure payment…" /></View>;
+  if (!user?.phone?.trim()) return <View style={{ flex: 1, justifyContent: 'center', padding: 20, backgroundColor: colors.bg }}><Card><Text style={{ fontSize: 19, fontWeight: '900', color: colors.text }}>Phone number required</Text><Text style={{ color: colors.subtext, lineHeight: 20, marginTop: 7, marginBottom: 16 }}>Add your phone number to synchronize the wallet used for this payment.</Text><Button title="Add phone and return" icon="call-outline" onPress={() => navigation.replace('PhoneSetup', { resumePayment: params })} /></Card></View>;
   if (error) return <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.bg }}><ErrorState title="Payment unavailable" message={error} onRetry={load} /></View>;
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
@@ -117,7 +121,7 @@ export default function PaymentScreen({ route, navigation }: ScreenProps<'Paymen
 
     <Card style={{ marginBottom: 14 }}><Text style={{ fontWeight: '800', color: colors.text, marginBottom: 10 }}>Payment method</Text><Row style={{ gap: 8 }}>{METHODS.map((item) => <Pressable key={item.id} onPress={() => setMethod(item.id)} style={{ flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: radius.md, borderWidth: 2, borderColor: method === item.id ? colors.primary : colors.border, backgroundColor: method === item.id ? colors.primarySoft : '#fff' }}><Ionicons name={item.icon} size={22} color={method === item.id ? colors.primary : colors.subtext} /><Text style={{ fontWeight: '800', fontSize: 12, marginTop: 4, color: method === item.id ? colors.primary : colors.text }}>{item.label}</Text></Pressable>)}</Row>
       {activeAccount ? <Row style={{ justifyContent: 'space-between', marginTop: 14, padding: 10, backgroundColor: '#f8fafc', borderRadius: radius.md }}><View><Text style={{ fontWeight: '700', color: colors.text }}>{activeAccount.provider}</Text><Text style={{ fontSize: 11, color: colors.subtext }}>{activeAccount.account_number}</Text></View><Text style={{ fontWeight: '900', color: insufficient ? colors.danger : colors.success }}>{money(activeAccount.balance)}</Text></Row> : null}
-      {method !== 'CARD' ? <View style={{ marginTop: 14 }}><Input label={`${selectedMethod.label} number`} value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="01XXXXXXXXX" maxLength={14} /><Input label="PIN" value={pin} onChangeText={(value) => setPin(value.replace(/\D/g, ''))} secureTextEntry keyboardType="number-pad" placeholder="Wallet PIN" maxLength={8} /></View> : <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 12 }}>Your linked bank account will be charged.</Text>}
+      {method !== 'CARD' ? <View style={{ marginTop: 14 }}><Input label={`${selectedMethod.label} number`} value={phone} editable={false} keyboardType="phone-pad" placeholder="01XXXXXXXXX" maxLength={14} /><Text style={{ color: colors.faint, fontSize: 11, marginTop: -8, marginBottom: 12 }}>This number is synchronized from your BusGo profile.</Text><Input label="PIN" value={pin} onChangeText={(value) => setPin(value.replace(/\D/g, ''))} secureTextEntry keyboardType="number-pad" placeholder="Wallet PIN" maxLength={8} /></View> : <Text style={{ fontSize: 12, color: colors.subtext, marginTop: 12 }}>Your linked bank account will be charged.</Text>}
     </Card>
 
     {params.mode === 'direct' ? <Card style={{ marginBottom: 14 }}><Text style={{ fontWeight: '800', color: colors.text, marginBottom: 10 }}>Promo code</Text>{promoApplied ? <Row style={{ justifyContent: 'space-between' }}><Badge tone="success" text={`${promoApplied} · saved ${money(discount)}`} /><Button title="Remove" variant="ghost" onPress={removePromo} /></Row> : <Row style={{ gap: 8, alignItems: 'flex-start' }}><View style={{ flex: 1 }}><Input value={promo} onChangeText={(value) => setPromo(value.toUpperCase())} placeholder="Enter code" autoCapitalize="characters" /></View><Button title="Apply" variant="outline" onPress={applyPromo} style={{ paddingHorizontal: 18 }} /></Row>}</Card> : null}

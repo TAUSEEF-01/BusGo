@@ -21,6 +21,7 @@ import TripsScreen from './src/screens/TripsScreen';
 import DealsScreen from './src/screens/DealsScreen';
 import AlertsScreen from './src/screens/AlertsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import PhoneSetupScreen from './src/screens/PhoneSetupScreen';
 import BookingDetailScreen from './src/screens/BookingDetailScreen';
 import TicketDetailScreen from './src/screens/TicketDetailScreen';
 
@@ -53,6 +54,7 @@ function RootNav() {
       <Stack.Screen name="TransitSeats" component={TransitSeatsScreen} options={{ title: 'Seats for each bus' }} />
       <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="PhoneSetup" component={PhoneSetupScreen} options={{ title: 'Complete your account', gestureEnabled: false }} />
       <Stack.Screen name="Passenger" component={PassengerScreen} options={{ title: 'Passengers' }} />
       <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Secure payment', gestureEnabled: false }} />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Booking details' }} />

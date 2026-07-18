@@ -62,25 +62,28 @@ export type PassengerParams = {
   seatsByLeg?: string[][];
 };
 
+export type PaymentParams = {
+  mode: 'direct' | 'transit';
+  bookingId: string;
+  tripId: string;
+  amount: number;
+  expiresAt?: string;
+  journeyId?: string;
+  legs?: { leg_number: number; boarding_point: string; dropping_point: string; seat_numbers: string[]; fare: number }[];
+  origin: string;
+  destination: string;
+};
+
 export type RootStackParamList = {
   Tabs: undefined;
   Login: { resumeCheckout?: PassengerParams } | undefined;
   Register: { resumeCheckout?: PassengerParams } | undefined;
+  PhoneSetup: { resumeCheckout?: PassengerParams; resumePayment?: PaymentParams } | undefined;
   Results: { origin: string; destination: string; date: string };
   Seats: { trip: DirectTrip; origin: string; destination: string; date: string };
   TransitSeats: { itinerary: Itinerary; origin: string; destination: string; date: string };
   Passenger: PassengerParams;
-  Payment: {
-    mode: 'direct' | 'transit';
-    bookingId: string; // first leg's booking for transit
-    tripId: string;
-    amount: number;
-    expiresAt?: string;
-    journeyId?: string;
-    legs?: { leg_number: number; boarding_point: string; dropping_point: string; seat_numbers: string[]; fare: number }[];
-    origin: string;
-    destination: string;
-  };
+  Payment: PaymentParams;
   Confirmation: {
     mode: 'direct' | 'transit';
     bookingId: string;

@@ -32,7 +32,8 @@ export default function ProfileScreen() {
   const save = async () => {
     if (name.trim().length < 2) return Alert.alert('Profile', 'Enter your full name.');
     const digits = phone.replace(/\D/g, '');
-    if (phone && digits.length < 11) return Alert.alert('Profile', 'Enter a valid mobile number or leave it empty.');
+    const normalizedPhone = digits.startsWith('880') && digits.length === 13 ? `0${digits.slice(3)}` : digits;
+    if (!/^01\d{9}$/.test(normalizedPhone)) return Alert.alert('Profile', 'Enter a valid 11-digit Bangladeshi mobile number.');
     setBusy(true); try { await updateProfile(name.trim(), phone.trim()); setEditing(false); Alert.alert('Profile updated', 'Your details were saved.'); } catch (reason: any) { Alert.alert('Update failed', reason.message); } finally { setBusy(false); }
   };
   const confirmLogout = () => Alert.alert('Log out?', 'You will need your Google account to sign in again.', [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Log out', style: 'destructive', onPress: logout }]);
