@@ -1,6 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, TOKEN_KEY, USER_KEY } from '../api/client';
+import { makeRedirectUri } from 'expo-auth-session';
+import * as QueryParams from 'expo-auth-session/build/QueryParams';
+import * as WebBrowser from 'expo-web-browser';
+import { api, REFRESH_TOKEN_KEY, TOKEN_KEY, USER_KEY } from '../api/client';
+import { requireSupabase, supabase } from '../lib/supabase';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export interface User {
   id: string;
@@ -13,8 +20,7 @@ export interface User {
 interface AuthState {
   user: User | null;
   ready: boolean;
-  login: (phone: string, password: string) => Promise<void>;
-  register: (fullName: string, phone: string, email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -38,34 +44,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  const login = async (phone: string, password: string) => {
-    const res = await api.post('/api/auth/login', { phone, password });
-    const token = res.data?.access_token;
-    const u: User = res.data?.user;
-    if (!token || !u) throw new Error('Unexpected login response');
-    await AsyncStorage.setItem(TOKEN_KEY, token);
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(u));
-    setUser(u);
-  };
-
-  const register = async (fullName: string, phone: string, email: string, password: string) => {
-    await api.post('/api/auth/register', {
-      full_name: fullName,
-      phone,
-      email,
-      password,
+  useEffect(() => {
+    const client = supabase;
+    if (!client) return;
+    if (AppState.currentState === 'active') client.auth.startAutoRefresh();
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') client.auth.startAutoRefresh();
+      else client.auth.stopAutoRefresh();
     });
-    // Accounts are auto-verified in dev; log straight in.
-    await login(phone, password);
+    return () => {
+      subscription.remove();
+      client.auth.stopAutoRefresh();
+    };
+  }, []);
+
+  const signInWithGoogle = async () => {
+    const client = requireSupabase();
+    const redirectTo = makeRedirectUri({ scheme: 'busgo', path: 'auth/callback' });
+    const { data, error } = await client.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, skipBrowserRedirect: true },
+    });
+    if (error) throw error;
+    if (!data.url) throw new Error('Google did not return a login URL.');
+
+    const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+    if (browserResult.type !== 'success') throw new Error('Google login was cancelled.');
+
+    const { params, errorCode } = QueryParams.getQueryParams(browserResult.url);
+    if (errorCode) throw new Error(String(errorCode));
+    const accessToken = typeof params.access_token === 'string' ? params.access_token : null;
+    const supabaseRefreshToken = typeof params.refresh_token === 'string' ? params.refresh_token : null;
+    if (!accessToken || !supabaseRefreshToken) throw new Error('Google returned an incomplete session.');
+
+    const { data: sessionData, error: sessionError } = await client.auth.setSession({
+      access_token: accessToken,
+      refresh_token: supabaseRefreshToken,
+    });
+    if (sessionError) throw sessionError;
+
+    const response = await api.post('/api/auth/google-login', {
+      token: sessionData.session?.access_token || accessToken,
+      role: 'CUSTOMER',
+    });
+    const payload = response.data;
+    const busgoToken = payload?.access_token;
+    const busgoRefreshToken = payload?.refresh_token;
+    const nextUser: User = payload?.user;
+    if (!busgoToken || !busgoRefreshToken || !nextUser) {
+      throw new Error('BusGo returned an invalid Google login response.');
+    }
+
+    await AsyncStorage.multiSet([
+      [TOKEN_KEY, busgoToken],
+      [REFRESH_TOKEN_KEY, busgoRefreshToken],
+      [USER_KEY, JSON.stringify(nextUser)],
+    ]);
+    setUser(nextUser);
   };
 
   const logout = async () => {
-    await AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+    if (refreshToken) {
+      try {
+        await api.post('/api/auth/logout', { refresh_token: refreshToken });
+      } catch {
+        // Local logout must still succeed if the server is unavailable.
+      }
+    }
+    if (supabase) await supabase.auth.signOut();
+    await AsyncStorage.multiRemove([TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY]);
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, ready, login, register, logout }}>
+    <AuthContext.Provider value={{ user, ready, signInWithGoogle, logout }}>
       {children}
     </AuthContext.Provider>
   );

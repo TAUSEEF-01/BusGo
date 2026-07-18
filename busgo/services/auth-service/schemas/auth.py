@@ -45,10 +45,18 @@ class SendOTPRequest(BaseModel):
 
 class GoogleLoginRequest(BaseModel):
     token: str
+    role: UserRole = UserRole.CUSTOMER
+
+    @field_validator('role')
+    @classmethod
+    def validate_role(cls, v):
+        if v == UserRole.ADMIN:
+            raise ValueError("Cannot register as ADMIN")
+        return v
 
 class UserResponse(BaseModel):
     id: UUID
-    phone: str
+    phone: Optional[str]
     email: Optional[str]
     full_name: str
     role: UserRole

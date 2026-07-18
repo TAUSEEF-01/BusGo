@@ -8,5 +8,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY: str = os.getenv("SUPABASE_ANON_KEY", "")
 
 settings = Settings()
