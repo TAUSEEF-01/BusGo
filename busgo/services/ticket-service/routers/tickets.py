@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from typing import List
@@ -9,6 +10,7 @@ from database import get_db
 from models.models import Ticket
 from schemas.schemas import TicketResponse, ValidateQRRequest, ValidateQRResponse
 from api.deps import get_current_user_payload, require_role
+from services.artifact_storage import ArtifactStorage
 
 import sys
 import os
@@ -26,17 +28,25 @@ async def get_my_tickets(db: AsyncSession = Depends(get_db), payload: dict = Dep
     tickets = result.scalars().all()
     return BaseResponse(success=True, data=[TicketResponse.model_validate(t) for t in tickets])
 
-@router.get("/{ticket_id}", response_model=BaseResponse[TicketResponse])
-async def get_ticket(ticket_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
-    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+async def _ticket_file(booking_id: UUID, token: str, extension: str, media_type: str, db: AsyncSession):
+    result = await db.execute(select(Ticket).where(Ticket.booking_id == booking_id))
     ticket = result.scalars().first()
-    if not ticket:
-        raise HTTPException(status_code=404, detail="Ticket not found")
-        
-    if str(ticket.user_id) != payload.get("user_id") and payload.get("role") not in [UserRole.ADMIN.value, UserRole.OPERATOR.value]:
-        raise HTTPException(status_code=403, detail="Unauthorized")
-        
-    return BaseResponse(success=True, data=TicketResponse.model_validate(ticket))
+    if not ticket or ticket.qr_code_data != token:
+        raise HTTPException(status_code=404, detail="Ticket file not found")
+    path = ArtifactStorage.path(f"{booking_id}.{extension}")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Ticket file not found")
+    return FileResponse(path, media_type=media_type, filename=f"busgo-ticket-{booking_id}.{extension}")
+
+
+@router.get("/files/{booking_id}/qr", include_in_schema=False)
+async def get_qr_file(booking_id: UUID, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    return await _ticket_file(booking_id, token, "png", "image/png", db)
+
+
+@router.get("/files/{booking_id}/pdf", include_in_schema=False)
+async def get_pdf_file(booking_id: UUID, token: str = Query(...), db: AsyncSession = Depends(get_db)):
+    return await _ticket_file(booking_id, token, "pdf", "application/pdf", db)
 
 @router.get("/booking/{booking_id}", response_model=BaseResponse[TicketResponse])
 async def get_ticket_by_booking(booking_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
@@ -49,6 +59,7 @@ async def get_ticket_by_booking(booking_id: UUID, db: AsyncSession = Depends(get
         raise HTTPException(status_code=403, detail="Unauthorized")
         
     return BaseResponse(success=True, data=TicketResponse.model_validate(ticket))
+
 
 # Boarding validation
 @router.post("/validate-qr", response_model=BaseResponse[ValidateQRResponse])
@@ -97,3 +108,18 @@ async def validate_qr(req: ValidateQRRequest, db: AsyncSession = Depends(get_db)
         seat_numbers=ticket.seat_numbers,
         trip_id=ticket.trip_id
     ))
+
+
+# Keep the catch-all UUID route last so it cannot shadow /my, /booking,
+# /files or /validate-qr.
+@router.get("/{ticket_id}", response_model=BaseResponse[TicketResponse])
+async def get_ticket(ticket_id: UUID, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    result = await db.execute(select(Ticket).where(Ticket.id == ticket_id))
+    ticket = result.scalars().first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+
+    if str(ticket.user_id) != payload.get("user_id") and payload.get("role") not in [UserRole.ADMIN.value, UserRole.OPERATOR.value]:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    return BaseResponse(success=True, data=TicketResponse.model_validate(ticket))

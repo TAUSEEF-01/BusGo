@@ -45,32 +45,37 @@ export interface DirectTrip {
   fare_amount: number;
   available_seats?: number;
   bus_type?: string;
+  boarding_points?: { name: string; address?: string }[];
+  dropping_points?: { name: string; address?: string }[];
 }
+
+export type PassengerParams = {
+  mode: 'direct' | 'transit';
+  origin: string;
+  destination: string;
+  date: string;
+  trip?: DirectTrip;
+  seats?: string[];
+  boardingPoint?: string;
+  droppingPoint?: string;
+  itinerary?: Itinerary;
+  seatsByLeg?: string[][];
+};
 
 export type RootStackParamList = {
   Tabs: undefined;
-  Login: undefined;
-  Register: undefined;
+  Login: { resumeCheckout?: PassengerParams } | undefined;
+  Register: { resumeCheckout?: PassengerParams } | undefined;
   Results: { origin: string; destination: string; date: string };
   Seats: { trip: DirectTrip; origin: string; destination: string; date: string };
   TransitSeats: { itinerary: Itinerary; origin: string; destination: string; date: string };
-  Passenger: {
-    mode: 'direct' | 'transit';
-    origin: string;
-    destination: string;
-    date: string;
-    // direct
-    trip?: DirectTrip;
-    seats?: string[];
-    // transit
-    itinerary?: Itinerary;
-    seatsByLeg?: string[][];
-  };
+  Passenger: PassengerParams;
   Payment: {
     mode: 'direct' | 'transit';
     bookingId: string; // first leg's booking for transit
     tripId: string;
     amount: number;
+    expiresAt?: string;
     journeyId?: string;
     legs?: { leg_number: number; boarding_point: string; dropping_point: string; seat_numbers: string[]; fare: number }[];
     origin: string;
@@ -84,6 +89,8 @@ export type RootStackParamList = {
     destination: string;
     amount: number;
   };
+  BookingDetail: { bookingId: string; journeyId?: string | null };
+  TicketDetail: { ticketId: string };
 };
 
 export type ScreenProps<T extends keyof RootStackParamList> = NativeStackScreenProps<

@@ -124,6 +124,18 @@ class ExternalServices:
         return None
 
     @staticmethod
+    async def get_payment(payment_id: str) -> dict:
+        if not payment_id:
+            return {}
+        try:
+            res = await _client.get(f"{settings.PAYMENT_SERVICE_URL}/{payment_id}", timeout=5.0)
+            if res.status_code == 200:
+                return res.json().get("data", {}) or {}
+        except Exception as e:
+            logging.error(f"Failed to fetch payment {payment_id}: {e}")
+        return {}
+
+    @staticmethod
     async def get_transit_route(transit_route_id: str, origin: str, destination: str) -> dict:
         """Fetch an operator's curated transit route by id (matched within the
         origin/destination result set). Returns {} if not found/unavailable."""

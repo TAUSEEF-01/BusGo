@@ -13,10 +13,12 @@ from shared.enums import UserRole
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    phone = Column(String, index=True, nullable=False)
+    phone = Column(String, index=True, nullable=True)
     email = Column(String, unique=True, index=True, nullable=True)
     full_name = Column(String, nullable=False)
-    password_hash = Column(String, nullable=False)
+    password_hash = Column(String, nullable=True)
+    auth_provider = Column(String, nullable=False, default="password", server_default="password")
+    provider_subject = Column(String, unique=True, index=True, nullable=True)
     role = Column(Enum(UserRole, name="user_role"), default=UserRole.CUSTOMER)
     is_verified = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)

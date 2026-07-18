@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { signOutGoogle } from "../lib/supabase";
 
 interface User {
   id: string;
@@ -56,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
         deleteCookie("busgo_access_token");
         deleteCookie("busgo_refresh_token");
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false });
+        void signOutGoogle();
       },
       setTokens: (accessToken, refreshToken) => {
         setCookie("busgo_access_token", accessToken, 30);

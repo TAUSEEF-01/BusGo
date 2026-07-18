@@ -17,9 +17,17 @@ class PDFGenerator:
         c.setFont("Helvetica", 14)
         c.drawString(50, height - 100, f"Booking Reference: {booking.get('id', 'N/A')}")
         
+        passenger_details = booking.get('passenger_details') or []
+        if isinstance(passenger_details, dict):
+            passenger_details = [passenger_details]
+        passenger_names = ", ".join(
+            str(passenger.get('name') or passenger.get('full_name') or 'Passenger')
+            for passenger in passenger_details
+        ) or 'N/A'
+
         c.setFont("Helvetica", 12)
         y = height - 140
-        c.drawString(50, y, f"Passenger Name: {booking.get('passenger_details', {}).get('name', 'N/A')}")
+        c.drawString(50, y, f"Passengers: {passenger_names}")
         c.drawString(50, y - 20, f"Seats: {', '.join(booking.get('seat_numbers', []))}")
         
         c.drawString(50, y - 60, f"Route: {booking.get('origin', 'N/A')} to {booking.get('destination', 'N/A')}")

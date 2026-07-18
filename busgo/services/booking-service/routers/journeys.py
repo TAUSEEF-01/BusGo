@@ -18,6 +18,7 @@ from api.deps import get_current_user_payload
 from services.redis_svc import RedisIdempotencyService
 from services.external import ExternalServices
 from services.travel_records import record_travel
+from services.ticket_events import build_ticket_event
 
 import sys
 import os
@@ -270,12 +271,24 @@ async def get_journey(journey_id: uuid.UUID, db: AsyncSession = Depends(get_db),
 
 
 @router.post("/{journey_id}/confirm-payment", response_model=BaseResponse)
-async def confirm_journey_payment(journey_id: uuid.UUID, payment_id: uuid.UUID = Query(...), db: AsyncSession = Depends(get_db)):
-    journey = (await db.execute(select(Journey).where(Journey.id == journey_id))).scalars().first()
+async def confirm_journey_payment(journey_id: uuid.UUID, payment_id: uuid.UUID = Query(...), db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
+    journey = (await db.execute(select(Journey).where(Journey.id == journey_id, Journey.user_id == payload.get("user_id")))).scalars().first()
     if not journey:
         raise HTTPException(status_code=404, detail="Journey not found")
     if journey.status == BookingStatus.CONFIRMED:
+        if str(journey.payment_id) != str(payment_id):
+            raise HTTPException(status_code=409, detail="Journey was confirmed with another payment")
         return BaseResponse(success=True, message="Journey already confirmed")
+
+    payment = await ExternalServices.get_payment(str(payment_id))
+    expected_amount = round(float(journey.total_fare) - float(journey.discount_amount or 0), 2)
+    if (
+        str(payment.get("status", "")).upper() != "COMPLETED"
+        or str(payment.get("booking_id")) != str(journey.id)
+        or str(payment.get("user_id")) != str(journey.user_id)
+        or abs(float(payment.get("amount", -1)) - expected_amount) > 0.01
+    ):
+        raise HTTPException(status_code=400, detail="A matching completed payment is required")
 
     legs = (await db.execute(
         select(Booking).where(Booking.journey_id == journey_id).order_by(Booking.leg_number)
@@ -304,9 +317,7 @@ async def confirm_journey_payment(journey_id: uuid.UUID, payment_id: uuid.UUID =
             await ExternalServices.confirm_seats(str(leg.trip_id), leg.seat_numbers, str(leg.id), str(leg.user_id))
         except Exception as e:
             logging.error(f"Failed to confirm seats for journey leg {leg.id}: {e}")
-        await KafkaProducerClient.publish("ticket.issued", {
-            "booking_id": str(leg.id), "user_id": str(leg.user_id), "trip_id": str(leg.trip_id),
-        })
+        await KafkaProducerClient.publish("ticket.issued", await build_ticket_event(leg))
         await record_travel(db, leg)
 
     return BaseResponse(success=True, message="Journey confirmed")

@@ -142,7 +142,11 @@ export function PassengerDetails() {
           dropping_point: state.droppingPoint || state.destination || "Chittagong",
           journey_date: jDate,
           departure_time: depTime,
-          total_fare: state.totalFare || seatNumbers.length * 850 + 20,
+          // SelectSeats carries the combined round-trip total in totalFare.
+          // Only the return leg belongs in this second booking request.
+          total_fare: state.totalFare && state.outboundTotal
+            ? Number(state.totalFare) - Number(state.outboundTotal)
+            : seatNumbers.length * 850 + 20,
           idempotency_key: crypto.randomUUID()
         };
 

@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { api } from '../api/client';
 import { SeatCell, SeatGrid, SeatLegend, toSeatCells } from '../components/SeatGrid';
-import { Button, Card, Loading, Row } from '../components/ui';
+import { Button, Card, ErrorState, Loading, Row } from '../components/ui';
 import { colors, radius } from '../theme';
 import { ScreenProps } from '../nav';
+import { useAuth } from '../store/auth';
 
 export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'TransitSeats'>) {
   const { itinerary, origin, destination, date } = route.params;
+  const { user } = useAuth();
   const legs = itinerary.legs;
 
   const [passengerCount, setPassengerCount] = useState(1);
@@ -16,14 +18,26 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
   const [seats, setSeats] = useState<SeatCell[]>([]);
   const [selectedByLeg, setSelectedByLeg] = useState<string[][]>(legs.map(() => []));
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!started) return;
     setLoading(true);
+    setError('');
     api
       .get(`/api/inventory/trips/${legs[step].trip_id}/seats?_t=${Date.now()}`)
-      .then((r) => setSeats(toSeatCells(r.data || [])))
-      .catch(() => setSeats(toSeatCells([])))
+      .then((r) => {
+        if (!Array.isArray(r.data) || !r.data.length) throw new Error('This bus has no published seat layout.');
+        const nextSeats = toSeatCells(r.data);
+        setSeats(nextSeats);
+        setSelectedByLeg((current) => current.map((selection, index) => index === step
+          ? selection.filter((id) => nextSeats.some((seat) => seat.id === id && !seat.taken))
+          : selection));
+      })
+      .catch((reason) => {
+        setSeats([]);
+        setError(reason.message || 'Could not load this bus seat map.');
+      })
       .finally(() => setLoading(false));
   }, [started, step]);
 
@@ -48,15 +62,26 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
       return;
     }
     if (step < legs.length - 1) setStep(step + 1);
-    else
-      navigation.navigate('Passenger', {
+    else {
+      const passengerParams = {
         mode: 'transit',
         itinerary,
         seatsByLeg: selectedByLeg,
         origin,
         destination,
         date,
-      });
+      } as const;
+      if (user) navigation.navigate('Passenger', passengerParams);
+      else Alert.alert(
+        'Account required for checkout',
+        'You can browse every bus and seat without an account. Log in or create an account to buy this journey.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Create account', onPress: () => navigation.navigate('Register', { resumeCheckout: passengerParams }) },
+          { text: 'Log in', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
+        ],
+      );
+    }
   };
 
   if (!started) {
@@ -139,6 +164,11 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
 
       {loading ? (
         <Loading label="Loading seat map…" />
+      ) : error ? (
+        <ErrorState message={error} onRetry={() => {
+          setStarted(false);
+          setTimeout(() => setStarted(true), 0);
+        }} />
       ) : (
         <>
           <SeatLegend />

@@ -147,10 +147,12 @@ END $$;
 -- Users Table
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    phone VARCHAR UNIQUE NOT NULL,
-    email VARCHAR,
+    phone VARCHAR UNIQUE,
+    email VARCHAR UNIQUE,
     full_name VARCHAR NOT NULL,
-    password_hash VARCHAR NOT NULL,
+    password_hash VARCHAR,
+    auth_provider VARCHAR NOT NULL DEFAULT 'password',
+    provider_subject VARCHAR UNIQUE,
     role user_role DEFAULT 'CUSTOMER',
     is_verified BOOLEAN DEFAULT FALSE,
     is_active BOOLEAN DEFAULT TRUE,
@@ -161,6 +163,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_provider_subject ON users(provider_subject);
 
 -- OTP Records Table
 CREATE TABLE IF NOT EXISTS otp_records (
@@ -571,18 +574,8 @@ CREATE TRIGGER update_seat_inventory_updated_at BEFORE UPDATE ON seat_inventory
 -- 15. INITIAL DATA / SEED (Optional)
 -- =====================================================
 
--- Insert a default admin user (password: admin123)
-INSERT INTO users (phone, email, full_name, password_hash, role, is_verified, is_active)
-VALUES (
-    '+1234567890',
-    'admin@busgo.com',
-    'Admin User',
-    '$2b$12$LOxIazOKe0UZlpBFguSG4.op85MIYoziJfc4zLPm4z2z44d9plXNa', -- This is a bcrypt hash for 'admin123'
-    'ADMIN',
-    true,
-    true
-)
-ON CONFLICT (phone) DO NOTHING;
+-- Users are provisioned through verified Google sign-in. Promote a verified
+-- account to ADMIN explicitly after its first login; never seed a shared password.
 
 -- =====================================================
 -- VERIFICATION QUERY

@@ -45,7 +45,7 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
     else:
         booking = await BookingClient.get_booking(str(req.booking_id), auth_header)
     if not booking:
-        booking = {"total_fare": req.amount, "trip_id": str(req.trip_id)} # Fallback for dev if booking service unreachable
+        raise HTTPException(status_code=503, detail="Booking verification is temporarily unavailable. No payment was taken.")
 
     actual_fare = float(booking.get("total_fare", 0)) - float(booking.get("discount_amount", 0))
     if abs(actual_fare - req.amount) > 0.01: # allow tiny float diff
@@ -53,6 +53,25 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
             "event": "fraud.detected", "user_id": user_id, "reason": "Amount mismatch", "booking_id": ref_id
         })
         raise HTTPException(status_code=400, detail="Payment amount does not match booking fare")
+
+    # A retry after a lost HTTP response must return the original successful
+    # payment instead of debiting the account a second time.
+    existing_result = await db.execute(select(Payment).where(
+        Payment.booking_id == ref_id,
+        Payment.user_id == user_id,
+        Payment.status == PaymentStatus.COMPLETED,
+    ).order_by(Payment.completed_at.desc()))
+    existing = existing_result.scalars().first()
+    if existing:
+        await KafkaProducerClient.publish("payment.completed", {
+            "booking_id": ref_id,
+            "payment_id": str(existing.id),
+            "timestamp": existing.completed_at.isoformat() if existing.completed_at else datetime.now(timezone.utc).isoformat(),
+        })
+        return BaseResponse(success=True, data=InitiateResponse(
+            payment_id=existing.id,
+            redirect_url=MockGateway.get_redirect_url(str(existing.id), existing.method),
+        ), message="Existing completed payment returned")
 
     # Fraud Detection 2: Multiple attempts
     trip_id = booking.get("trip_id", str(req.trip_id))
@@ -99,7 +118,9 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
             trip_id=trip_id,
             amount=req.amount,
             method=req.method,
-            status=PaymentStatus.PENDING,
+            # The bundled gateway is synchronous: a successful bank-service
+            # debit means payment is complete before this response is returned.
+            status=PaymentStatus.COMPLETED,
             completed_at=datetime.now(timezone.utc),
         )
         db.add(payment)
@@ -121,6 +142,17 @@ async def initiate_payment(req: InitiateRequest, request: Request, db: AsyncSess
         raise HTTPException(status_code=500, detail="Payment could not be processed. Your account has not been charged. Please try again.")
 
     redirect_url = MockGateway.get_redirect_url(str(payment.id), req.method)
+
+    await KafkaProducerClient.publish("payment.completed", {
+        "booking_id": ref_id,
+        "payment_id": str(payment.id),
+        "timestamp": payment.completed_at.isoformat(),
+    })
+    await KafkaProducerClient.publish("audit.log", {
+        "event": "payment.completed",
+        "payment_id": str(payment.id),
+        "user_id": str(user_id),
+    })
 
     return BaseResponse(success=True, data=InitiateResponse(payment_id=payment.id, redirect_url=redirect_url))
 

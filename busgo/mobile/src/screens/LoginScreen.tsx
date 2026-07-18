@@ -1,74 +1,19 @@
 import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../store/auth';
-import { Button, Input } from '../components/ui';
+import { Button, Card, Row } from '../components/ui';
 import { colors } from '../theme';
 import { ScreenProps } from '../nav';
-import { API_URL } from '../config';
 
-export default function LoginScreen({ navigation }: ScreenProps<'Login'>) {
-  const { login } = useAuth();
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
+export default function LoginScreen({ navigation, route }: ScreenProps<'Login'>) {
+  const { signInWithGoogle } = useAuth();
   const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    if (!phone || !password) {
-      Alert.alert('Missing info', 'Enter your phone (or email) and password.');
-      return;
-    }
-    setBusy(true);
-    try {
-      await login(phone.trim(), password);
-      // AuthProvider flips user → RootNav swaps to the app automatically.
-    } catch (e: any) {
-      Alert.alert('Login failed', e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: colors.dark }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
-        <View style={{ alignItems: 'center', marginBottom: 28 }}>
-          <Text style={{ fontSize: 52 }}>🚌</Text>
-          <Text style={{ fontSize: 30, fontWeight: '900', color: '#fff' }}>BusGo</Text>
-          <Text style={{ color: '#94a3b8', marginTop: 4 }}>Bus tickets, on your phone</Text>
-        </View>
-
-        <View style={{ backgroundColor: '#fff', borderRadius: 20, padding: 20 }}>
-          <Input
-            label="Phone or email"
-            value={phone}
-            onChangeText={setPhone}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            placeholder="01XXXXXXXXX"
-          />
-          <Input
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder="••••••••"
-          />
-          <Button title="Log in" onPress={submit} loading={busy} />
-          <Button
-            title="New here? Create an account"
-            variant="ghost"
-            onPress={() => navigation.navigate('Register')}
-            style={{ marginTop: 6 }}
-          />
-        </View>
-
-        <Text style={{ color: '#475569', fontSize: 11, textAlign: 'center', marginTop: 18 }}>
-          Server: {API_URL}
-        </Text>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  );
+  const resumeCheckout = route.params?.resumeCheckout;
+  const signIn = async () => { setBusy(true); try { await signInWithGoogle(); if (resumeCheckout) navigation.replace('Passenger', resumeCheckout); else navigation.popToTop(); } catch (error: any) { if (error?.message !== 'Google login was cancelled.') Alert.alert('Google login failed', error?.message || 'Please try again.'); } finally { setBusy(false); } };
+  return <ScrollView style={{ flex: 1, backgroundColor: colors.dark }} contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
+    <View style={{ alignItems: 'center', marginBottom: 28 }}><View style={{ width: 76, height: 76, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="bus" size={42} color="#fff" /></View><Text style={{ fontSize: 31, fontWeight: '900', color: '#fff', marginTop: 12 }}>BusGo</Text><Text style={{ color: '#94a3b8', marginTop: 4 }}>One secure account for every journey</Text></View>
+    <Card><Text style={{ fontSize: 21, fontWeight: '900', color: colors.text }}>Welcome back</Text><Text style={{ color: colors.subtext, lineHeight: 20, marginTop: 6, marginBottom: 20 }}>{resumeCheckout ? 'Sign in to keep your selected seats and continue checkout.' : 'Sign in with the Google account connected to BusGo. Your bookings and tickets are restored automatically.'}</Text><Button title="Continue with Google" icon="logo-google" onPress={signIn} loading={busy} /><Button title="Create a passenger account" variant="ghost" onPress={() => navigation.navigate('Register', { resumeCheckout })} style={{ marginTop: 6 }} /><Button title="Continue browsing" variant="ghost" onPress={() => navigation.popToTop()} /></Card>
+    <Row style={{ justifyContent: 'center', gap: 6, marginTop: 18 }}><Ionicons name="shield-checkmark-outline" size={15} color="#64748b" /><Text style={{ color: '#64748b', fontSize: 11 }}>Google-secured sign-in · No BusGo password</Text></Row>
+  </ScrollView>;
 }

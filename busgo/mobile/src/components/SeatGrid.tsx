@@ -11,13 +11,7 @@ export interface SeatCell {
 
 /** Map inventory-service seat docs into a 10x4 grid model. */
 export function toSeatCells(dbSeats: any[]): SeatCell[] {
-  if (!dbSeats || dbSeats.length === 0) {
-    const cells: SeatCell[] = [];
-    for (let row = 0; row < 10; row++)
-      for (let col = 0; col < 4; col++)
-        cells.push({ id: `${String.fromCharCode(65 + row)}${col + 1}`, row, col, taken: false });
-    return cells;
-  }
+  if (!dbSeats || dbSeats.length === 0) return [];
   return dbSeats.map((s: any) => {
     const rowChar = String(s.seat_number).charAt(0).toUpperCase();
     return {
