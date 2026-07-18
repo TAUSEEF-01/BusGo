@@ -1,5 +1,4 @@
 import axios from "axios";
-import { supabase } from "../lib/supabase";
 import { useAuthStore } from "../stores/authStore";
 
 const baseURL = (import.meta as any).env?.VITE_API_BASE_URL || "https://busgo-nhbi.onrender.com";
@@ -12,26 +11,10 @@ export const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      // Try to get token from Supabase first
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session?.access_token && config.headers) {
-        config.headers.Authorization = `Bearer ${session.access_token}`;
-      } else {
-        // Fallback to Zustand store
-        const { accessToken } = useAuthStore.getState();
-        if (accessToken && config.headers) {
-          config.headers.Authorization = `Bearer ${accessToken}`;
-        }
-      }
-    } catch (e) {
-      console.warn("Supabase session get failed, using fallback Zustand store", e);
-      const { accessToken } = useAuthStore.getState();
-      if (accessToken && config.headers) {
-        config.headers.Authorization = `Bearer ${accessToken}`;
-      }
+  (config) => {
+    const { accessToken } = useAuthStore.getState();
+    if (accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
     }
     return config;
   },
@@ -56,7 +39,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isSessionEndpoint = /\/api\/auth\/(google-login|login|refresh)$/.test(originalRequest?.url || "");
+    if (error.response?.status === 401 && !originalRequest._retry && !isSessionEndpoint) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -72,17 +56,8 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Try to refresh Supabase session first
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-        
-        if (session?.access_token && !refreshError) {
-          processQueue(null, session.access_token);
-          originalRequest.headers.Authorization = `Bearer ${session.access_token}`;
-          return apiClient(originalRequest);
-        }
-        
-        // Fallback to custom refresh token logic
         const { refreshToken } = useAuthStore.getState();
+        if (!refreshToken) throw new Error("No refresh token is available");
         const response = await axios.post(`${baseURL}/api/auth/refresh`, {
           refresh_token: refreshToken,
         });
@@ -101,7 +76,6 @@ apiClient.interceptors.response.use(
       } catch (err) {
         processQueue(err, null);
         useAuthStore.getState().logout();
-        await supabase.auth.signOut();
         window.location.href = "/login";
         return Promise.reject(err);
       } finally {

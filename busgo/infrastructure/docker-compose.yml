@@ -121,6 +121,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: supersecretkey
+      SUPABASE_URL: ${SUPABASE_URL:-https://wtldkwqnfynxfqyqvehy.supabase.co}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV}
       ENVIRONMENT: development
       SERVICE_NAME: auth-service
       SERVICE_DB: auth_db
@@ -443,8 +445,8 @@ services:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-https://busgo.farefin.com}
         VITE_BASE_PATH: /
-        VITE_SUPABASE_URL: https://wtldkwqnfynxfqyqvehy.supabase.co
-        VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0bGRrd3FuZnlueGZxeXF2ZWh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5NTU5NzcsImV4cCI6MjA1MjUzMTk3N30.sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV
+        VITE_SUPABASE_URL: ${SUPABASE_URL:-https://wtldkwqnfynxfqyqvehy.supabase.co}
+        VITE_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-sb_publishable_LzfdVkyS5xCYEwCVk41gug_yurc4LKV}
     ports:
       - "${FRONTEND_PORT:-8083}:80"
     depends_on:

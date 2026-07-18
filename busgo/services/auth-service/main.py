@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from routers.auth import router as auth_router
 from models.base import Base
 from database import engine
+from sqlalchemy import text
 from shared.observability import setup_observability
 from shared.health import create_health_router, sqlalchemy_async_check, redis_check
 import os
@@ -30,6 +31,13 @@ app.include_router(create_health_router(SERVICE_NAME, {
 async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all does not alter existing tables. These idempotent statements
+        # migrate password-era users so Google accounts can be linked safely.
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN phone DROP NOT NULL"))
+        await conn.execute(text("ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR NOT NULL DEFAULT 'password'"))
+        await conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_subject VARCHAR"))
+        await conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_provider_subject ON users (provider_subject)"))
 
 @app.get("/")
 async def root():

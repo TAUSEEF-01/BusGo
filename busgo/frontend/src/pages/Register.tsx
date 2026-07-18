@@ -1,386 +1,82 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { useAuthStore } from "../stores/authStore";
-import { apiClient } from "../api/client";
-import { Mail, Lock, Eye, EyeOff, Bus, ArrowRight, User, Phone, Check, Shield, Zap, Heart } from "lucide-react";
+import { Link } from "react-router-dom";
+import { BriefcaseBusiness, Bus, ShieldCheck, Ticket } from "lucide-react";
+import { startGoogleSignIn, type RegistrationRole } from "../lib/googleAuth";
 
-const STEPS = ["Account", "Personal", "Verify"];
+function GoogleIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09A6.52 6.52 0 0 1 5.49 12c0-.73.13-1.43.35-2.09V7.07H2.18A11 11 0 0 0 1 12c0 1.78.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+    </svg>
+  );
+}
 
 export function Register() {
-  const navigate = useNavigate();
-  const login = useAuthStore((s) => s.login);
-  const [step, setStep] = useState(0);
+  const [role, setRole] = useState<RegistrationRole>("CUSTOMER");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [registerError, setRegisterError] = useState("");
-  const [form, setForm] = useState({
-    email: "",
-    password: "",
-    confirmPassword: "",
-    name: "",
-    phone: "",
-    gender: "",
-    role: "CUSTOMER",
-    agreedToTerms: false,
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [error, setError] = useState("");
 
-  const set = (key: string, value: string | boolean) => {
-    setForm((f) => ({ ...f, [key]: value }));
-    setErrors((e) => ({ ...e, [key]: "" }));
-  };
-
-  const validateStep = () => {
-    const errs: Record<string, string> = {};
-    if (step === 0) {
-      if (!form.role) errs.role = "Role is required";
-      if (!form.email) errs.email = "Email is required";
-      else if (!/\S+@\S+\.\S+/.test(form.email)) errs.email = "Invalid email address";
-      if (!form.password) errs.password = "Password is required";
-      else if (form.password.length < 8) errs.password = "Must be at least 8 characters";
-      if (form.password !== form.confirmPassword) errs.confirmPassword = "Passwords don't match";
-    }
-    if (step === 1) {
-      if (!form.name) errs.name = "Name is required";
-      if (!form.phone) errs.phone = "Phone is required";
-    }
-    if (step === 2) {
-      if (!form.agreedToTerms) errs.agreedToTerms = "You must agree to the terms";
-    }
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const nextStep = () => {
-    if (validateStep()) {
-      if (step < STEPS.length - 1) setStep(step + 1);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validateStep()) return;
+  const register = async () => {
     setLoading(true);
-    setRegisterError("");
+    setError("");
     try {
-      // Register user via auth-service
-      const registerResponse = await apiClient.post("/api/auth/register", {
-        phone: form.phone,
-        full_name: form.name,
-        password: form.password,
-        email: form.email,
-        role: form.role,
-      });
-      
-      if (registerResponse.data.success) {
-        // Auto-login after registration (skip OTP for dev)
-        try {
-          const loginResponse = await apiClient.post("/api/auth/login", {
-            phone: form.phone,
-            password: form.password,
-          });
-          if (loginResponse.data.success) {
-            const { access_token, refresh_token, user } = loginResponse.data.data;
-            login(
-              { id: user.id, name: user.full_name, email: user.email || "", phone: user.phone, role: user.role },
-              access_token,
-              refresh_token
-            );
-            
-            const role = user.role?.toUpperCase();
-            if (role === "ADMIN") {
-              navigate("/admin");
-            } else if (role === "OPERATOR") {
-              navigate("/operator");
-            } else {
-              navigate("/");
-            }
-            return;
-          }
-        } catch {
-          // Login failed after register, redirect to login page
-        }
-        navigate("/login");
-      } else {
-        setRegisterError(registerResponse.data.message || "Registration failed");
-      }
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setRegisterError(typeof detail === "string" ? detail : "Registration failed. Please try again.");
-    } finally {
+      await startGoogleSignIn({ role, returnTo: role === "OPERATOR" ? "/operator" : "/" });
+    } catch (reason: any) {
+      setError(reason?.message || "Unable to start Google registration.");
       setLoading(false);
     }
   };
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex" id="register-page">
-      {/* Left — Illustration */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center p-12" style={{
-        background: 'linear-gradient(-45deg, #0F172A, #1E293B, #334155, #1E293B)',
-        backgroundSize: '400% 400%',
-        animation: 'gradientShift 12s ease infinite',
-      }}>
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-20 -right-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl floating" />
-          <div className="absolute bottom-10 -left-20 w-80 h-80 bg-accent-500/10 rounded-full blur-3xl floating-delayed" />
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.04) 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-        </div>
-
-        <div className="relative z-10 text-white max-w-md text-center">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-500 flex items-center justify-center mx-auto mb-8 shadow-brand-lg">
-            <Bus className="h-10 w-10" />
-          </div>
-          <h2 className="text-3xl font-extrabold mb-4">Join the BusGo family</h2>
-          <p className="text-white/60 text-lg mb-10">Create your account and start booking bus tickets across Bangladesh in seconds.</p>
-
-          <div className="space-y-4 text-left">
-            {[
-              { icon: Shield, text: "Your data is always encrypted and secure" },
-              { icon: Zap, text: "Book tickets in under 60 seconds" },
-              { icon: Heart, text: "Exclusive deals for registered users" },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center gap-3 bg-white/5 rounded-xl px-4 py-3 backdrop-blur-sm border border-white/10">
-                <item.icon className="h-5 w-5 text-accent-400" />
-                <span className="text-sm font-medium text-white/80">{item.text}</span>
-              </div>
-            ))}
-          </div>
+      <div className="hidden lg:flex lg:w-1/2 hero-gradient items-center justify-center p-12">
+        <div className="max-w-md text-center text-white">
+          <div className="w-20 h-20 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-8"><Bus className="h-10 w-10" /></div>
+          <h2 className="text-3xl font-extrabold mb-4">Join BusGo with Google</h2>
+          <p className="text-white/70 text-lg">Your verified name and email create the account. No BusGo password is stored.</p>
         </div>
       </div>
-
-      {/* Right — Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center px-6 py-12 bg-white">
-        <div className="w-full max-w-md animate-fade-in-up">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2 mb-8">
-            <div className="p-1.5 rounded-lg bg-brand-600">
-              <Bus className="h-5 w-5 text-white" />
-            </div>
-            <span className="text-2xl font-extrabold text-surface-900">BusGo</span>
-          </div>
+        <div className="w-full max-w-md">
+          <h1 className="text-3xl font-extrabold text-surface-900 mb-2">Create your account</h1>
+          <p className="text-surface-500 mb-8">First choose how you will use BusGo.</p>
 
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-surface-900 mb-2" id="register-heading">
-            Create your account
-          </h1>
-          <p className="text-surface-500 mb-8">
-            Already have an account?{" "}
-            <Link to="/login" className="text-brand-600 font-semibold hover:text-brand-700 transition-colors">
-              Sign in
-            </Link>
-          </p>
-
-          {registerError && (
-            <div className="mb-6 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm font-medium animate-fade-in">
-              {registerError}
-            </div>
-          )}
-
-          {/* Progress Steps */}
-          <div className="flex items-center gap-3 mb-10">
-            {STEPS.map((s, i) => (
-              <div key={s} className="flex items-center gap-2 flex-1">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 ${
-                  i < step ? "bg-emerald-500 text-white" :
-                  i === step ? "bg-brand-600 text-white shadow-brand" :
-                  "bg-surface-100 text-surface-400"
-                }`}>
-                  {i < step ? <Check className="h-4 w-4" /> : i + 1}
-                </div>
-                <span className={`text-sm font-medium hidden sm:block ${i <= step ? "text-surface-900" : "text-surface-400"}`}>
-                  {s}
-                </span>
-                {i < STEPS.length - 1 && (
-                  <div className={`flex-1 h-0.5 rounded ${i < step ? "bg-emerald-500" : "bg-surface-200"}`} />
-                )}
-              </div>
+          <div className="grid sm:grid-cols-2 gap-3 mb-6">
+            {[
+              { value: "CUSTOMER" as const, title: "Passenger", text: "Search and book tickets", icon: Ticket },
+              { value: "OPERATOR" as const, title: "Bus operator", text: "Manage buses and routes", icon: BriefcaseBusiness },
+            ].map(({ value, title, text, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setRole(value)}
+                className={`rounded-xl border-2 p-4 text-left transition-all ${role === value ? "border-brand-600 bg-brand-50" : "border-surface-200 hover:border-surface-300"}`}
+              >
+                <Icon className={`h-6 w-6 mb-3 ${role === value ? "text-brand-600" : "text-surface-500"}`} />
+                <span className="block font-bold text-surface-900">{title}</span>
+                <span className="text-xs text-surface-500">{text}</span>
+              </button>
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" id="register-form">
-            {/* Step 1: Account */}
-            {step === 0 && (
-              <div className="space-y-5 animate-fade-in">
-                <div>
-                  <label className="block text-sm font-semibold text-surface-700 mb-2">Register as</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => set("role", "CUSTOMER")}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                        form.role === "CUSTOMER" 
-                          ? "border-brand-600 bg-brand-50 text-brand-700 shadow-sm" 
-                          : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
-                      }`}
-                    >
-                      <User className="h-5 w-5 mb-1" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Customer</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => set("role", "OPERATOR")}
-                      className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-                        form.role === "OPERATOR" 
-                          ? "border-brand-600 bg-brand-50 text-brand-700 shadow-sm" 
-                          : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
-                      }`}
-                    >
-                      <Bus className="h-5 w-5 mb-1" />
-                      <span className="text-xs font-bold uppercase tracking-wider">Operator</span>
-                    </button>
-                  </div>
-                  {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
-                </div>
-                <div>
-                  <label htmlFor="reg-email" className="block text-sm font-semibold text-surface-700 mb-1.5">Email</label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                    <input id="reg-email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} placeholder="name@example.com" className={`input-premium !pl-10 ${errors.email ? "!border-red-400" : ""}`} />
-                  </div>
-                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                </div>
-                <div>
-                  <label htmlFor="reg-password" className="block text-sm font-semibold text-surface-700 mb-1.5">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                    <input id="reg-password" type={showPassword ? "text" : "password"} value={form.password} onChange={(e) => set("password", e.target.value)} placeholder="Min 8 characters" className={`input-premium !pl-10 !pr-10 ${errors.password ? "!border-red-400" : ""}`} />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-400 hover:text-surface-600">
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                  {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-                  {/* Password strength */}
-                  {form.password && (
-                    <div className="mt-2 flex gap-1">
-                      {[1,2,3,4].map((i) => (
-                        <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${
-                          form.password.length >= i * 3 ? (form.password.length >= 12 ? "bg-emerald-500" : form.password.length >= 8 ? "bg-accent-500" : "bg-red-400") : "bg-surface-200"
-                        }`} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <label htmlFor="reg-confirm" className="block text-sm font-semibold text-surface-700 mb-1.5">Confirm Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                    <input id="reg-confirm" type="password" value={form.confirmPassword} onChange={(e) => set("confirmPassword", e.target.value)} placeholder="Re-enter password" className={`input-premium !pl-10 ${errors.confirmPassword ? "!border-red-400" : ""}`} />
-                  </div>
-                  {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Personal */}
-            {step === 1 && (
-              <div className="space-y-5 animate-fade-in">
-                <div>
-                  <label htmlFor="reg-name" className="block text-sm font-semibold text-surface-700 mb-1.5">Full Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                    <input id="reg-name" type="text" value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="Enter your full name" className={`input-premium !pl-10 ${errors.name ? "!border-red-400" : ""}`} />
-                  </div>
-                  {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
-                </div>
-                <div>
-                  <label htmlFor="reg-phone" className="block text-sm font-semibold text-surface-700 mb-1.5">Phone Number</label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-surface-400" />
-                    <input id="reg-phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} placeholder="+880 1XXX XXXXXX" className={`input-premium !pl-10 ${errors.phone ? "!border-red-400" : ""}`} />
-                  </div>
-                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-surface-700 mb-2">Gender <span className="text-surface-400 font-normal">(optional)</span></label>
-                  <div className="flex gap-3">
-                    {["Male", "Female", "Other"].map((g) => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => set("gender", form.gender === g ? "" : g)}
-                        className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition-all ${
-                          form.gender === g
-                            ? "border-brand-600 bg-brand-50 text-brand-700"
-                            : "border-surface-200 bg-white text-surface-500 hover:border-surface-300"
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: Verify */}
-            {step === 2 && (
-              <div className="space-y-5 animate-fade-in">
-                <div className="card-premium p-6">
-                  <h3 className="font-bold text-surface-900 mb-4">Review your information</h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between py-2 border-b border-surface-100">
-                      <span className="text-surface-500">Email</span>
-                      <span className="font-medium text-surface-900">{form.email}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-surface-100">
-                      <span className="text-surface-500">Name</span>
-                      <span className="font-medium text-surface-900">{form.name}</span>
-                    </div>
-                    <div className="flex justify-between py-2 border-b border-surface-100">
-                      <span className="text-surface-500">Phone</span>
-                      <span className="font-medium text-surface-900">{form.phone}</span>
-                    </div>
-                    {form.gender && (
-                      <div className="flex justify-between py-2 border-b border-surface-100">
-                        <span className="text-surface-500">Gender</span>
-                        <span className="font-medium text-surface-900">{form.gender}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between py-2">
-                      <span className="text-surface-500">Register as</span>
-                      <span className="font-bold text-brand-600 uppercase tracking-wider">{form.role}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    id="agree-terms"
-                    checked={form.agreedToTerms}
-                    onChange={(e) => set("agreedToTerms", e.target.checked)}
-                    className="mt-0.5 w-4 h-4 rounded border-surface-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <label htmlFor="agree-terms" className="text-sm text-surface-600">
-                    I agree to the{" "}
-                    <a href="#" className="text-brand-600 font-semibold hover:underline">Terms of Service</a> and{" "}
-                    <a href="#" className="text-brand-600 font-semibold hover:underline">Privacy Policy</a>
-                  </label>
-                </div>
-                {errors.agreedToTerms && <p className="text-red-500 text-xs">{errors.agreedToTerms}</p>}
-              </div>
-            )}
-
-            {/* Navigation */}
-            <div className="flex gap-3 pt-2">
-              {step > 0 && (
-                <button type="button" onClick={() => setStep(step - 1)} className="btn-secondary flex-1 !py-3" id="reg-back">
-                  Back
-                </button>
-              )}
-              {step < STEPS.length - 1 ? (
-                <button type="button" onClick={nextStep} className="btn-primary flex-1 flex items-center justify-center gap-2 !py-3" id="reg-next">
-                  Continue <ArrowRight className="h-4 w-4" />
-                </button>
-              ) : (
-                <button type="submit" disabled={loading} className="btn-primary flex-1 flex items-center justify-center gap-2 !py-3 disabled:opacity-60" id="reg-submit">
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>Create Account <ArrowRight className="h-4 w-4" /></>
-                  )}
-                </button>
-              )}
-            </div>
-          </form>
+          {error && <div className="mb-5 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{error}</div>}
+          <button
+            type="button"
+            onClick={register}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-xl border-2 border-surface-200 font-semibold hover:bg-surface-50 transition-all disabled:opacity-60"
+          >
+            {loading ? <span className="w-5 h-5 border-2 border-surface-300 border-t-brand-600 rounded-full animate-spin" /> : <GoogleIcon />}
+            {loading ? "Connecting to Google…" : "Create account with Google"}
+          </button>
+          <div className="flex gap-3 mt-6 rounded-xl bg-surface-50 p-4 text-sm text-surface-600">
+            <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+            <p>Admin access cannot be requested here. Existing admin accounts are recognized only by their saved BusGo role.</p>
+          </div>
+          <p className="text-center text-sm text-surface-500 mt-8">Already registered? <Link to="/login" className="text-brand-600 font-semibold">Sign in</Link></p>
         </div>
       </div>
     </div>
