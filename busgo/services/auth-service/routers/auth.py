@@ -275,11 +275,16 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
             auth_provider="google",
             provider_subject=provider_subject,
             is_verified=True,
+            # SQLAlchemy column defaults are applied during INSERT/flush, not
+            # when the Python model is constructed. Set this explicitly so a
+            # brand-new Google user is not mistaken for a disabled account.
+            is_active=True,
             role=req.role,
         )
         db.add(user)
 
-    if not user.is_active:
+    # Only an explicit False represents an administratively disabled account.
+    if user.is_active is False:
         raise HTTPException(status_code=403, detail="Account is disabled")
 
     await db.commit()
