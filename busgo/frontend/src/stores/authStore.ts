@@ -72,3 +72,25 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Zustand persists the session in localStorage, but its in-memory state does
+// not automatically follow changes made by another browser tab. Keep all tabs
+// on the newest access/refresh token so one tab cannot strand another on an
+// expired token.
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (event) => {
+    if (event.key !== "busgo-auth" || !event.newValue) return;
+    try {
+      const cached = JSON.parse(event.newValue)?.state as Partial<AuthState> | undefined;
+      if (!cached) return;
+      useAuthStore.setState({
+        user: cached.user ?? null,
+        accessToken: cached.accessToken ?? null,
+        refreshToken: cached.refreshToken ?? null,
+        isAuthenticated: Boolean(cached.accessToken && cached.user),
+      });
+    } catch {
+      // Ignore malformed external storage events; the current session remains.
+    }
+  });
+}

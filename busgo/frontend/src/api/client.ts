@@ -75,8 +75,16 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
-        useAuthStore.getState().logout();
-        window.location.href = "/login";
+        const refreshTokenExists = Boolean(useAuthStore.getState().refreshToken);
+        const refreshStatus = axios.isAxiosError(err) ? err.response?.status : undefined;
+        const sessionIsInvalid = !refreshTokenExists || refreshStatus === 400 || refreshStatus === 401 || refreshStatus === 403;
+
+        // Network problems and 5xx responses are temporary. Preserve the
+        // cached session so the user can retry instead of being logged out.
+        if (sessionIsInvalid) {
+          useAuthStore.getState().logout();
+          window.location.href = "/login";
+        }
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

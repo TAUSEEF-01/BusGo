@@ -154,19 +154,19 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     if not db_token or db_token.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    db_token.is_revoked = True
-    
     user_result = await db.execute(select(User).where(User.id == db_token.user_id))
     user = user_result.scalars().first()
-    
+    if not user or user.is_active is False:
+        raise HTTPException(status_code=401, detail="Account is unavailable")
+
     access_token = create_user_access_token(user)
-    new_refresh_token = await create_refresh_token(db, user.id)
-    
-    await db.commit()
 
     return {
         "success": True,
-        "data": {"access_token": access_token, "refresh_token": new_refresh_token}
+        # Keep the session token stable until logout/expiry. Rotating it on
+        # every 401 makes concurrent requests or browser tabs invalidate each
+        # other and causes otherwise healthy sessions to be logged out.
+        "data": {"access_token": access_token, "refresh_token": req.refresh_token}
     }
 
 @router.post("/logout")
