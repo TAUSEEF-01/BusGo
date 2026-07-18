@@ -28,6 +28,17 @@ from shared.kafka_producer import KafkaProducerClient
 
 router = APIRouter(tags=["auth"])
 
+
+def create_user_access_token(user: User) -> str:
+    return create_access_token({
+        "user_id": str(user.id),
+        "role": user.role.value,
+        "phone": user.phone,
+        "email": user.email,
+        "full_name": user.full_name,
+    })
+
+
 async def create_refresh_token(db: AsyncSession, user_id: uuid.UUID) -> str:
     token = secrets.token_urlsafe(64)
     expires_at = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
@@ -89,7 +100,7 @@ async def verify_otp(req: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
     user.is_verified = True
     await db.commit()
 
-    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    access_token = create_user_access_token(user)
     refresh_token = await create_refresh_token(db, user.id)
 
     return {
@@ -109,7 +120,7 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Phone not verified")
 
-    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    access_token = create_user_access_token(user)
     refresh_token = await create_refresh_token(db, user.id)
 
     return {
@@ -131,7 +142,7 @@ async def swagger_token(form_data: OAuth2PasswordRequestForm = Depends(), db: As
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Phone not verified")
 
-    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    access_token = create_user_access_token(user)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -148,7 +159,7 @@ async def refresh(req: RefreshRequest, db: AsyncSession = Depends(get_db)):
     user_result = await db.execute(select(User).where(User.id == db_token.user_id))
     user = user_result.scalars().first()
     
-    access_token = create_access_token({"user_id": str(user.id), "role": user.role.value, "phone": user.phone})
+    access_token = create_user_access_token(user)
     new_refresh_token = await create_refresh_token(db, user.id)
     
     await db.commit()
@@ -290,11 +301,7 @@ async def google_login(req: GoogleLoginRequest, db: AsyncSession = Depends(get_d
     await db.commit()
     await db.refresh(user)
 
-    access_token = create_access_token({
-        "user_id": str(user.id),
-        "role": user.role.value,
-        "phone": user.phone,
-    })
+    access_token = create_user_access_token(user)
     refresh_token = await create_refresh_token(db, user.id)
 
     try:

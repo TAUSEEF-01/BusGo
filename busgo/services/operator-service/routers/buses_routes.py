@@ -17,6 +17,44 @@ from shared.base_response import BaseResponse
 router = APIRouter(tags=["buses-routes"])
 
 
+def _require_operator_access(operator_id: UUID, payload: dict) -> None:
+    role = str(payload.get("role") or "").upper()
+    if role == "ADMIN":
+        return
+    if role != "OPERATOR" or str(payload.get("user_id")) != str(operator_id):
+        raise HTTPException(status_code=403, detail="Cannot manage another operator's resources")
+
+
+def _operator_profile_values(operator_id: UUID, payload: dict) -> dict:
+    phone = str(payload.get("phone") or "").strip()
+    email = str(payload.get("email") or "").strip().lower()
+    full_name = str(payload.get("full_name") or "").strip()
+    fallback_name = f"Operator {str(operator_id)[:8].upper()}"
+    return {
+        "name": full_name or (email.split("@", 1)[0] if email else "") or phone or fallback_name,
+        "contact_phone": phone or "Not provided",
+        "contact_email": email or f"operator-{operator_id}@users.busgo.local",
+        "address": "Not specified",
+        "license_no": "PENDING",
+    }
+
+
+async def _ensure_operator(operator_id: UUID, db: AsyncSession, payload: dict) -> Operator:
+    operator = (await db.execute(
+        select(Operator).where(Operator.id == operator_id)
+    )).scalars().first()
+    if operator:
+        return operator
+
+    operator = Operator(id=operator_id, **_operator_profile_values(operator_id, payload))
+    db.add(operator)
+    # Keep profile creation atomic with the bus/route being created by the
+    # caller. If that insert fails, the new placeholder profile rolls back too.
+    await db.flush()
+    await db.refresh(operator)
+    return operator
+
+
 async def _transit_route_using_bus(db: AsyncSession, bus: Bus):
     routes = (await db.execute(
         select(TransitRoute).where(TransitRoute.operator_id == bus.operator_id)
@@ -36,22 +74,8 @@ async def _transit_route_using_service_route(db: AsyncSession, route: Route):
 
 @router.post("/operators/{id}/buses", response_model=BaseResponse[BusResponse])
 async def create_bus(id: UUID, req: BusCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
-    # Verify operator exists
-    op_res = await db.execute(select(Operator).where(Operator.id == id))
-    operator = op_res.scalars().first()
-    if not operator:
-        # Auto-create Operator
-        operator = Operator(
-            id=id,
-            name=payload.get("phone", "Auto Operator"),
-            contact_phone=payload.get("phone", "Unknown"),
-            contact_email="operator@example.com",
-            address="Not specified",
-            license_no="PENDING"
-        )
-        db.add(operator)
-        await db.commit()
-        await db.refresh(operator)
+    _require_operator_access(id, payload)
+    await _ensure_operator(id, db, payload)
         
     bus = Bus(operator_id=id, **req.model_dump())
     db.add(bus)
@@ -91,21 +115,8 @@ async def update_bus(id: UUID, req: BusUpdate, db: AsyncSession = Depends(get_db
 
 @router.post("/operators/{id}/routes", response_model=BaseResponse[RouteResponse])
 async def create_route(id: UUID, req: RouteCreate, db: AsyncSession = Depends(get_db), payload: dict = Depends(get_current_user_payload)):
-    op_res = await db.execute(select(Operator).where(Operator.id == id))
-    operator = op_res.scalars().first()
-    if not operator:
-        # Auto-create Operator
-        operator = Operator(
-            id=id,
-            name=payload.get("phone", "Auto Operator"),
-            contact_phone=payload.get("phone", "Unknown"),
-            contact_email="operator@example.com",
-            address="Not specified",
-            license_no="PENDING"
-        )
-        db.add(operator)
-        await db.commit()
-        await db.refresh(operator)
+    _require_operator_access(id, payload)
+    await _ensure_operator(id, db, payload)
         
     # Convert Points to dict for JSON injection
     route_data = req.model_dump()
