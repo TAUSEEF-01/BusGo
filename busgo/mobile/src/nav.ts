@@ -45,6 +45,9 @@ export interface DirectTrip {
   fare_amount: number;
   available_seats?: number;
   bus_type?: string;
+  bus_name?: string | null;
+  bus_registration_no?: string | null;
+  amenities?: string[];
   boarding_points?: { name: string; address?: string }[];
   dropping_points?: { name: string; address?: string }[];
 }

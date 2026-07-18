@@ -41,7 +41,13 @@ export default function ProfileScreen() {
   if (!user) return <GuestAccess title="Create your BusGo account" message="Browsing is open to everyone. Log in when you want to buy tickets, manage trips, or view your profile." />;
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
-    <View style={{ alignItems: 'center', paddingVertical: 20 }}><View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 30, fontWeight: '900' }}>{initials}</Text></View><Text style={{ fontSize: 20, fontWeight: '900', color: colors.text, marginTop: 12 }}>{user?.full_name || 'Traveller'}</Text><View style={{ marginTop: 5 }}><Badge tone="primary" text={user?.role || 'CUSTOMER'} /></View></View>
+    <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+      <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 82, height: 82, borderRadius: 41, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 29, fontWeight: '900' }}>{initials}</Text></View>
+      </View>
+      <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text, marginTop: 12 }}>{user?.full_name || 'Traveller'}</Text>
+      <View style={{ marginTop: 5 }}><Badge tone="primary" text={user?.role || 'CUSTOMER'} /></View>
+    </View>
     <Card style={{ marginBottom: 14 }}><SectionTitle title="Account details" action={!editing ? <Button title="Edit" variant="ghost" icon="create-outline" onPress={() => setEditing(true)} style={{ minHeight: 34, paddingVertical: 4 }} /> : undefined} />
       {editing ? <><Input label="Full name" value={name} onChangeText={setName} autoCapitalize="words" /><Input label="Phone number" value={phone} onChangeText={setPhone} keyboardType="phone-pad" placeholder="01XXXXXXXXX" /><Row style={{ gap: 8 }}><Button title="Cancel" variant="outline" onPress={() => { setName(user?.full_name || ''); setPhone(user?.phone || ''); setEditing(false); }} style={{ flex: 1 }} /><Button title="Save" onPress={save} loading={busy} style={{ flex: 1 }} /></Row></> : <><Info icon="mail-outline" label="Email" value={user?.email || 'Not available'} /><Info icon="call-outline" label="Phone" value={user?.phone || 'Add a phone number'} /><Info icon="finger-print-outline" label="User ID" value={user?.id?.slice(0, 12).toUpperCase() || 'Not available'} /></>}
     </Card>

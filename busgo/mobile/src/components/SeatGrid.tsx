@@ -134,20 +134,20 @@ const styles = StyleSheet.create({
   seat: {
     width: 42,
     height: 40,
-    borderRadius: 8,
+    borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#bfdbfe',
-    backgroundColor: '#eff6ff',
+    borderColor: colors.border,
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
   },
   seatTaken: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#e2e8f0',
     borderColor: colors.border,
   },
   seatSelected: {
     backgroundColor: colors.primary,
     borderColor: colors.primaryDark,
   },
-  seatText: { fontSize: 11, fontWeight: '700', color: colors.info },
+  seatText: { fontSize: 11, fontWeight: '800', color: colors.subtext },
 });

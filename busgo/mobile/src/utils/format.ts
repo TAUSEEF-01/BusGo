@@ -43,3 +43,17 @@ export function secondsRemaining(expiresAt?: string): number {
 export function countdown(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
+
+/** Same fallback chain the web app uses for naming the coach on a trip card. */
+export function busDisplayName(trip: { bus_name?: string | null; bus_registration_no?: string | null }): string {
+  return trip.bus_name?.trim() || trip.bus_registration_no?.trim() || 'Coach assignment pending';
+}
+
+export function durationBetween(departure?: string | null, arrival?: string | null): string {
+  if (!departure || !arrival) return '';
+  const start = new Date(departure).getTime();
+  const end = new Date(arrival).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return '';
+  const totalMinutes = Math.round((end - start) / 60000);
+  return `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`;
+}

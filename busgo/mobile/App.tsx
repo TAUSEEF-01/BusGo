@@ -27,14 +27,23 @@ import TicketDetailScreen from './src/screens/TicketDetailScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator();
-const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = { Home: 'home-outline', Trips: 'ticket-outline', Deals: 'pricetag-outline', Alerts: 'notifications-outline', Profile: 'person-outline' };
+const TAB_ICONS: Record<string, { active: keyof typeof Ionicons.glyphMap; idle: keyof typeof Ionicons.glyphMap }> = {
+  Home: { active: 'home', idle: 'home-outline' },
+  Trips: { active: 'ticket', idle: 'ticket-outline' },
+  Deals: { active: 'pricetag', idle: 'pricetag-outline' },
+  Alerts: { active: 'notifications', idle: 'notifications-outline' },
+  Profile: { active: 'person', idle: 'person-outline' },
+};
 
 function Tabs() {
   return <Tab.Navigator screenOptions={({ route }) => ({
     headerShown: route.name !== 'Home', headerTitleStyle: { fontWeight: '800' },
     tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.faint,
     tabBarLabelStyle: { fontWeight: '700', fontSize: 11 }, tabBarStyle: { height: 62, paddingTop: 5, paddingBottom: 7 },
-    tabBarIcon: ({ color, size }) => <Ionicons name={TAB_ICONS[route.name] || 'ellipse-outline'} size={size} color={color} />,
+    tabBarIcon: ({ color, size, focused }) => {
+      const icons = TAB_ICONS[route.name];
+      return <Ionicons name={icons ? (focused ? icons.active : icons.idle) : 'ellipse-outline'} size={size} color={color} />;
+    },
   })}>
     <Tab.Screen name="Home" component={HomeScreen} />
     <Tab.Screen name="Trips" component={TripsScreen} options={{ title: 'My Trips' }} />

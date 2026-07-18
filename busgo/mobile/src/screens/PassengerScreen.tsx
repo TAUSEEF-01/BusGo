@@ -88,7 +88,13 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
     <Text style={{ fontSize: 13, color: colors.subtext, marginBottom: 12 }}>Enter the person travelling in each selected seat.</Text>
     {passengers.map((passenger, index) => <Card key={passengerSeats[index]} style={{ marginBottom: 12 }}>
-      <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}><Text style={{ fontWeight: '900', color: colors.text }}>Passenger {index + 1}</Text><Text style={{ color: colors.primary, fontWeight: '800' }}>Seat {passengerSeats[index]}</Text></Row>
+      <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+        <Row style={{ gap: 9 }}>
+          <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: colors.primary, fontWeight: '900', fontSize: 13 }}>{index + 1}</Text></View>
+          <Text style={{ fontWeight: '900', color: colors.text }}>Passenger {index + 1}</Text>
+        </Row>
+        <View style={{ backgroundColor: colors.primarySoft, borderWidth: 1, borderColor: colors.primaryBorder, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}><Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12 }}>Seat {passengerSeats[index]}</Text></View>
+      </Row>
       <Input label="Full name" value={passenger.name} onChangeText={(name) => update(index, { name })} placeholder="As shown on identification" autoCapitalize="words" />
       <Input label="Age" value={passenger.age} onChangeText={(age) => update(index, { age: age.replace(/\D/g, '') })} placeholder="Age" keyboardType="number-pad" maxLength={3} />
       <Text style={{ fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 7 }}>Gender</Text>
