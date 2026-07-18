@@ -9,6 +9,8 @@ import { Booking, Ticket } from '../types/api';
 import { colors } from '../theme';
 import { money, reference, shortDate } from '../utils/format';
 import type { RootStackParamList } from '../nav';
+import { useAuth } from '../store/auth';
+import { GuestAccess } from '../components/GuestAccess';
 
 type Segment = 'bookings' | 'tickets';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -24,6 +26,7 @@ function tone(status: string): 'success' | 'info' | 'warn' | 'neutral' | 'danger
 
 export default function TripsScreen() {
   const navigation = useNavigation<Nav>();
+  const { user } = useAuth();
   const [segment, setSegment] = useState<Segment>('bookings');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -33,12 +36,13 @@ export default function TripsScreen() {
 
   const load = useCallback(async () => {
     setError('');
+    if (!user) { setBookings([]); setTickets([]); setLoading(false); setRefreshing(false); return; }
     try {
       const [bookingResponse, ticketResponse] = await Promise.all([api.get('/api/bookings/my?limit=100'), api.get('/api/tickets/my')]);
       setBookings(bookingResponse.data || []); setTickets(ticketResponse.data || []);
     } catch (reason: any) { setError(reason.message || 'Could not load your trips.'); }
     finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [user]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const bookingGroups = useMemo(() => {
@@ -46,6 +50,8 @@ export default function TripsScreen() {
     bookings.forEach((booking) => { const key = booking.journey_id || booking.id; groups.set(key, [...(groups.get(key) || []), booking]); });
     return [...groups.entries()].map(([key, legs]) => ({ key, journeyId: legs[0].journey_id, legs: legs.sort((a, b) => Number(a.leg_number || 0) - Number(b.leg_number || 0)), first: legs[0] }));
   }, [bookings]);
+
+  if (!user) return <GuestAccess title="Your trips need an account" message="Anyone can browse routes and seats. Log in to view your bookings and e-tickets." />;
 
   return <View style={{ flex: 1, backgroundColor: colors.bg }}>
     <View style={styles.segment}>{(['bookings', 'tickets'] as Segment[]).map((item) => <Pressable key={item} onPress={() => setSegment(item)} style={[styles.segmentButton, segment === item && styles.segmentActive]}><Text style={{ fontWeight: '800', fontSize: 13, color: segment === item ? '#fff' : colors.subtext }}>{item === 'bookings' ? `Bookings (${bookingGroups.length})` : `Tickets (${tickets.length})`}</Text></Pressable>)}</View>

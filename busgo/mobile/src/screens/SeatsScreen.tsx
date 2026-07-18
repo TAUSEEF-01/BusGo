@@ -7,12 +7,14 @@ import { Button, Card, ErrorState, Loading, Row } from '../components/ui';
 import { colors } from '../theme';
 import { money, shortDate } from '../utils/format';
 import { ScreenProps } from '../nav';
+import { useAuth } from '../store/auth';
 
 const MAX_SEATS = 4;
 const SERVICE_FEE = 20;
 
 export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>) {
   const { trip, origin, destination, date } = route.params;
+  const { user } = useAuth();
   const tripId = (trip.trip_id || trip.id) as string;
   const [seats, setSeats] = useState<SeatCell[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
@@ -45,6 +47,19 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
   });
   const seatFare = selected.length * Number(trip.fare_amount);
   const total = seatFare + (selected.length ? SERVICE_FEE : 0);
+  const passengerParams = { mode: 'direct' as const, trip, seats: selected, boardingPoint, droppingPoint, origin, destination, date };
+  const continueToCheckout = () => {
+    if (user) return navigation.navigate('Passenger', passengerParams);
+    Alert.alert(
+      'Account required for checkout',
+      'You can browse BusGo without an account. Log in or create an account to enter passenger details and buy these tickets.',
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Create account', onPress: () => navigation.navigate('Register', { resumeCheckout: passengerParams }) },
+        { text: 'Log in', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
+      ],
+    );
+  };
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
     <Card style={{ marginBottom: 14 }}><Text style={{ fontWeight: '800', fontSize: 16, color: colors.text }}>{trip.operator_name || 'Bus operator'}</Text><Text style={{ color: colors.subtext, fontSize: 13 }}>{origin} → {destination} · {shortDate(date)} · {money(trip.fare_amount)}/seat</Text></Card>
@@ -57,7 +72,7 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
       <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Seat fare</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(seatFare)}</Text></Row>
       <Row style={{ justifyContent: 'space-between', marginBottom: 5 }}><Text style={{ color: colors.subtext }}>Service fee</Text><Text style={{ fontWeight: '700', color: colors.text }}>{money(selected.length ? SERVICE_FEE : 0)}</Text></Row>
       <Row style={{ justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 9 }}><Text style={{ fontWeight: '800', color: colors.text }}>Total</Text><Text style={{ fontWeight: '900', fontSize: 18, color: colors.primary }}>{money(total)}</Text></Row>
-      <Button title="Passenger details" disabled={!selected.length} onPress={() => navigation.navigate('Passenger', { mode: 'direct', trip, seats: selected, boardingPoint, droppingPoint, origin, destination, date })} style={{ marginTop: 12 }} />
+      <Button title="Passenger details" disabled={!selected.length} onPress={continueToCheckout} style={{ marginTop: 12 }} />
       <Text style={{ fontSize: 11, color: colors.faint, textAlign: 'center', marginTop: 8 }}>Seats are checked again and held when you continue to payment.</Text>
     </Card> : null}
     <Modal visible={!!selecting} transparent animationType="fade" onRequestClose={() => setSelecting(null)}><Pressable onPress={() => setSelecting(null)} style={{ flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' }}><Pressable onPress={() => {}} style={{ backgroundColor: '#fff', borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 18, maxHeight: '70%' }}><Row style={{ justifyContent: 'space-between', marginBottom: 12 }}><Text style={{ fontSize: 18, fontWeight: '900', color: colors.text }}>Select {selecting === 'boarding' ? 'boarding' : 'dropping'} point</Text><Pressable onPress={() => setSelecting(null)}><Ionicons name="close" size={24} color={colors.text} /></Pressable></Row><ScrollView>{(selecting === 'boarding' ? boardingPoints : droppingPoints).map((point, index) => <Pressable key={`${point.name}-${index}`} onPress={() => { if (selecting === 'boarding') setBoardingPoint(point.name); else setDroppingPoint(point.name); setSelecting(null); }} style={{ paddingVertical: 13, borderBottomWidth: index === (selecting === 'boarding' ? boardingPoints : droppingPoints).length - 1 ? 0 : 1, borderBottomColor: colors.border }}><Text style={{ color: colors.text, fontWeight: '800' }}>{point.name}</Text>{point.address ? <Text style={{ color: colors.subtext, fontSize: 12, marginTop: 2 }}>{point.address}</Text> : null}</Pressable>)}</ScrollView></Pressable></Pressable></Modal>

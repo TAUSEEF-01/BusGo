@@ -7,6 +7,7 @@ import { colors, radius } from '../theme';
 import { money } from '../utils/format';
 import { Passenger } from '../types/api';
 import { ScreenProps } from '../nav';
+import { GuestAccess } from '../components/GuestAccess';
 
 const SERVICE_FEE = 20;
 type Draft = { name: string; age: string; gender: 'male' | 'female' | 'other' };
@@ -80,6 +81,8 @@ export default function PassengerScreen({ route, navigation }: ScreenProps<'Pass
     } catch (error: any) { Alert.alert('Could not hold seats', error.message || 'Please refresh the seats and try again.'); }
     finally { setBusy(false); }
   };
+
+  if (!user) return <GuestAccess title="Log in to buy tickets" message="Your route and selected seats are ready. Log in or create an account to continue checkout." resumeCheckout={params} />;
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
     <Text style={{ fontSize: 13, color: colors.subtext, marginBottom: 12 }}>Enter the person travelling in each selected seat.</Text>

@@ -44,20 +44,20 @@ function Tabs() {
 }
 
 function RootNav() {
-  const { user, ready } = useAuth();
+  const { ready } = useAuth();
   if (!ready) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}><ActivityIndicator size="large" color={colors.primary} /></View>;
   return <Stack.Navigator screenOptions={{ headerTitleStyle: { fontWeight: '800' }, headerTintColor: colors.text, headerBackButtonDisplayMode: 'minimal', contentStyle: { backgroundColor: colors.bg } }}>
-    {!user ? <><Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} /><Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} /></> : <>
       <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
       <Stack.Screen name="Results" component={ResultsScreen} options={{ title: 'Available journeys' }} />
       <Stack.Screen name="Seats" component={SeatsScreen} options={{ title: 'Choose seats' }} />
       <Stack.Screen name="TransitSeats" component={TransitSeatsScreen} options={{ title: 'Seats for each bus' }} />
+      <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
       <Stack.Screen name="Passenger" component={PassengerScreen} options={{ title: 'Passengers' }} />
       <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Secure payment', gestureEnabled: false }} />
       <Stack.Screen name="BookingDetail" component={BookingDetailScreen} options={{ title: 'Booking details' }} />
       <Stack.Screen name="TicketDetail" component={TicketDetailScreen} options={{ title: 'E-ticket' }} />
       <Stack.Screen name="Confirmation" component={ConfirmationScreen} options={{ title: 'Confirmed', headerBackVisible: false, gestureEnabled: false }} />
-    </>}
   </Stack.Navigator>;
 }
 

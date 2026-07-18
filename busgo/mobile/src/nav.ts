@@ -49,27 +49,27 @@ export interface DirectTrip {
   dropping_points?: { name: string; address?: string }[];
 }
 
+export type PassengerParams = {
+  mode: 'direct' | 'transit';
+  origin: string;
+  destination: string;
+  date: string;
+  trip?: DirectTrip;
+  seats?: string[];
+  boardingPoint?: string;
+  droppingPoint?: string;
+  itinerary?: Itinerary;
+  seatsByLeg?: string[][];
+};
+
 export type RootStackParamList = {
   Tabs: undefined;
-  Login: undefined;
-  Register: undefined;
+  Login: { resumeCheckout?: PassengerParams } | undefined;
+  Register: { resumeCheckout?: PassengerParams } | undefined;
   Results: { origin: string; destination: string; date: string };
   Seats: { trip: DirectTrip; origin: string; destination: string; date: string };
   TransitSeats: { itinerary: Itinerary; origin: string; destination: string; date: string };
-  Passenger: {
-    mode: 'direct' | 'transit';
-    origin: string;
-    destination: string;
-    date: string;
-    // direct
-    trip?: DirectTrip;
-    seats?: string[];
-    boardingPoint?: string;
-    droppingPoint?: string;
-    // transit
-    itinerary?: Itinerary;
-    seatsByLeg?: string[][];
-  };
+  Passenger: PassengerParams;
   Payment: {
     mode: 'direct' | 'transit';
     bookingId: string; // first leg's booking for transit

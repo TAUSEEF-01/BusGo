@@ -7,6 +7,8 @@ import { Badge, Button, Card, Empty, ErrorState, Loading, Row } from '../compone
 import { NotificationItem } from '../types/api';
 import { colors } from '../theme';
 import { dateTime } from '../utils/format';
+import { useAuth } from '../store/auth';
+import { GuestAccess } from '../components/GuestAccess';
 
 const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   BOOKING_CONFIRMED: 'checkmark-circle-outline', TICKET_ISSUED: 'ticket-outline', BOOKING_CANCELLED: 'close-circle-outline',
@@ -15,17 +17,19 @@ const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function AlertsScreen() {
+  const { user } = useAuth();
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const load = useCallback(async () => { setError(''); try { const response = await api.get('/api/notifications/?per_page=100'); setItems(response.data?.notifications || []); } catch (reason: any) { setError(reason.message); } finally { setLoading(false); setRefreshing(false); } }, []);
+  const load = useCallback(async () => { setError(''); if (!user) { setItems([]); setLoading(false); setRefreshing(false); return; } try { const response = await api.get('/api/notifications/?per_page=100'); setItems(response.data?.notifications || []); } catch (reason: any) { setError(reason.message); } finally { setLoading(false); setRefreshing(false); } }, [user]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
   const markRead = async (item: NotificationItem) => { if (item.is_read) return; setItems((current) => current.map((value) => value.id === item.id ? { ...value, is_read: true } : value)); try { await api.patch(`/api/notifications/${item.id}/read`); } catch { setItems((current) => current.map((value) => value.id === item.id ? { ...value, is_read: false } : value)); } };
   const markAll = async () => { setBusy(true); try { await api.patch('/api/notifications/read-all'); setItems((current) => current.map((item) => ({ ...item, is_read: true }))); } catch (reason: any) { Alert.alert('Could not update notifications', reason.message); } finally { setBusy(false); } };
   const remove = async (id: string) => { const previous = items; setItems((current) => current.filter((item) => item.id !== id)); try { await api.del(`/api/notifications/${id}`); } catch (reason: any) { setItems(previous); Alert.alert('Could not delete notification', reason.message); } };
   const unread = items.filter((item) => !item.is_read).length;
+  if (!user) return <GuestAccess title="Notifications need an account" message="Log in to receive booking confirmations, ticket updates, reminders, and offers." />;
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
     <Row style={{ justifyContent: 'space-between', marginBottom: 14 }}><Row style={{ gap: 8 }}><Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>Notifications</Text>{unread ? <Badge tone="primary" text={`${unread} unread`} /> : null}</Row>{unread ? <Button title="Read all" variant="ghost" onPress={markAll} loading={busy} style={{ minHeight: 36, paddingVertical: 6 }} /> : null}</Row>
     {loading ? <Loading label="Loading notifications…" /> : error ? <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} /> : null}

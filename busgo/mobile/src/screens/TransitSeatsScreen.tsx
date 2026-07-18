@@ -5,9 +5,11 @@ import { SeatCell, SeatGrid, SeatLegend, toSeatCells } from '../components/SeatG
 import { Button, Card, ErrorState, Loading, Row } from '../components/ui';
 import { colors, radius } from '../theme';
 import { ScreenProps } from '../nav';
+import { useAuth } from '../store/auth';
 
 export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'TransitSeats'>) {
   const { itinerary, origin, destination, date } = route.params;
+  const { user } = useAuth();
   const legs = itinerary.legs;
 
   const [passengerCount, setPassengerCount] = useState(1);
@@ -60,15 +62,26 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
       return;
     }
     if (step < legs.length - 1) setStep(step + 1);
-    else
-      navigation.navigate('Passenger', {
+    else {
+      const passengerParams = {
         mode: 'transit',
         itinerary,
         seatsByLeg: selectedByLeg,
         origin,
         destination,
         date,
-      });
+      } as const;
+      if (user) navigation.navigate('Passenger', passengerParams);
+      else Alert.alert(
+        'Account required for checkout',
+        'You can browse every bus and seat without an account. Log in or create an account to buy this journey.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Create account', onPress: () => navigation.navigate('Register', { resumeCheckout: passengerParams }) },
+          { text: 'Log in', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
+        ],
+      );
+    }
   };
 
   if (!started) {

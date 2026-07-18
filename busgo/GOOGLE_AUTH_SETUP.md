@@ -25,8 +25,10 @@ In **Authentication > URL Configuration**, set:
 - Redirect URL: `https://busgo.farefin.com/login?google=callback`
 - Local web redirect: `http://localhost:5173/login?google=callback`
 - Native app redirect: `busgo://auth/callback`
-- Expo Go development redirect: add the exact `exp://...` URL returned during
-  development, or a suitably restricted `exp://` wildcard for development only.
+- Native development and production builds return through
+  `busgo://auth/callback`. Expo Go can be used for local testing by adding
+  `exp://**` to the redirect allow list; remove that broad development wildcard
+  before production release.
 
 ## 3. Environment variables
 

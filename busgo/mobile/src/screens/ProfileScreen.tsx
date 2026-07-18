@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -7,6 +7,7 @@ import { useAuth } from '../store/auth';
 import { Badge, Button, Card, Input, Loading, Row, SectionTitle } from '../components/ui';
 import { colors } from '../theme';
 import { money } from '../utils/format';
+import { GuestAccess } from '../components/GuestAccess';
 
 export default function ProfileScreen() {
   const { user, updateProfile, logout } = useAuth();
@@ -18,13 +19,15 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    if (!user) { setSummary({ bookings: 0, payments: 0, balance: 0 }); setLoading(false); return; }
     try {
       const [bookings, payments, accounts] = await Promise.all([api.get('/api/bookings/my?limit=100'), api.get('/api/payments/my'), api.get('/api/bank/accounts/my')]);
       setSummary({ bookings: (bookings.data || []).length, payments: (payments.data || []).length, balance: (accounts.data || []).reduce((total: number, account: any) => total + Number(account.balance || 0), 0) });
     } catch { /* Profile itself remains usable if summary services are unavailable. */ }
     finally { setLoading(false); }
-  }, []);
+  }, [user]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useEffect(() => { setName(user?.full_name || ''); setPhone(user?.phone || ''); }, [user]);
   const initials = (user?.full_name || 'U').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   const save = async () => {
     if (name.trim().length < 2) return Alert.alert('Profile', 'Enter your full name.');
@@ -33,6 +36,8 @@ export default function ProfileScreen() {
     setBusy(true); try { await updateProfile(name.trim(), phone.trim()); setEditing(false); Alert.alert('Profile updated', 'Your details were saved.'); } catch (reason: any) { Alert.alert('Update failed', reason.message); } finally { setBusy(false); }
   };
   const confirmLogout = () => Alert.alert('Log out?', 'You will need your Google account to sign in again.', [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Log out', style: 'destructive', onPress: logout }]);
+
+  if (!user) return <GuestAccess title="Create your BusGo account" message="Browsing is open to everyone. Log in when you want to buy tickets, manage trips, or view your profile." />;
 
   return <ScrollView style={{ flex: 1, backgroundColor: colors.bg }} contentContainerStyle={{ padding: 16, paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
     <View style={{ alignItems: 'center', paddingVertical: 20 }}><View style={{ width: 84, height: 84, borderRadius: 42, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#fff', fontSize: 30, fontWeight: '900' }}>{initials}</Text></View><Text style={{ fontSize: 20, fontWeight: '900', color: colors.text, marginTop: 12 }}>{user?.full_name || 'Traveller'}</Text><View style={{ marginTop: 5 }}><Badge tone="primary" text={user?.role || 'CUSTOMER'} /></View></View>

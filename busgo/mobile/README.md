@@ -6,6 +6,7 @@ microservices and database as the web application through the Kong gateway.
 ## Implemented features
 
 - Google authentication with persisted Supabase and BusGo sessions
+- Guest browsing for routes, transit options, live seats, and deals; authentication is required only when checkout or personal account data is opened
 - Automatic BusGo access-token renewal and expired-session recovery
 - Searchable city selection and journey-date picker
 - Direct buses and multi-bus transit journey search
@@ -28,7 +29,7 @@ mobile application is the complete passenger travel experience.
 ## Requirements
 
 - Node.js 20.19.4 or newer
-- Expo Go compatible with Expo SDK 54, or an Expo development build
+- An Expo development build is recommended for stable Google OAuth; Expo Go is supported for local testing with `exp://**` allowed in Supabase
 - Google enabled in the project's Supabase Authentication providers
 - The redirect URLs described in `../GOOGLE_AUTH_SETUP.md`
 
@@ -55,9 +56,24 @@ npm run typecheck
 npm start
 ```
 
-Use a development build when testing the stable `busgo://auth/callback` deep
-link. Expo Go uses an `exp://` callback; add the exact development URL to the
-Supabase redirect allow list.
+For Expo Go testing, add `exp://**` to Supabase Authentication > URL
+Configuration. The app prints its exact development callback in the Metro
+terminal as `[BusGo Auth] OAuth callback: ...`. Keep this wildcard for
+development only.
+
+A development build is recommended because it uses the stable
+`busgo://auth/callback` callback, matching production.
+
+Create an Android development APK with:
+
+```bash
+npm install
+npx eas-cli build --profile development --platform android
+```
+
+Install the resulting BusGo development build, start Metro with `npx expo start --dev-client`,
+and open the project from the development build rather than Expo Go. Supabase
+must list `busgo://auth/callback` under Authentication > URL Configuration.
 
 ## Build verification
 
