@@ -23,6 +23,8 @@ function saveRecentSearch(origin: string, destination: string, date: string) {
 interface Trip {
   trip_id: string;
   operator_name: string;
+  bus_name?: string | null;
+  bus_registration_no?: string | null;
   bus_type: string;
   departure_datetime: string;
   arrival_datetime: string;
@@ -80,6 +82,18 @@ const getOperatorRating = (name: string) => {
   return "4.3";
 };
 
+const getTripDateKey = (datetime: string) => {
+  const date = new Date(datetime);
+  if (Number.isNaN(date.getTime())) return datetime;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getBusDisplayName = (trip: Trip) =>
+  trip.bus_name?.trim() || trip.bus_registration_no?.trim() || "Coach assignment pending";
+
 export function Routes() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -108,7 +122,7 @@ export function Routes() {
   // Price boundaries
   const [maxPrice, setMaxPrice] = useState<number>(3000);
   const [priceRange, setPriceRange] = useState<number>(3000);
-  const [sortBy, setSortBy] = useState<string>("price-asc");
+  const [sortBy, setSortBy] = useState<string>("date-route");
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
@@ -135,6 +149,8 @@ export function Routes() {
           ...trip,
           trip_id: trip.trip_id || trip.id,
           operator_name: trip.operator_name || "Unknown Operator",
+          bus_name: trip.bus_name || null,
+          bus_registration_no: trip.bus_registration_no || null,
           bus_type: trip.bus_type || "Standard",
           origin_city: trip.origin_city || "Unknown Origin",
           destination_city: trip.destination_city || "Unknown Destination",
@@ -164,12 +180,13 @@ export function Routes() {
   const applyFilters = () => {
     let filtered = [...trips];
 
-    // Search filter (operator name, origin, destination)
+    // Search filter (operator, coach, origin, destination)
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (trip) =>
           trip.operator_name.toLowerCase().includes(term) ||
+          getBusDisplayName(trip).toLowerCase().includes(term) ||
           trip.origin_city.toLowerCase().includes(term) ||
           trip.destination_city.toLowerCase().includes(term)
       );
@@ -198,7 +215,7 @@ export function Routes() {
     // Date filter
     if (filterDate) {
       filtered = filtered.filter((trip) => {
-        const tripDate = new Date(trip.departure_datetime).toISOString().split('T')[0];
+        const tripDate = getTripDateKey(trip.departure_datetime);
         return tripDate === filterDate;
       });
     }
@@ -206,16 +223,20 @@ export function Routes() {
     // Price range filter
     filtered = filtered.filter((trip) => trip.fare_amount <= priceRange);
 
-    // Sorting logic
-    if (sortBy === "price-asc") {
-      filtered.sort((a, b) => a.fare_amount - b.fare_amount);
-    } else if (sortBy === "price-desc") {
-      filtered.sort((a, b) => b.fare_amount - a.fare_amount);
-    } else if (sortBy === "time-asc") {
-      filtered.sort((a, b) => new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime());
-    } else if (sortBy === "time-desc") {
-      filtered.sort((a, b) => new Date(b.departure_datetime).getTime() - new Date(a.departure_datetime).getTime());
-    }
+    // Commercial route listings stay grouped by date and route. The selected
+    // sort controls the order only inside each origin/destination group.
+    filtered.sort((a, b) => {
+      const dateComparison = getTripDateKey(a.departure_datetime).localeCompare(getTripDateKey(b.departure_datetime));
+      if (dateComparison !== 0) return dateComparison;
+      const originComparison = a.origin_city.localeCompare(b.origin_city, undefined, { sensitivity: "base" });
+      if (originComparison !== 0) return originComparison;
+      const destinationComparison = a.destination_city.localeCompare(b.destination_city, undefined, { sensitivity: "base" });
+      if (destinationComparison !== 0) return destinationComparison;
+      if (sortBy === "price-asc") return a.fare_amount - b.fare_amount;
+      if (sortBy === "price-desc") return b.fare_amount - a.fare_amount;
+      if (sortBy === "time-desc") return new Date(b.departure_datetime).getTime() - new Date(a.departure_datetime).getTime();
+      return new Date(a.departure_datetime).getTime() - new Date(b.departure_datetime).getTime();
+    });
 
     setFilteredTrips(filtered);
   };
@@ -265,7 +286,7 @@ export function Routes() {
     setFilterDestination("");
     setFilterDate("");
     setPriceRange(maxPrice);
-    setSortBy("price-asc");
+    setSortBy("date-route");
   };
 
   const toggleOperator = (op: string) => {
@@ -285,6 +306,7 @@ export function Routes() {
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         if (!trip.operator_name.toLowerCase().includes(term) &&
+            !getBusDisplayName(trip).toLowerCase().includes(term) &&
             !trip.origin_city.toLowerCase().includes(term) &&
             !trip.destination_city.toLowerCase().includes(term)) {
           return false;
@@ -293,7 +315,7 @@ export function Routes() {
       if (filterOrigin && trip.origin_city !== filterOrigin) return false;
       if (filterDestination && trip.destination_city !== filterDestination) return false;
       if (filterDate) {
-        const tripDate = new Date(trip.departure_datetime).toISOString().split('T')[0];
+        const tripDate = getTripDateKey(trip.departure_datetime);
         if (tripDate !== filterDate) return false;
       }
       return type === "operator" ? trip.operator_name === value : trip.bus_type === value;
@@ -306,6 +328,33 @@ export function Routes() {
   const destinations = Array.from(new Set(trips.map((t) => t.destination_city))).sort();
   const busTypes = Array.from(new Set(trips.map((t) => t.bus_type))).sort();
   const minPriceInTrips = trips.length > 0 ? Math.min(...trips.map(t => t.fare_amount)) : 0;
+  const groupedTrips = filteredTrips.reduce<Array<{
+    dateKey: string;
+    dateLabel: string;
+    routes: Array<{ routeKey: string; origin: string; destination: string; trips: Trip[] }>;
+  }>>((dateGroups, trip) => {
+    const dateKey = getTripDateKey(trip.departure_datetime);
+    let dateGroup = dateGroups.find((group) => group.dateKey === dateKey);
+    if (!dateGroup) {
+      const date = new Date(trip.departure_datetime);
+      dateGroup = {
+        dateKey,
+        dateLabel: Number.isNaN(date.getTime())
+          ? dateKey
+          : date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }),
+        routes: [],
+      };
+      dateGroups.push(dateGroup);
+    }
+    const routeKey = `${trip.origin_city.toLowerCase()}::${trip.destination_city.toLowerCase()}`;
+    let routeGroup = dateGroup.routes.find((group) => group.routeKey === routeKey);
+    if (!routeGroup) {
+      routeGroup = { routeKey, origin: trip.origin_city, destination: trip.destination_city, trips: [] };
+      dateGroup.routes.push(routeGroup);
+    }
+    routeGroup.trips.push(trip);
+    return dateGroups;
+  }, []);
 
 
   return (
@@ -340,7 +389,7 @@ export function Routes() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by operator, origin, or de..."
+                placeholder="Search operator, bus, origin, or destination"
                 className="w-full pl-9 pr-3 py-2 border border-surface-200 rounded-lg text-sm bg-white focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
                 id="search-input"
               />
@@ -636,10 +685,11 @@ export function Routes() {
                     onChange={(e) => setSortBy(e.target.value)}
                     className="appearance-none bg-white border border-surface-200 rounded-lg px-4 py-2 pr-8 text-sm font-medium text-surface-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 cursor-pointer"
                   >
-                    <option value="price-asc">Price: Low to High</option>
-                    <option value="price-desc">Price: High to Low</option>
-                    <option value="time-asc">Departure: Earliest</option>
-                    <option value="time-desc">Departure: Latest</option>
+                    <option value="date-route">Date &amp; Route</option>
+                    <option value="price-asc">Within route: Price Low to High</option>
+                    <option value="price-desc">Within route: Price High to Low</option>
+                    <option value="time-asc">Within route: Earliest Departure</option>
+                    <option value="time-desc">Within route: Latest Departure</option>
                   </select>
                   <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-400 pointer-events-none" />
                 </div>
@@ -672,8 +722,25 @@ export function Routes() {
 
             {/* Trip Cards */}
             {!loading && filteredTrips.length > 0 && (
-              <div className="space-y-4">
-                {filteredTrips.map((trip, i) => {
+              <div className="space-y-8">
+                {groupedTrips.map((dateGroup, dateIndex) => (
+                  <section key={dateGroup.dateKey} aria-labelledby={`date-${dateGroup.dateKey}`}>
+                    <div className="sticky top-16 z-10 mb-4 flex items-center justify-between rounded-xl border border-surface-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+                      <h2 id={`date-${dateGroup.dateKey}`} className="flex items-center gap-2 text-base font-extrabold text-surface-900">
+                        <Calendar className="h-4 w-4 text-brand-600" /> {dateGroup.dateLabel}
+                      </h2>
+                      <span className="text-xs font-semibold text-surface-500">{dateGroup.routes.reduce((sum, route) => sum + route.trips.length, 0)} trips</span>
+                    </div>
+                    <div className="space-y-6">
+                      {dateGroup.routes.map((routeGroup, routeIndex) => (
+                        <div key={routeGroup.routeKey}>
+                          <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
+                            <MapPin className="h-4 w-4 text-brand-600" />
+                            <h3 className="font-extrabold text-surface-900">{routeGroup.origin} <ArrowRight className="inline h-4 w-4 mx-1 text-surface-400" /> {routeGroup.destination}</h3>
+                            <span className="rounded-full bg-surface-100 px-2 py-0.5 text-[11px] font-bold text-surface-500">{routeGroup.trips.length} {routeGroup.trips.length === 1 ? "bus" : "buses"}</span>
+                          </div>
+                          <div className="space-y-4">
+                {routeGroup.trips.map((trip, tripIndex) => {
                   const departure = formatTime(trip.departure_datetime);
                   const arrival = formatTime(trip.arrival_datetime);
                   const date = formatDate(trip.departure_datetime);
@@ -686,7 +753,7 @@ export function Routes() {
                     <div
                       key={trip.trip_id}
                       className="card-premium p-0 overflow-hidden animate-fade-in-up relative"
-                      style={{ animationDelay: `${i * 80}ms` }}
+                      style={{ animationDelay: `${Math.min((dateIndex + routeIndex + tripIndex) * 50, 300)}ms` }}
                       id={`trip-card-${trip.trip_id}`}
                     >
                       <div className="p-5 sm:p-6">
@@ -698,7 +765,10 @@ export function Routes() {
                                 {logo.text}
                               </div>
                               <div>
-                                <h3 className="font-bold text-surface-900 text-sm sm:text-base">{trip.operator_name}</h3>
+                                <h4 className="font-bold text-surface-900 text-sm sm:text-base">{trip.operator_name}</h4>
+                                <p className="mt-0.5 flex items-center gap-1 text-xs font-bold text-brand-700">
+                                  <Bus className="h-3 w-3" /> Bus: {getBusDisplayName(trip)}
+                                </p>
                                 <div className="flex items-center gap-2 mt-0.5">
                                   <span className="badge badge-neutral text-[10px]">{trip.bus_type}</span>
                                   <div className="flex items-center gap-0.5">
@@ -743,7 +813,7 @@ export function Routes() {
                             </div>
                             <button
                               onClick={() => {
-                                const isoDate = new Date(trip.departure_datetime).toISOString().split("T")[0];
+                                const isoDate = getTripDateKey(trip.departure_datetime);
                                 saveRecentSearch(trip.origin_city, trip.destination_city, isoDate);
                                 navigate(`/booking/select-seats/${trip.trip_id}`, {
                                   state: {
@@ -809,6 +879,12 @@ export function Routes() {
                     </div>
                   );
                 })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
               </div>
             )}
           </div>
