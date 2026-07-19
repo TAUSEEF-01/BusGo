@@ -76,11 +76,10 @@ export default function TransitSeatsScreen({ route, navigation }: ScreenProps<'T
       if (user) navigation.navigate('Passenger', passengerParams);
       else Alert.alert(
         'Account required for checkout',
-        'You can browse every bus and seat without an account. Log in or create an account to buy this journey.',
+        'You can browse every bus and seat without an account. Sign in with Google to buy this journey.',
         [
           { text: 'Not now', style: 'cancel' },
-          { text: 'Create account', onPress: () => navigation.navigate('Register', { resumeCheckout: passengerParams }) },
-          { text: 'Log in', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
+          { text: 'Continue with Google', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
         ],
       );
     }

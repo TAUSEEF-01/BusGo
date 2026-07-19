@@ -97,7 +97,6 @@ export type PaymentParams = {
 export type RootStackParamList = {
   Tabs: undefined;
   Login: { resumeCheckout?: PassengerParams } | undefined;
-  Register: { resumeCheckout?: PassengerParams } | undefined;
   PhoneSetup: { resumeCheckout?: PassengerParams; resumePayment?: PaymentParams } | undefined;
   Results: { origin: string; destination: string; date: string; returnDate?: string; isReturnLeg?: boolean; outbound?: OutboundSelection };
   Seats: { trip: DirectTrip; origin: string; destination: string; date: string; returnDate?: string; isReturnLeg?: boolean; outbound?: OutboundSelection };

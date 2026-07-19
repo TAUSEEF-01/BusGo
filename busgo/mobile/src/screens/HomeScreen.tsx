@@ -48,8 +48,6 @@ export default function HomeScreen() {
       const list = [...new Set(response.data || [])].sort((a, b) => a.localeCompare(b));
       if (!list.length) throw new Error('No active routes are available yet.');
       setCities(list);
-      setOrigin((current) => current || list[0]);
-      setDestination((current) => current || list.find((city) => city !== list[0]) || '');
     } catch (error: any) {
       setCityError(error.message || 'Could not load destinations.');
     } finally {

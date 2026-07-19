@@ -19,7 +19,9 @@ export default function DealsScreen() {
     setError('');
     try {
       const [promoResponse, saleResponse] = await Promise.all([api.get<Promo[]>('/api/deals/promos/'), api.get<FlashSale[]>('/api/deals/flash-sales/active')]);
-      setPromos((Array.isArray(promoResponse) ? promoResponse : []).filter((promo) => promo.is_active && (!promo.valid_until || new Date(promo.valid_until) > new Date())));
+      // Web parity: the website lists every active promo without hiding ones
+      // past valid_until, so the app shows the same set.
+      setPromos((Array.isArray(promoResponse) ? promoResponse : []).filter((promo) => promo.is_active));
       setSales(Array.isArray(saleResponse) ? saleResponse : []);
     } catch (reason: any) { setError(reason.message || 'Could not load current deals.'); }
     finally { setLoading(false); setRefreshing(false); }

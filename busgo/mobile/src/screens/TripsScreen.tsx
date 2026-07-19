@@ -89,17 +89,28 @@ export default function TripsScreen() {
   const load = useCallback(async () => {
     setError('');
     if (!user) { setBookings([]); setJourneys([]); setTickets([]); setLoading(false); setRefreshing(false); return; }
-    try {
-      const [bookingResponse, journeyResponse, ticketResponse] = await Promise.all([
-        api.get('/api/bookings/my?limit=100'),
-        api.get('/api/bookings/journeys/my').catch(() => ({ data: [] })),
-        api.get('/api/tickets/my'),
-      ]);
-      setBookings(bookingResponse.data || []);
-      setJourneys(journeyResponse.data || []);
-      setTickets(ticketResponse.data || []);
-    } catch (reason: any) { setError(reason.message || 'Could not load your trips.'); }
-    finally { setLoading(false); setRefreshing(false); }
+    // Bookings are the backbone; journeys and tickets enrich but must never
+    // blank the screen when their services hiccup.
+    const [bookingResult, journeyResult, ticketResult] = await Promise.allSettled([
+      api.get('/api/bookings/my?limit=100'),
+      api.get('/api/bookings/journeys/my'),
+      api.get('/api/tickets/my'),
+    ]);
+    if (bookingResult.status === 'fulfilled') {
+      const data = bookingResult.value.data;
+      setBookings(Array.isArray(data) ? data : []);
+    } else {
+      setError((bookingResult.reason as any)?.message || 'Could not load your trips.');
+    }
+    if (journeyResult.status === 'fulfilled') {
+      const data = journeyResult.value.data;
+      setJourneys(Array.isArray(data) ? data.filter((journey: any) => Array.isArray(journey?.legs)) : []);
+    }
+    if (ticketResult.status === 'fulfilled') {
+      const data = ticketResult.value.data;
+      setTickets(Array.isArray(data) ? data : []);
+    }
+    setLoading(false); setRefreshing(false);
   }, [user]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 

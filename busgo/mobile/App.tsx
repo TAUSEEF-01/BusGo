@@ -10,7 +10,6 @@ import { NotificationsProvider, useNotifications } from './src/store/notificatio
 import { colors } from './src/theme';
 import type { RootStackParamList } from './src/nav';
 import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ResultsScreen from './src/screens/ResultsScreen';
 import RoutesScreen from './src/screens/RoutesScreen';
@@ -43,7 +42,7 @@ function Tabs() {
   return <Tab.Navigator screenOptions={({ route }) => ({
     headerShown: route.name !== 'Home', headerTitleStyle: { fontWeight: '800' },
     tabBarActiveTintColor: colors.primary, tabBarInactiveTintColor: colors.faint,
-    tabBarLabelStyle: { fontWeight: '700', fontSize: 11 }, tabBarStyle: { height: 62, paddingTop: 5, paddingBottom: 7 },
+    tabBarLabelStyle: { fontWeight: '700', fontSize: 11, marginBottom: 2 }, tabBarStyle: { height: 78, paddingTop: 8, paddingBottom: 14 },
     tabBarIcon: ({ color, size, focused }) => {
       const icons = TAB_ICONS[route.name];
       return <Ionicons name={icons ? (focused ? icons.active : icons.idle) : 'ellipse-outline'} size={size} color={color} />;
@@ -67,7 +66,6 @@ function RootNav() {
       <Stack.Screen name="Seats" component={SeatsScreen} options={{ title: 'Choose seats' }} />
       <Stack.Screen name="TransitSeats" component={TransitSeatsScreen} options={{ title: 'Seats for each bus' }} />
       <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
-      <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
       <Stack.Screen name="PhoneSetup" component={PhoneSetupScreen} options={{ title: 'Complete your account', gestureEnabled: false }} />
       <Stack.Screen name="Passenger" component={PassengerScreen} options={{ title: 'Passengers' }} />
       <Stack.Screen name="Payment" component={PaymentScreen} options={{ title: 'Secure payment', gestureEnabled: false }} />

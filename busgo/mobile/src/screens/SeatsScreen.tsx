@@ -66,11 +66,10 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
     if (user) return navigation.navigate('Passenger', passengerParams);
     Alert.alert(
       'Account required for checkout',
-      'You can browse BusGo without an account. Log in or create an account to enter passenger details and buy these tickets.',
+      'You can browse BusGo without an account. Sign in with Google to buy these tickets.',
       [
         { text: 'Not now', style: 'cancel' },
-        { text: 'Create account', onPress: () => navigation.navigate('Register', { resumeCheckout: passengerParams }) },
-        { text: 'Log in', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
+        { text: 'Continue with Google', onPress: () => navigation.navigate('Login', { resumeCheckout: passengerParams }) },
       ],
     );
   };

@@ -7,13 +7,19 @@
     "userInterfaceStyle": "light",
     "scheme": "busgo",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
-      "backgroundColor": "#0f172a",
-      "resizeMode": "contain"
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0f172a"
     },
     "android": {
       "package": "com.busgo.mobile",
-      "versionCode": 1
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#dc2626"
+      }
     },
     "ios": {
       "bundleIdentifier": "com.busgo.mobile",

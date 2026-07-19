@@ -11,7 +11,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function GuestAccess({
   title = 'Sign in to continue',
-  message = 'Log in or create a free passenger account to access this section.',
+  message = 'Sign in with Google to access this section — your account is created automatically.',
   resumeCheckout,
 }: {
   title?: string;
@@ -24,8 +24,7 @@ export function GuestAccess({
       <View style={{ width: 62, height: 62, borderRadius: 31, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}><Ionicons name="person-circle-outline" size={38} color={colors.primary} /></View>
       <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text, textAlign: 'center' }}>{title}</Text>
       <Text style={{ color: colors.subtext, textAlign: 'center', lineHeight: 20, marginTop: 7, marginBottom: 18 }}>{message}</Text>
-      <Button title="Log in with Google" icon="logo-google" onPress={() => navigation.navigate('Login', { resumeCheckout })} style={{ width: '100%' }} />
-      <Button title="Create account" variant="outline" icon="person-add-outline" onPress={() => navigation.navigate('Register', { resumeCheckout })} style={{ width: '100%', marginTop: 9 }} />
+      <Button title="Continue with Google" icon="logo-google" onPress={() => navigation.navigate('Login', { resumeCheckout })} style={{ width: '100%' }} />
     </Card>
   </View>;
 }
