@@ -43,15 +43,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (token && rawUser) {
           const cachedUser = JSON.parse(rawUser) as User;
-          setUser(cachedUser);
-          try {
-            const response = await api.get('/api/auth/me');
-            if (response.data) {
-              await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data));
-              setUser(response.data);
+          if (cachedUser.role !== 'OPERATOR' && cachedUser.role !== 'ADMIN') {
+            await clearTokens();
+          } else {
+            setUser(cachedUser);
+            try {
+              const response = await api.get('/api/auth/me');
+              const freshUser = response.data as User | undefined;
+              if (freshUser && freshUser.role !== 'OPERATOR' && freshUser.role !== 'ADMIN') {
+                // The account lost operator access since last launch.
+                await clearTokens();
+                setUser(null);
+              } else if (freshUser) {
+                await AsyncStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+                setUser(freshUser);
+              }
+            } catch (error: any) {
+              if (error?.status === 401) setUser(null);
             }
-          } catch (error: any) {
-            if (error?.status === 401) setUser(null);
           }
         }
       } finally {
@@ -173,6 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     // This app is exclusively for operators (admins may inspect too).
     if (nextUser.role !== 'OPERATOR' && nextUser.role !== 'ADMIN') {
+      await client.auth.signOut().catch(() => {});
       throw new Error('This account is not an operator account. Use the BusGo passenger app instead, or register as an operator on the web portal.');
     }
 

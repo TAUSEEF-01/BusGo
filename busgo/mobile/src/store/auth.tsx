@@ -43,15 +43,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ]);
         if (token && rawUser) {
           const cachedUser = JSON.parse(rawUser) as User;
-          setUser(cachedUser);
-          try {
-            const response = await api.get('/api/auth/me');
-            if (response.data) {
-              await AsyncStorage.setItem(USER_KEY, JSON.stringify(response.data));
-              setUser(response.data);
+          if (cachedUser.role && cachedUser.role !== 'CUSTOMER') {
+            await clearTokens();
+          } else {
+            setUser(cachedUser);
+            try {
+              const response = await api.get('/api/auth/me');
+              const freshUser = response.data as User | undefined;
+              if (freshUser?.role && freshUser.role !== 'CUSTOMER') {
+                // The account was promoted to operator/admin since last launch.
+                await clearTokens();
+                setUser(null);
+              } else if (freshUser) {
+                await AsyncStorage.setItem(USER_KEY, JSON.stringify(freshUser));
+                setUser(freshUser);
+              }
+            } catch (error: any) {
+              if (error?.status === 401) setUser(null);
             }
-          } catch (error: any) {
-            if (error?.status === 401) setUser(null);
           }
         }
       } finally {
@@ -170,6 +179,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const nextUser: User = payload?.user;
     if (!busgoToken || !busgoRefreshToken || !nextUser) {
       throw new Error('BusGo returned an invalid Google login response.');
+    }
+    // This app is for passengers only; operator/admin accounts must use the
+    // BusGo Operator app or the web portal.
+    if (nextUser.role && nextUser.role !== 'CUSTOMER') {
+      await client.auth.signOut().catch(() => {});
+      throw new Error('This is an operator/admin account. Please use the BusGo Operator app or the web portal — passenger accounts only here.');
     }
 
     await setTokens(busgoToken, busgoRefreshToken);
