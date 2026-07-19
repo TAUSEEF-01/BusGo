@@ -121,9 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     let callbackUrl: string | null = null;
+    let browserOutcome = 'unknown';
     try {
       const browserResult = await WebBrowser.openAuthSessionAsync(data.url, redirectTo, { showInRecents: true });
       if (__DEV__) console.info(`[BusGo Auth] Browser result: ${JSON.stringify(browserResult)}`);
+      browserOutcome = browserResult.type;
       if (browserResult.type === 'success') {
         callbackUrl = browserResult.url;
       } else {
@@ -141,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (!callbackUrl) {
       if (isExpoGo) throw new Error(`Google could not return to Expo Go. If the browser showed the BusGo website at the end, the Supabase redirect allow list is blocking exp:// URLs. If the browser simply closed, your phone may be blocking Expo Go from opening — on Xiaomi/MIUI enable "Display pop-up windows while running in the background" for Expo Go. Callback: ${redirectTo}`);
-      throw new Error('Google login was cancelled.');
+      throw new Error(`Google login did not return to the operator app (browser result: ${browserOutcome}). If the browser ended on the BusGo website, the Supabase redirect allow list is missing this exact entry: ${redirectTo}`);
     }
 
     const { params, errorCode } = QueryParams.getQueryParams(callbackUrl);
