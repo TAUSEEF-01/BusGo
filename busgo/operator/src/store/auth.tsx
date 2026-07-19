@@ -91,16 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     const client = requireSupabase();
     const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-    // const redirectTo = isExpoGo
-    //   ? makeRedirectUri({ path: 'auth/callback' })
-    //   : makeRedirectUri({ scheme: 'busgo-operator', path: 'auth/callback', native: 'busgo-operator://auth/callback' });
-    // if (__DEV__) console.info(`[BusGo Auth] OAuth callback: ${redirectTo}`);
-
+    // The operator app must use its own scheme: busgo:// belongs to the
+    // passenger app, and Android routes the callback to whichever app owns
+    // the scheme — with both installed the login would never return here.
     const redirectTo = isExpoGo
       ? makeRedirectUri({ path: 'auth/callback' })
-      // Supabase's native redirect allow list uses the shared BusGo callback.
-      // Keep this in sync with app.json so the operator build can receive it.
-      : makeRedirectUri({ scheme: 'busgo', path: 'auth/callback', native: 'busgo://auth/callback' });
+      : makeRedirectUri({ scheme: 'busgo-operator', path: 'auth/callback', native: 'busgo-operator://auth/callback' });
     if (__DEV__) console.info(`[BusGo Auth] OAuth callback: ${redirectTo}`);
     const { data, error } = await client.auth.signInWithOAuth({
       provider: 'google',
