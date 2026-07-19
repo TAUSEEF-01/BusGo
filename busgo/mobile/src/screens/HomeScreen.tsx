@@ -127,7 +127,13 @@ export default function HomeScreen() {
               <CityField icon="location" label="TO" value={destination} onPress={() => setCityTarget('destination')} />
 
               <Text style={styles.label}>Journey date</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {/* Explicit date field — opens the calendar picker */}
+              <Pressable onPress={() => setShowDate(true)} style={styles.returnField}>
+                <View style={styles.cityIcon}><Ionicons name="calendar" size={16} color={colors.primary} /></View>
+                <Text style={{ flex: 1, fontWeight: '800', fontSize: 15, color: colors.text }}>{shortDate(localDateValue(date))}</Text>
+                <Ionicons name="chevron-down" size={16} color={colors.faint} />
+              </Pressable>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, marginTop: 10 }}>
                 {quickDates.map(({ value, label }) => {
                   const active = localDateValue(date) === localDateValue(value);
                   return <Pressable key={localDateValue(value)} onPress={() => setDate(value)} style={[styles.dateChip, active && styles.dateChipActive]}>
@@ -135,12 +141,7 @@ export default function HomeScreen() {
                     <Text style={{ fontSize: 10, color: active ? '#fecaca' : colors.faint }}>{value.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</Text>
                   </Pressable>;
                 })}
-                <Pressable onPress={() => setShowDate(true)} style={styles.dateChip}>
-                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
-                  <Text style={{ fontSize: 10, color: colors.subtext }}>Other</Text>
-                </Pressable>
               </ScrollView>
-              <Text style={{ color: colors.subtext, fontSize: 12, marginTop: 9 }}>Selected: {shortDate(localDateValue(date))}</Text>
               {tripType === 'round-trip' ? <>
                 <Text style={styles.label}>Return date</Text>
                 <Pressable onPress={() => setShowReturnDate(true)} style={styles.returnField}>
@@ -220,7 +221,28 @@ function CityField({ icon, label, value, onPress }: { icon: keyof typeof Ionicon
 function CityPicker({ visible, cities, title, excluded, onClose, onSelect }: { visible: boolean; cities: string[]; title: string; excluded: string; onClose: () => void; onSelect: (city: string) => void }) {
   const [query, setQuery] = useState('');
   const filtered = cities.filter((city) => city !== excluded && city.toLowerCase().includes(query.toLowerCase()));
-  return <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Row style={{ justifyContent: 'space-between', marginBottom: 14 }}><Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>{title}</Text><Pressable onPress={onClose} style={styles.modalClose}><Ionicons name="close" size={20} color={colors.text} /></Pressable></Row><View style={styles.searchBox}><Ionicons name="search" size={18} color={colors.faint} /><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Search city" placeholderTextColor={colors.faint} style={{ flex: 1, color: colors.text, paddingVertical: 10 }} /></View><ScrollView keyboardShouldPersistTaps="handled">{filtered.map((city) => <Pressable key={city} onPress={() => { setQuery(''); onSelect(city); }} style={styles.cityOption}><View style={styles.cityOptionIcon}><Ionicons name="location-outline" size={17} color={colors.primary} /></View><Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{city}</Text></Pressable>)}</ScrollView></View></View></Modal>;
+  return <Modal visible={visible} animationType="slide" transparent statusBarTranslucent onRequestClose={onClose}>
+    <View style={styles.modalOverlay}>
+      <Pressable style={{ flex: 1 }} onPress={onClose} />
+      <View style={styles.modalSheet}>
+        <Row style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+          <Text style={{ fontSize: 20, fontWeight: '900', color: colors.text }}>{title}</Text>
+          <Pressable onPress={onClose} style={styles.modalClose}><Ionicons name="close" size={20} color={colors.text} /></Pressable>
+        </Row>
+        <View style={styles.searchBox}>
+          <Ionicons name="search" size={18} color={colors.faint} />
+          <TextInput value={query} onChangeText={setQuery} placeholder="Search city" placeholderTextColor={colors.faint} style={{ flex: 1, color: colors.text, paddingVertical: 10 }} />
+        </View>
+        <ScrollView keyboardShouldPersistTaps="handled">
+          {filtered.map((city) => <Pressable key={city} onPress={() => { setQuery(''); onSelect(city); }} style={styles.cityOption}>
+            <View style={styles.cityOptionIcon}><Ionicons name="location-outline" size={17} color={colors.primary} /></View>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{city}</Text>
+          </Pressable>)}
+          {!filtered.length ? <Text style={{ color: colors.faint, textAlign: 'center', paddingVertical: 24 }}>{cities.length ? 'No city matches your search.' : 'No destinations available yet — pull Home to refresh.'}</Text> : null}
+        </ScrollView>
+      </View>
+    </View>
+  </Modal>;
 }
 
 const styles = StyleSheet.create({
