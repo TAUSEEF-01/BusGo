@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "BusGo Operator",
+    "slug": "busgo-operator",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "busgo-operator",
+    "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#0f172a"
+    },
+    "android": {
+      "package": "com.busgo.operator",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f172a"
+      }
+    },
+    "ios": {
+      "bundleIdentifier": "com.busgo.operator",
+      "buildNumber": "1"
+    },
+    "extra": {
+      "kongPort": 18085
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      "expo-web-browser",
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-secure-store"
+    ]
+  }
+}
