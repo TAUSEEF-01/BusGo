@@ -22,6 +22,7 @@ import FillSeatsScreen from './src/screens/FillSeatsScreen';
 import NotifyScreen from './src/screens/NotifyScreen';
 
 export type OperatorStackParamList = {
+  Login: undefined;
   Tabs: undefined;
   Buses: undefined;
   Routes: undefined;
@@ -62,15 +63,20 @@ function Tabs() {
 function RootNav() {
   const { user, ready } = useAuth();
   if (!ready) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.bg }}><ActivityIndicator size="large" color={colors.primary} /></View>;
-  if (!user) return <LoginScreen />;
   return <Stack.Navigator screenOptions={{ headerTitleStyle: { fontWeight: '800' }, headerTintColor: colors.text, headerBackButtonDisplayMode: 'minimal', contentStyle: { backgroundColor: colors.bg } }}>
-    <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
-    <Stack.Screen name="Buses" component={BusesScreen} options={{ title: 'My buses' }} />
-    <Stack.Screen name="Routes" component={RoutesScreen} options={{ title: 'My routes' }} />
-    <Stack.Screen name="TransitRoutes" component={TransitRoutesScreen} options={{ title: 'Transit routes' }} />
-    <Stack.Screen name="Deals" component={DealsScreen} options={{ title: 'Deals & promos' }} />
-    <Stack.Screen name="FillSeats" component={FillSeatsScreen} options={{ title: 'Fill empty seats' }} />
-    <Stack.Screen name="Notify" component={NotifyScreen} options={{ title: 'Message passengers' }} />
+    {!user ? (
+      <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
+    ) : (
+      <>
+        <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
+        <Stack.Screen name="Buses" component={BusesScreen} options={{ title: 'My buses' }} />
+        <Stack.Screen name="Routes" component={RoutesScreen} options={{ title: 'My routes' }} />
+        <Stack.Screen name="TransitRoutes" component={TransitRoutesScreen} options={{ title: 'Transit routes' }} />
+        <Stack.Screen name="Deals" component={DealsScreen} options={{ title: 'Deals & promos' }} />
+        <Stack.Screen name="FillSeats" component={FillSeatsScreen} options={{ title: 'Fill empty seats' }} />
+        <Stack.Screen name="Notify" component={NotifyScreen} options={{ title: 'Message passengers' }} />
+      </>
+    )}
   </Stack.Navigator>;
 }
 
