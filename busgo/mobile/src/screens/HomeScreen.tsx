@@ -46,8 +46,20 @@ export default function HomeScreen() {
     setLoadingCities(true);
     setCityError('');
     try {
-      const response = await api.get<{ success: boolean; data: string[] }>('/api/search/cities');
-      const list = [...new Set(response.data || [])].sort((a, b) => a.localeCompare(b));
+      // Web parity: the city list comes from every published trip's origin and
+      // destination. The search-service list only supplements it — its ES
+      // index can be stale or partial.
+      const [tripsResult, searchResult] = await Promise.allSettled([
+        api.get('/api/operators/trips/'),
+        api.get<{ success: boolean; data: string[] }>('/api/search/cities'),
+      ]);
+      const fromTrips = tripsResult.status === 'fulfilled'
+        ? ((tripsResult.value.data || []) as any[]).flatMap((trip) => [trip.origin_city, trip.destination_city])
+        : [];
+      const fromSearch = searchResult.status === 'fulfilled' && Array.isArray(searchResult.value.data)
+        ? searchResult.value.data
+        : [];
+      const list = [...new Set([...fromTrips, ...fromSearch].filter(Boolean))].sort((a, b) => a.localeCompare(b));
       if (!list.length) throw new Error('No active routes are available yet.');
       setCities(list);
     } catch (error: any) {
