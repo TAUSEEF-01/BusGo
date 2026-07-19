@@ -17,12 +17,12 @@ export interface TripFilterState {
 
 export const DEFAULT_TRIP_FILTERS: TripFilterState = { busTypes: [], operators: [], maxFare: null, sort: 'time-asc' };
 
-const SORTS: { id: TripSort; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { id: 'time-asc', label: 'Earliest', icon: 'sunny-outline' },
-  { id: 'time-desc', label: 'Latest', icon: 'moon-outline' },
-  { id: 'duration', label: 'Shortest', icon: 'flash-outline' },
-  { id: 'price-asc', label: 'Cheapest', icon: 'trending-down-outline' },
-  { id: 'price-desc', label: 'Premium', icon: 'trending-up-outline' },
+const SORTS: { id: TripSort; label: string }[] = [
+  { id: 'time-asc', label: 'Earliest' },
+  { id: 'time-desc', label: 'Latest' },
+  { id: 'duration', label: 'Shortest' },
+  { id: 'price-asc', label: 'Cheapest' },
+  { id: 'price-desc', label: 'Premium' },
 ];
 
 const FARE_CAPS = [500, 800, 1200, 1600, 2500];
@@ -55,14 +55,21 @@ export function countActiveTripFilters(filters: TripFilterState): number {
   return filters.busTypes.length + filters.operators.length + (filters.maxFare != null ? 1 : 0);
 }
 
-function RowLabel({ icon, text }: { icon: keyof typeof Ionicons.glyphMap; text: string }) {
-  return <View style={styles.rowLabel}>
-    <Ionicons name={icon} size={12} color={colors.primary} />
-    <Text style={styles.rowLabelText}>{text}</Text>
-  </View>;
+function FilterRow({ label, children, divider = true }: { label: string; children: React.ReactNode; divider?: boolean }) {
+  return <>
+    <View style={styles.row}>
+      <View style={styles.rowLabelBox}><Text style={styles.rowLabelText}>{label}</Text></View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>{children}</ScrollView>
+    </View>
+    {divider ? <View style={styles.panelDivider} /> : null}
+  </>;
 }
 
-/** Labeled, grouped sort + filter chip bars shared by Results and Routes. */
+/**
+ * Sort + filter panel shared by Results and Routes: one labeled row per
+ * dimension — sort, bus type, operator, price — so nothing competes for the
+ * same line.
+ */
 export function TripFilterBar({ trips, filters, onChange }: {
   trips: DirectTrip[];
   filters: TripFilterState;
@@ -74,29 +81,34 @@ export function TripFilterBar({ trips, filters, onChange }: {
   const active = countActiveTripFilters(filters);
 
   return <View style={styles.panel}>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-      <RowLabel icon="swap-vertical" text="SORT" />
-      {SORTS.map((sort) => <Chip key={sort.id} icon={sort.icon} label={sort.label} active={filters.sort === sort.id} onPress={() => onChange({ ...filters, sort: sort.id })} />)}
-    </ScrollView>
-    <View style={styles.panelDivider} />
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-      <RowLabel icon="options-outline" text={active ? `FILTER · ${active}` : 'FILTER'} />
-      {busTypes.map((type) => <Chip key={`bt-${type}`} icon="bus-outline" label={type} active={filters.busTypes.includes(type)} onPress={() => onChange({ ...filters, busTypes: toggle(filters.busTypes, type) })} />)}
-      {operators.map((operator) => <Chip key={`op-${operator}`} icon="business-outline" label={operator} active={filters.operators.includes(operator)} onPress={() => onChange({ ...filters, operators: toggle(filters.operators, operator) })} />)}
-      {FARE_CAPS.map((cap) => <Chip key={`fare-${cap}`} icon="pricetag-outline" label={`≤ ${money(cap)}`} active={filters.maxFare === cap} onPress={() => onChange({ ...filters, maxFare: filters.maxFare === cap ? null : cap })} />)}
-      {active ? <Pressable onPress={() => onChange({ ...DEFAULT_TRIP_FILTERS, sort: filters.sort })} style={styles.clearChip}>
+    <FilterRow label="SORT">
+      {SORTS.map((sort) => <Chip key={sort.id} label={sort.label} active={filters.sort === sort.id} onPress={() => onChange({ ...filters, sort: sort.id })} />)}
+    </FilterRow>
+    {busTypes.length ? <FilterRow label="TYPE">
+      {busTypes.map((type) => <Chip key={type} label={type} active={filters.busTypes.includes(type)} onPress={() => onChange({ ...filters, busTypes: toggle(filters.busTypes, type) })} />)}
+    </FilterRow> : null}
+    {operators.length ? <FilterRow label="OPERATOR">
+      {operators.map((operator) => <Chip key={operator} label={operator} active={filters.operators.includes(operator)} onPress={() => onChange({ ...filters, operators: toggle(filters.operators, operator) })} />)}
+    </FilterRow> : null}
+    <FilterRow label="PRICE" divider={!!active}>
+      {FARE_CAPS.map((cap) => <Chip key={cap} label={`≤ ${money(cap)}`} active={filters.maxFare === cap} onPress={() => onChange({ ...filters, maxFare: filters.maxFare === cap ? null : cap })} />)}
+    </FilterRow>
+    {active ? <Row style={{ justifyContent: 'space-between', paddingHorizontal: 12 }}>
+      <Text style={{ fontSize: 11, fontWeight: '700', color: colors.subtext }}>{active} filter{active > 1 ? 's' : ''} applied</Text>
+      <Pressable onPress={() => onChange({ ...DEFAULT_TRIP_FILTERS, sort: filters.sort })} style={styles.clearChip}>
         <Ionicons name="close-circle" size={13} color={colors.danger} />
-        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.danger }}>Clear</Text>
-      </Pressable> : null}
-    </ScrollView>
+        <Text style={{ fontSize: 12, fontWeight: '800', color: colors.danger }}>Clear all</Text>
+      </Pressable>
+    </Row> : null}
   </View>;
 }
 
 const styles = StyleSheet.create({
-  panel: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginHorizontal: 16, paddingVertical: 10 },
-  chipRow: { gap: 7, paddingHorizontal: 12, alignItems: 'center' },
-  panelDivider: { height: 1, backgroundColor: colors.borderSoft, marginVertical: 9, marginHorizontal: 12 },
-  rowLabel: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.primarySoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5, marginRight: 3 },
-  rowLabelText: { fontSize: 10, fontWeight: '900', color: colors.primary, letterSpacing: 0.6 },
+  panel: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.border, borderRadius: 16, marginHorizontal: 16, paddingVertical: 12 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  rowLabelBox: { width: 74, paddingLeft: 14 },
+  rowLabelText: { fontSize: 10, fontWeight: '900', color: colors.faint, letterSpacing: 0.8 },
+  chipRow: { gap: 6, paddingRight: 12, alignItems: 'center' },
+  panelDivider: { height: 1, backgroundColor: colors.borderSoft, marginVertical: 9, marginLeft: 14, marginRight: 12 },
   clearChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.dangerSoft },
 });
