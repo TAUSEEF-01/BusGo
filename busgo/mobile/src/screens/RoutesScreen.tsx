@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api } from '../api/client';
-import { Chip, Empty, ErrorState, Loading, Row } from '../components/ui';
+import { Empty, ErrorState, Loading, Row } from '../components/ui';
 import { TripCard } from '../components/TripCard';
 import { applyTripFilters, DEFAULT_TRIP_FILTERS, TripFilterBar, TripFilterState } from '../components/TripFilters';
 import { colors } from '../theme';
@@ -13,6 +13,7 @@ import { busDisplayName, localDateValue, shortDate } from '../utils/format';
 import type { DirectTrip, RootStackParamList } from '../nav';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+type SheetKind = 'origin' | 'destination' | null;
 
 const dateKeyOf = (datetime: string) => {
   const date = new Date(datetime);
@@ -36,6 +37,7 @@ export default function RoutesScreen() {
   const [destination, setDestination] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [showDate, setShowDate] = useState(false);
+  const [sheet, setSheet] = useState<SheetKind>(null);
   const [filters, setFilters] = useState<TripFilterState>(DEFAULT_TRIP_FILTERS);
   const [loaded, setLoaded] = useState(false);
 
@@ -92,23 +94,32 @@ export default function RoutesScreen() {
       }));
   }, [filtered]);
 
+  const sheetOptions = sheet === 'origin' ? origins : destinations;
+  const sheetValue = sheet === 'origin' ? origin : destination;
+  const applySheet = (value: string) => {
+    if (sheet === 'origin') setOrigin(value);
+    if (sheet === 'destination') setDestination(value);
+    setSheet(null);
+  };
+
   return <View style={{ flex: 1, backgroundColor: colors.bg }}>
-    {/* Search + route pickers */}
-    <View style={{ backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 10 }}>
+    {/* Search + route/date selectors */}
+    <View style={styles.headerPanel}>
       <View style={styles.searchBox}>
         <Ionicons name="search" size={16} color={colors.faint} />
         <TextInput value={search} onChangeText={setSearch} placeholder="Search operator, bus, origin, destination" placeholderTextColor={colors.faint} style={{ flex: 1, color: colors.text, paddingVertical: 8, fontSize: 13 }} />
         {search ? <Pressable onPress={() => setSearch('')}><Ionicons name="close-circle" size={16} color={colors.faint} /></Pressable> : null}
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 16, marginTop: 2 }}>
-        <Chip icon="radio-button-on" label={origin || 'All origins'} active={!!origin} onPress={() => setOrigin('')} />
-        {origins.filter((city) => city !== origin).slice(0, 8).map((city) => <Chip key={`o-${city}`} label={city} onPress={() => setOrigin(city)} />)}
-      </ScrollView>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 7, paddingHorizontal: 16, marginTop: 8 }}>
-        <Chip icon="location" label={destination || 'All destinations'} active={!!destination} onPress={() => setDestination('')} />
-        {destinations.filter((city) => city !== destination).slice(0, 8).map((city) => <Chip key={`d-${city}`} label={city} onPress={() => setDestination(city)} />)}
-        <Chip icon="calendar-outline" label={dateFilter ? shortDate(dateFilter) : 'Any date'} active={!!dateFilter} onPress={() => dateFilter ? setDateFilter('') : setShowDate(true)} />
-      </ScrollView>
+      <Row style={{ gap: 8, marginHorizontal: 16 }}>
+        <SelectorField icon="radio-button-on" label="FROM" value={origin || 'All cities'} muted={!origin} onPress={() => setSheet('origin')} style={{ flex: 1 }} />
+        <SelectorField icon="location" label="TO" value={destination || 'All cities'} muted={!destination} onPress={() => setSheet('destination')} style={{ flex: 1 }} />
+        <SelectorField
+          icon="calendar" label="DATE" value={dateFilter ? shortDate(dateFilter) : 'Any'} muted={!dateFilter}
+          onPress={() => setShowDate(true)}
+          onClear={dateFilter ? () => setDateFilter('') : undefined}
+          style={{ flex: 0.9 }}
+        />
+      </Row>
     </View>
 
     <ScrollView contentContainerStyle={{ paddingVertical: 12, paddingBottom: 30 }} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
@@ -139,12 +150,64 @@ export default function RoutesScreen() {
       </View>) : null}
     </ScrollView>
 
+    {/* City sheet */}
+    <Modal visible={!!sheet} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setSheet(null)}>
+      <View style={styles.modalOverlay}>
+        <Pressable style={{ flex: 1 }} onPress={() => setSheet(null)} />
+        <View style={styles.modalSheet}>
+          <Row style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 19, fontWeight: '900', color: colors.text }}>{sheet === 'origin' ? 'Leaving from' : 'Going to'}</Text>
+            <Pressable onPress={() => setSheet(null)} style={styles.modalClose}><Ionicons name="close" size={20} color={colors.text} /></Pressable>
+          </Row>
+          <ScrollView>
+            <Pressable onPress={() => applySheet('')} style={styles.cityOption}>
+              <View style={[styles.cityOptionIcon, { backgroundColor: '#f1f5f9' }]}><Ionicons name="apps-outline" size={16} color={colors.subtext} /></View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 }}>All cities</Text>
+              {!sheetValue ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+            </Pressable>
+            {sheetOptions.map((city) => <Pressable key={city} onPress={() => applySheet(city)} style={styles.cityOption}>
+              <View style={styles.cityOptionIcon}><Ionicons name="location-outline" size={16} color={colors.primary} /></View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, flex: 1 }}>{city}</Text>
+              {sheetValue === city ? <Ionicons name="checkmark-circle" size={19} color={colors.primary} /> : null}
+            </Pressable>)}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+
     {showDate && <DateTimePicker value={dateFilter ? new Date(`${dateFilter}T00:00:00`) : new Date()} minimumDate={new Date()} mode="date" display={Platform.OS === 'ios' ? 'spinner' : 'default'} onChange={(_, selected) => { setShowDate(false); if (selected) setDateFilter(localDateValue(selected)); }} />}
   </View>;
 }
 
+function SelectorField({ icon, label, value, muted, onPress, onClear, style }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; value: string; muted?: boolean;
+  onPress: () => void; onClear?: () => void; style?: object;
+}) {
+  return <Pressable onPress={onPress} style={[styles.selector, style]}>
+    <Row style={{ gap: 4 }}>
+      <Ionicons name={icon} size={11} color={colors.primary} />
+      <Text style={styles.selectorLabel}>{label}</Text>
+    </Row>
+    <Row style={{ justifyContent: 'space-between', marginTop: 2 }}>
+      <Text style={[styles.selectorValue, muted && { color: colors.faint, fontWeight: '700' }]} numberOfLines={1}>{value}</Text>
+      {onClear
+        ? <Pressable hitSlop={8} onPress={onClear}><Ionicons name="close-circle" size={15} color={colors.faint} /></Pressable>
+        : <Ionicons name="chevron-down" size={13} color={colors.faint} />}
+    </Row>
+  </Pressable>;
+}
+
 const styles = StyleSheet.create({
+  headerPanel: { backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: colors.border, paddingBottom: 12 },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: 7, marginHorizontal: 16, marginVertical: 10, paddingHorizontal: 11, backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12 },
+  selector: { backgroundColor: colors.bg, borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 },
+  selectorLabel: { fontSize: 9, fontWeight: '900', color: colors.faint, letterSpacing: 0.8 },
+  selectorValue: { fontSize: 13, fontWeight: '800', color: colors.text, flex: 1, marginRight: 4 },
   dateHeader: { gap: 7, backgroundColor: '#fff', borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.border, paddingHorizontal: 16, paddingVertical: 9, marginTop: 12, marginBottom: 8 },
   busCount: { backgroundColor: '#f1f5f9', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15,23,42,.45)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#fff', maxHeight: '70%', minHeight: '40%', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 18 },
+  modalClose: { width: 34, height: 34, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  cityOption: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  cityOptionIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' },
 });
