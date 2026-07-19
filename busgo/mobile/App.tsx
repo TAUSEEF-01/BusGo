@@ -1,5 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -8,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from './src/store/auth';
 import { NotificationsProvider, useNotifications } from './src/store/notifications';
 import { colors } from './src/theme';
+import { navigationRef } from './src/lib/navigationRef';
 import type { RootStackParamList } from './src/nav';
 import LoginScreen from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
@@ -52,7 +54,7 @@ function Tabs() {
     <Tab.Screen name="Routes" component={RoutesScreen} options={{ title: 'All Routes' }} />
     <Tab.Screen name="Trips" component={TripsScreen} options={{ title: 'My Trips' }} />
     <Tab.Screen name="Deals" component={DealsScreen} />
-    <Tab.Screen name="Alerts" component={AlertsScreen} options={{ tabBarBadge: unread ? (unread > 99 ? '99+' : unread) : undefined, tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 10, fontWeight: '800' } }} />
+    <Tab.Screen name="Alerts" component={AlertsScreen} options={{ title: 'Notifications', tabBarBadge: unread ? (unread > 99 ? '99+' : unread) : undefined, tabBarBadgeStyle: { backgroundColor: colors.primary, fontSize: 10, fontWeight: '800' } }} />
     <Tab.Screen name="Profile" component={ProfileScreen} />
   </Tab.Navigator>;
 }
@@ -76,4 +78,4 @@ function RootNav() {
 }
 
 const navigationTheme = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.bg, primary: colors.primary, card: '#fff', text: colors.text, border: colors.border } };
-export default function App() { return <SafeAreaProvider><AuthProvider><NotificationsProvider><NavigationContainer theme={navigationTheme}><StatusBar barStyle="dark-content" /><RootNav /></NavigationContainer></NotificationsProvider></AuthProvider></SafeAreaProvider>; }
+export default function App() { return <SafeAreaProvider><AuthProvider><NotificationsProvider><NavigationContainer ref={navigationRef} theme={navigationTheme}><StatusBar style="dark" /><RootNav /></NavigationContainer></NotificationsProvider></AuthProvider></SafeAreaProvider>; }

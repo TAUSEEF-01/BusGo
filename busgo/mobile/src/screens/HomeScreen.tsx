@@ -3,7 +3,8 @@ import { Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextIn
 import DateTimePicker from '@react-native-community/datetimepicker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { StatusBar } from 'expo-status-bar';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api } from '../api/client';
 import { useAuth } from '../store/auth';
@@ -26,6 +27,7 @@ const PERKS: { icon: keyof typeof Ionicons.glyphMap; title: string; text: string
 
 export default function HomeScreen() {
   const navigation = useNavigation<Nav>();
+  const isFocused = useIsFocused();
   const { user } = useAuth();
   const [cities, setCities] = useState<string[]>([]);
   const [origin, setOrigin] = useState('');
@@ -92,6 +94,7 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
+      {isFocused ? <StatusBar style="light" /> : null}
       <ScrollView contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
         {/* Hero */}
         <View style={styles.hero}>
