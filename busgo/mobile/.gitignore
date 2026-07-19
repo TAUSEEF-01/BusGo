@@ -9,3 +9,5 @@ web-build/
 # Android build artifacts (too large for GitHub)
 *.apk
 *.aab
+
+android/

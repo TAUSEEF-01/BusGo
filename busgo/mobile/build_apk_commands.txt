@@ -1,0 +1,13 @@
+cd e:\My_Github_Projects\Jaabo\busgo\mobile
+
+# Generate the native android/ project (uses app.json: package com.busgo.mobile, busgo:// scheme)
+npx expo prebuild --platform android --clean
+
+# Build a standalone release APK (JS bundle + your .env values baked in, no Metro needed)
+cd android
+.\gradlew assembleRelease
+
+
+# Install it on your phone:
+adb install app\build\outputs\apk\release\app-release.apk
+# or just copy the APK to the phone and open it
