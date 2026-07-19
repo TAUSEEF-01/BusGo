@@ -6,7 +6,7 @@ import * as QueryParams from 'expo-auth-session/build/QueryParams';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { api, setUnauthorizedHandler, USER_KEY } from '../api/client';
+import { api, ApiError, Envelope, setUnauthorizedHandler, USER_KEY } from '../api/client';
 import { clearTokens, getAccessToken, getRefreshToken, setTokens } from '../lib/tokenStore';
 import { requireSupabase, supabase } from '../lib/supabase';
 
@@ -174,10 +174,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabaseAccessToken = sessionData.session?.access_token || accessToken;
     if (!supabaseAccessToken) throw new Error('Google returned an incomplete session.');
 
-    const response = await api.post('/api/auth/google-login', {
-      token: supabaseAccessToken,
-      role: 'OPERATOR',
-    });
+    // Right after the auth browser closes, the app's network access can still
+    // be waking up — retry transient failures before giving up.
+    let response: Envelope | undefined;
+    let lastNetworkError: unknown;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await api.post('/api/auth/google-login', {
+          token: supabaseAccessToken,
+          role: 'OPERATOR',
+        });
+        break;
+      } catch (error: any) {
+        if (error instanceof ApiError && error.status === 0) {
+          lastNetworkError = error;
+          await new Promise((resolve) => setTimeout(resolve, 1500 * (attempt + 1)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (!response) throw lastNetworkError ?? new Error('Cannot reach the BusGo server.');
     const payload = response.data;
     const busgoToken = payload?.access_token;
     const busgoRefreshToken = payload?.refresh_token;
