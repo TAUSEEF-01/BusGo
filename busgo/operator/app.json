@@ -5,7 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "scheme": "busgo-operator",
+    // "scheme": "busgo-operator",
+    "scheme": [
+      "busgo",
+      "busgo-operator"
+    ],
     "newArchEnabled": true,
     "icon": "./assets/icon.png",
     "splash": {
