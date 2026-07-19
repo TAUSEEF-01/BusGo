@@ -22,8 +22,8 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const boardingPoints = trip.boarding_points?.length ? trip.boarding_points : [{ name: origin }];
-  const droppingPoints = trip.dropping_points?.length ? trip.dropping_points : [{ name: destination }];
+  const [boardingPoints, setBoardingPoints] = useState<{ name: string; address?: string }[]>(trip.boarding_points?.length ? trip.boarding_points : [{ name: origin }]);
+  const [droppingPoints, setDroppingPoints] = useState<{ name: string; address?: string }[]>(trip.dropping_points?.length ? trip.dropping_points : [{ name: destination }]);
   const [boardingPoint, setBoardingPoint] = useState(boardingPoints[0].name);
   const [droppingPoint, setDroppingPoint] = useState(droppingPoints[0].name);
   const [selecting, setSelecting] = useState<'boarding' | 'dropping' | null>(null);
@@ -41,6 +41,26 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
   }, [tripId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Web parity: the trips LIST endpoint carries no terminals — the single-trip
+  // endpoint does. Fetch it so real boarding/dropping points (with addresses)
+  // replace the plain city-name fallback.
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/api/operators/trips/${tripId}?_t=${Date.now()}`).then((response) => {
+      if (cancelled) return;
+      const details = response.data || {};
+      if (Array.isArray(details.boarding_points) && details.boarding_points.length) {
+        setBoardingPoints(details.boarding_points);
+        setBoardingPoint((current) => details.boarding_points.some((point: any) => point.name === current) ? current : details.boarding_points[0].name);
+      }
+      if (Array.isArray(details.dropping_points) && details.dropping_points.length) {
+        setDroppingPoints(details.dropping_points);
+        setDroppingPoint((current) => details.dropping_points.some((point: any) => point.name === current) ? current : details.dropping_points[0].name);
+      }
+    }).catch(() => { /* city-name fallback stays usable */ });
+    return () => { cancelled = true; };
+  }, [tripId]);
   const toggle = (id: string) => setSelected((current) => {
     if (current.includes(id)) return current.filter((seat) => seat !== id);
     if (current.length >= MAX_SEATS) { Alert.alert('Seat limit', `You can book up to ${MAX_SEATS} seats at once.`); return current; }
@@ -99,14 +119,31 @@ export default function SeatsScreen({ route, navigation }: ScreenProps<'Seats'>)
 
     {!loading && !error ? <Card style={{ marginTop: 16 }}>
       <Text style={{ fontWeight: '800', color: colors.text, marginBottom: 8 }}>Pickup and drop-off</Text>
-      <Pressable onPress={() => setSelecting('boarding')} style={{ borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 8, backgroundColor: '#fff' }}>
-        <Text style={{ color: colors.faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 }}>BOARDING POINT</Text>
-        <Row style={{ justifyContent: 'space-between', marginTop: 3 }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }}>{boardingPoint}</Text><Ionicons name="chevron-down" size={18} color={colors.subtext} /></Row>
-      </Pressable>
-      <Pressable onPress={() => setSelecting('dropping')} style={{ borderWidth: 1.5, borderColor: colors.border, borderRadius: 12, padding: 12, marginBottom: 14, backgroundColor: '#fff' }}>
-        <Text style={{ color: colors.faint, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 }}>DROPPING POINT</Text>
-        <Row style={{ justifyContent: 'space-between', marginTop: 3 }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }}>{droppingPoint}</Text><Ionicons name="chevron-down" size={18} color={colors.subtext} /></Row>
-      </Pressable>
+      <View style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 14, marginBottom: 14, overflow: 'hidden' }}>
+        {/* Boarding */}
+        <View style={{ padding: 12 }}>
+          <Row style={{ gap: 6, marginBottom: 8 }}>
+            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="location" size={11} color={colors.primary} /></View>
+            <Text style={{ color: colors.subtext, fontSize: 11, fontWeight: '800', letterSpacing: 0.7 }}>BOARDING POINT</Text>
+          </Row>
+          <Pressable onPress={() => setSelecting('boarding')} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.bg }}>
+            <Row style={{ justifyContent: 'space-between' }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{boardingPoint}</Text><Ionicons name="chevron-down" size={16} color={colors.subtext} /></Row>
+          </Pressable>
+          {boardingPoints.find((point) => point.name === boardingPoint)?.address ? <Text style={{ color: colors.subtext, fontSize: 11, lineHeight: 15, marginTop: 6 }} numberOfLines={2}>{boardingPoints.find((point) => point.name === boardingPoint)?.address}</Text> : null}
+        </View>
+        <View style={{ height: 1, backgroundColor: colors.border }} />
+        {/* Dropping */}
+        <View style={{ padding: 12 }}>
+          <Row style={{ gap: 6, marginBottom: 8 }}>
+            <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: colors.dangerSoft, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="location" size={11} color={colors.danger} /></View>
+            <Text style={{ color: colors.subtext, fontSize: 11, fontWeight: '800', letterSpacing: 0.7 }}>DROPPING POINT</Text>
+          </Row>
+          <Pressable onPress={() => setSelecting('dropping')} style={{ borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.bg }}>
+            <Row style={{ justifyContent: 'space-between' }}><Text style={{ color: colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>{droppingPoint}</Text><Ionicons name="chevron-down" size={16} color={colors.subtext} /></Row>
+          </Pressable>
+          {droppingPoints.find((point) => point.name === droppingPoint)?.address ? <Text style={{ color: colors.subtext, fontSize: 11, lineHeight: 15, marginTop: 6 }} numberOfLines={2}>{droppingPoints.find((point) => point.name === droppingPoint)?.address}</Text> : null}
+        </View>
+      </View>
       <Row style={{ justifyContent: 'space-between', marginBottom: 6 }}>
         <Text style={{ color: colors.subtext }}>Selected seats</Text>
         <Row style={{ gap: 5, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1, marginLeft: 12 }}>
