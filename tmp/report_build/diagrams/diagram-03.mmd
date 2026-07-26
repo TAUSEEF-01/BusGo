@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor U as Passenger
+    participant TR as transit-service
+    participant B as booking-service
+    participant I as inventory-service
+    participant P as payment-service
+
+    U->>TR: GET /api/transit/search?origin&destination&journey_date
+    TR->>TR: graph search over ES bus_trips<br/>(30 min <= transfer <= 6 h, <= 3 legs)
+    TR->>TR: merge operator-curated transit_routes (ranked first)
+    TR-->>U: <=5 itineraries (source = operator | auto)
+
+    U->>B: POST /api/bookings/journeys/ (all legs, one idempotency_key)
+    B->>B: INSERT journey (SEAT_LOCKED)
+    loop for each leg (ordered)
+        B->>I: lock seats for leg N
+        alt lock succeeds
+            I-->>B: OK -> INSERT booking row (journey_id, leg_number)
+        else lock fails
+            I-->>B: 409
+            B->>I: COMPENSATE - release legs 1..N-1
+            B->>B: journey -> FAILED
+            B-->>U: 409 "no seats were held"
+        end
+    end
+    B-->>U: journey_id, total_fare, expires_at
+
+    U->>P: POST /api/payments/initiate (journey_id)
+    P->>B: GET /journeys/{id} - fraud check on the JOURNEY total
+    P-->>U: paid
+    Note over B: one payment · one booking row per leg · one ticket per leg

@@ -1,0 +1,60 @@
+sequenceDiagram
+    autonumber
+    actor U as Passenger (SPA)
+    participant K as Kong
+    participant S as search-service
+    participant I as inventory-service
+    participant B as booking-service
+    participant O as operator-service
+    participant D as deals-service
+    participant P as payment-service
+    participant BK as bank-service
+    participant Q as Kafka
+    participant T as ticket-service
+    participant N as notification-service
+
+    U->>K: GET /api/search/buses?origin&destination&date
+    K->>S: forward
+    S->>S: query Elasticsearch (bus_trips)
+    S->>I: GET /trips/{id}/available-count (resilient client)
+    S-->>U: trips + live availability
+
+    U->>K: GET /api/inventory/trips/{id}/seats
+    K->>I: forward
+    I->>I: seat_inventory rows + Redis lock overlay
+    I-->>U: live seat map
+
+    U->>K: POST /api/bookings/ (seats, passengers, fare, idempotency_key)
+    K->>B: forward (JWT verified in service)
+    B->>B: Redis idempotency lookup
+    B->>O: GET /trips/{id}  (authoritative fare, operator, points)
+    B->>B: reject if client fare/operator/point mismatch
+    B->>D: POST /validate-promo
+    B->>I: POST /trips/{id}/seats/lock  (Redis SET NX EX 600s)
+    I-->>B: locked (or 409 SeatAlreadyLocked)
+    B->>B: INSERT booking (SEAT_LOCKED) + status history
+    B->>Q: publish booking.created, audit.log
+    B-->>U: booking_id, expires_at (10 min)
+
+    U->>K: POST /api/payments/initiate (method, PIN)
+    K->>P: forward
+    P->>B: GET /bookings/{id} (fraud check: amount match)
+    P->>P: attempts < 3 ? else publish payment.failed
+    P->>BK: POST /verify-debit (balance + PIN)
+    BK-->>P: debited, balance_after
+    P->>Q: publish payment.completed
+    P-->>U: redirect_url / success
+
+    Q-->>B: payment.completed
+    B->>I: POST /trips/{id}/seats/confirm
+    B->>B: booking -> CONFIRMED
+    B->>Q: publish ticket.issued
+    Q-->>T: ticket.issued
+    T->>T: generate QR + PDF
+    Q-->>N: notification.send
+    N->>N: persist in_app_notification (BOOKING_CONFIRMED)
+    Q-->>N: audit.log -> audit-service persists event
+
+    U->>K: GET /api/notifications/ (30s poll)
+    K->>N: forward
+    N-->>U: unread count + inbox

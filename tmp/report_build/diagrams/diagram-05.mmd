@@ -1,0 +1,33 @@
+sequenceDiagram
+    autonumber
+    participant OP as Operator (portal)
+    participant OS as operator-service
+    participant DB as operator_db
+    participant K as Kafka
+    participant SS as search-service
+    participant ES as Elasticsearch
+    participant NS as notification-service
+    participant ND as notification_db
+    participant UI as Passenger UI
+
+    OP->>OS: POST /api/operators/trips/ (new trip)
+    OS->>DB: INSERT trip  (committed)
+    OS->>K: publish trip.created
+    K-->>SS: trip.created
+    SS->>ES: index bus_trips/{trip_id}
+    Note over ES: trip is now searchable - no manual reindex
+
+    UI->>SS: GET /api/search/buses (React Query, staleTime elapsed)
+    SS-->>UI: trip appears
+
+    Note over OP,ND: later - operator delays the trip
+    OP->>OS: PUT /api/operators/trips/{id} (delay)
+    OS->>K: publish trip.delayed
+    K-->>SS: reindex updated trip
+    K-->>NS: trip.delayed
+    NS->>ND: INSERT in_app_notification (BUS_DELAYED) per affected passenger
+    loop every 30 s while the bell is mounted
+        UI->>NS: GET /api/notifications/ + /stats
+        NS-->>UI: unread count += 1
+    end
+    Note over UI: badge updates in place - no page refresh

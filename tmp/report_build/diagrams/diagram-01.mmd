@@ -1,0 +1,63 @@
+graph TB
+    subgraph Clients
+        WEB["Web SPA<br/>React 18 + Vite<br/>(Nginx :8083)"]
+        MOB["Passenger App<br/>Expo / React Native"]
+        OPS["Operator App<br/>Expo / React Native"]
+    end
+
+    NGX["System Nginx + Certbot<br/>busgo.farefin.com :443"]
+    KONG["Kong API Gateway 3.4 (DB-less)<br/>upstreams · ring balancer<br/>active+passive health checks · retries"]
+
+    WEB --> NGX
+    MOB --> NGX
+    OPS --> NGX
+    NGX -->|"/"| WEB
+    NGX -->|"/api/*"| KONG
+
+    subgraph Edge["Business services (FastAPI)"]
+        AUTH["auth-service<br/>/api/auth"]
+        SRCH["search-service<br/>/api/search"]
+        TRAN["transit-service<br/>/api/transit"]
+        INV["inventory-service<br/>/api/inventory"]
+        BOOK["booking-service<br/>/api/bookings"]
+        PAY["payment-service<br/>/api/payments"]
+        BANK["bank-service<br/>/api/bank"]
+        TKT["ticket-service<br/>/api/tickets"]
+        CANC["cancellation-service<br/>/api/cancellations"]
+        OPR["operator-service<br/>/api/operators"]
+        DEAL["deals-service<br/>/api/deals"]
+        NOTI["notification-service<br/>/api/notifications"]
+        ADM["admin-service<br/>/api/admin"]
+        AUD["audit-service<br/>/api/audit"]
+    end
+
+    KONG --> AUTH & SRCH & TRAN & INV & BOOK & PAY & BANK & TKT & CANC & OPR & DEAL & NOTI & ADM & AUD
+
+    subgraph Data["Data & messaging"]
+        PG[("PostgreSQL 15 / Supabase<br/>13 logical databases")]
+        RDS[("Redis 7<br/>seat locks · idempotency")]
+        ES[("Elasticsearch 8.11<br/>bus_trips index")]
+        KFK{{"Kafka 7.5 + Zookeeper<br/>9 topics"}}
+    end
+
+    AUTH & INV & BOOK & PAY & BANK & TKT & CANC & OPR & DEAL & NOTI & ADM & AUD --> PG
+    AUTH & INV & BOOK & SRCH & DEAL --> RDS
+    SRCH & TRAN --> ES
+    BOOK & PAY & TKT & CANC & NOTI & AUD & SRCH & BANK <--> KFK
+
+    subgraph Obs["Observability"]
+        PROM["Prometheus"]
+        GRAF["Grafana"]
+        LOKI["Loki"]
+        PTL["Promtail"]
+    end
+    PROM -.scrape /metrics.-> Edge
+    PROM -.scrape.-> KONG
+    PTL -.docker logs.-> LOKI
+    PROM --> GRAF
+    LOKI --> GRAF
+
+    SUPA["Supabase Auth<br/>Google OAuth 2.0"]
+    WEB -.OAuth.-> SUPA
+    MOB -.OAuth.-> SUPA
+    AUTH -.verify session.-> SUPA

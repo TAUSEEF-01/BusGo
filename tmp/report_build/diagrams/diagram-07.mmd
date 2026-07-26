@@ -1,0 +1,9 @@
+flowchart LR
+    A["Feature branch"] --> B["TypeScript and mobile verification"]
+    B --> C["Pull request and peer review"]
+    C --> D["Merge to main"]
+    D --> E["Run setup_server.sh on Azure"]
+    E --> F["Build frontend and service images"]
+    F --> G["Start the Docker Compose stack"]
+    G --> H["Run health, concurrency, and transit tests"]
+    H --> I["Observe metrics and logs in Grafana"]

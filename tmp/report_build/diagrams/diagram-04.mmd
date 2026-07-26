@@ -1,0 +1,254 @@
+erDiagram
+    USERS ||--o{ REFRESH_TOKENS : "issues"
+    USERS ||--o{ OTP_RECORDS : "requests"
+    OPERATORS ||--o{ BUSES : "owns"
+    OPERATORS ||--o{ ROUTES : "publishes"
+    OPERATORS ||--o{ TRIPS : "schedules"
+    OPERATORS ||--o{ TRANSIT_ROUTES : "curates"
+    BUSES ||--o{ TRIPS : "runs"
+    ROUTES ||--o{ TRIPS : "follows"
+    BOOKINGS ||--o{ BOOKING_STATUS_HISTORY : "audits"
+    JOURNEYS ||--|{ BOOKINGS : "has legs"
+    PAYMENTS ||--o{ REFUNDS : "may refund"
+    BANK_ACCOUNTS ||--o{ BANK_TRANSACTIONS : "records"
+
+    TRIPS ||..o{ SEAT_INVENTORY : "seats (x-svc)"
+    TRIPS ||..o{ BOOKINGS : "booked as (x-svc)"
+    USERS ||..o{ BOOKINGS : "makes (x-svc)"
+    BOOKINGS ||..|| PAYMENTS : "paid by (x-svc)"
+    BOOKINGS ||..|| TICKETS : "issues (x-svc)"
+    BOOKINGS ||..o{ CANCELLATION_REQUESTS : "cancelled by (x-svc)"
+    USERS ||..o{ BANK_ACCOUNTS : "holds (x-svc)"
+    USERS ||..o{ IN_APP_NOTIFICATIONS : "receives (x-svc)"
+    USERS ||..o{ TRAVEL_RECORDS : "travelled (x-svc)"
+    USERS ||..o{ AUDIT_LOGS : "acted (x-svc)"
+
+    USERS {
+        uuid id PK
+        string phone "indexed, nullable (Google users)"
+        string email UK "indexed, nullable"
+        string full_name
+        string password_hash "nullable"
+        string auth_provider "password | google"
+        string provider_subject UK "Supabase subject"
+        enum role "CUSTOMER | OPERATOR | ADMIN"
+        bool is_verified
+        bool is_active
+    }
+    OPERATORS {
+        uuid id PK
+        string name
+        string contact_phone
+        string contact_email
+        string license_no
+        float commission_rate
+        bool is_active
+    }
+    BUSES {
+        uuid id PK
+        uuid operator_id FK
+        string registration_no UK "indexed"
+        enum bus_type
+        int total_seats
+        jsonb seat_layout
+        jsonb amenities
+        bool allow_transit
+    }
+    ROUTES {
+        uuid id PK
+        uuid operator_id FK
+        string origin_city "indexed"
+        string destination_city "indexed"
+        float distance_km
+        jsonb boarding_points
+        jsonb dropping_points
+    }
+    TRIPS {
+        uuid id PK
+        uuid operator_id FK
+        uuid bus_id FK
+        uuid route_id FK
+        datetime departure_datetime
+        datetime arrival_datetime
+        numeric fare_amount
+        int available_seats
+        enum status
+        bool allow_transit
+    }
+    TRANSIT_ROUTES {
+        uuid id PK
+        uuid operator_id FK "indexed"
+        string origin_city "indexed"
+        string destination_city "indexed"
+        jsonb via_cities "1..2 ordered"
+        jsonb leg_assignments
+        float combined_discount_pct
+        bool is_active
+    }
+    SEAT_INVENTORY {
+        uuid id PK
+        uuid trip_id "indexed"
+        string seat_number
+        enum seat_type
+        enum status "AVAILABLE | LOCKED | BOOKED"
+        uuid locked_by_booking_id
+        datetime lock_expires_at
+        uuid booked_by_user_id
+    }
+    BOOKINGS {
+        uuid id PK
+        uuid user_id "indexed"
+        uuid trip_id "indexed"
+        uuid operator_id
+        jsonb seat_numbers
+        jsonb passenger_details
+        date journey_date
+        time departure_time
+        numeric total_fare
+        numeric discount_amount
+        uuid journey_id "indexed, nullable"
+        int leg_number "nullable"
+        enum status
+        string idempotency_key UK
+        datetime expires_at
+    }
+    JOURNEYS {
+        uuid id PK
+        uuid user_id "indexed"
+        string origin
+        string destination
+        int leg_count
+        numeric total_fare
+        enum status
+        string idempotency_key UK
+        uuid transit_route_id
+        datetime expires_at
+    }
+    BOOKING_STATUS_HISTORY {
+        uuid id PK
+        uuid booking_id FK
+        enum from_status
+        enum to_status
+        datetime changed_at
+        string reason
+    }
+    TRAVEL_RECORDS {
+        uuid id PK
+        uuid user_id "indexed"
+        uuid trip_id "indexed"
+        uuid operator_id "indexed"
+        string origin "indexed"
+        string destination "indexed"
+        date journey_date
+    }
+    PAYMENTS {
+        uuid id PK
+        uuid booking_id "indexed (journey_id for transit)"
+        uuid user_id "indexed"
+        uuid trip_id "indexed (fraud checks)"
+        numeric amount
+        enum method
+        string gateway_transaction_id UK
+        enum status
+        jsonb gateway_response
+    }
+    REFUNDS {
+        uuid id PK
+        uuid payment_id FK
+        uuid booking_id
+        numeric amount
+        string reason
+        enum status
+        int estimated_days
+    }
+    BANK_ACCOUNTS {
+        uuid id PK
+        uuid user_id "indexed"
+        enum account_type
+        string provider
+        string account_number UK
+        string pin
+        numeric balance
+        string currency
+    }
+    BANK_TRANSACTIONS {
+        uuid id PK
+        uuid account_id FK
+        string direction "DEBIT | CREDIT"
+        numeric amount
+        numeric balance_after
+        string reference "booking_id"
+    }
+    TICKETS {
+        uuid id PK
+        uuid booking_id UK
+        uuid user_id "indexed"
+        uuid trip_id "indexed"
+        jsonb seat_numbers
+        string qr_code_data UK "indexed"
+        string pdf_url
+        enum status
+    }
+    CANCELLATION_REQUESTS {
+        uuid id PK
+        uuid booking_id
+        uuid user_id
+        string reason
+        enum status
+        numeric refund_amount
+    }
+    PROMO_CODES {
+        uuid id PK
+        string code UK "indexed"
+        enum discount_type
+        numeric discount_value
+        numeric min_fare
+        numeric max_discount
+        int max_uses
+        int current_uses
+        json applicable_operators
+        string operator_id "indexed"
+    }
+    FLASH_SALES {
+        uuid id PK
+        string name
+        int discount_percentage
+        datetime start_time
+        datetime end_time
+        json applicable_trips
+        json applicable_routes
+        string operator_id "indexed"
+    }
+    IN_APP_NOTIFICATIONS {
+        uuid id PK
+        uuid user_id "indexed"
+        string role
+        enum type "26 kinds"
+        string title
+        text message
+        json metadata
+        bool is_read
+    }
+    NOTIFICATION_LOGS {
+        uuid id PK
+        uuid user_id
+        enum channel "EMAIL|SMS|PUSH|WHATSAPP"
+        string template_name
+        json payload
+        enum status
+    }
+    AUDIT_LOGS {
+        uuid id PK
+        string event_type "indexed"
+        string entity_type
+        uuid entity_id "indexed"
+        uuid user_id "indexed"
+        json payload
+        datetime created_at "indexed"
+    }
+    NOTICES {
+        uuid id PK
+        string title
+        text body
+        bool is_active
+    }

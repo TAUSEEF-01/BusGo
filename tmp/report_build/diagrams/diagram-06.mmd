@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    actor U as User
+    participant C as Client (web / mobile)
+    participant SB as Supabase Auth
+    participant G as Google
+    participant A as auth-service
+    participant DB as auth_db
+
+    U->>C: "Continue with Google"
+    C->>SB: signInWithOAuth(provider=google, redirectTo)
+    SB->>G: OAuth 2.0 authorization request
+    G-->>U: consent screen
+    U->>G: approve
+    G-->>SB: authorization code
+    SB-->>C: redirect to /login?google=callback with a Supabase session
+    C->>A: POST /api/auth/google-login { token: supabase_access_token }
+    A->>SB: GET /auth/v1/user (apikey + Bearer token)
+    SB-->>A: verified identity { id, email, app_metadata.providers }
+    A->>A: reject unless provider includes "google" AND email present
+    A->>DB: find by provider_subject OR lower(email)
+    alt existing user
+        DB-->>A: link provider_subject, preserve existing ROLE
+    else new user
+        A->>DB: INSERT user (role = CUSTOMER or OPERATOR only)
+    end
+    A->>A: mint HS256 access (15 min) + refresh (7 days)
+    A->>DB: persist refresh token
+    A-->>C: { access_token, refresh_token, user }
+    C->>C: store in Zustand + cookie (web) / SecureStore (mobile)
